@@ -1,0 +1,1 @@
+"""Santai CLI package."""
