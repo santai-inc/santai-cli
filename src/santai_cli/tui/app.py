@@ -205,111 +205,236 @@ class GraphPanel(Static):
         self.refresh_graph()
 
     def refresh_graph(self) -> None:
-        """Refresh graph data."""
+        """Refresh graph data with visual ASCII graph rendering."""
         graph = get_file_graph(self.project)
         content_widget = self.query_one("#graph-content", Static)
 
         if not graph.nodes:
-            content_widget.update("[dim]No files found[/dim]")
+            content_widget.update("[dim]No files found. Add files to resources/, notes/, etc.[/dim]")
             return
 
         lines = []
 
-        # Show stats
+        # Stats header
         lines.append(
-            f"[bold]Nodes:[/bold] {len(graph.nodes)}  [bold]Links:[/bold] {len(graph.edges)}"
+            f"[bold]Nodes:[/bold] {len(graph.nodes)}  "
+            f"[bold]Edges:[/bold] {len(graph.edges)}"
         )
         lines.append("")
 
-        max_links = 30 if self.fullscreen else 15
+        # Group nodes by directory
+        nodes_by_dir: dict[str, list] = {}
+        for node in graph.nodes:
+            if node.directory not in nodes_by_dir:
+                nodes_by_dir[node.directory] = []
+            nodes_by_dir[node.directory].append(node)
+
+        # Build node lookup
+        node_lookup = {node.id: node for node in graph.nodes}
+
+        # Build adjacency: node_id -> set of connected node_ids
+        adjacency: dict[str, set[str]] = {}
+        for edge in graph.edges:
+            adjacency.setdefault(edge.source, set()).add(edge.target)
+            adjacency.setdefault(edge.target, set()).add(edge.source)
+
+        # Determine max nodes to show per directory
+        max_per_dir = 8 if self.fullscreen else 4
+
+        # === VISUAL GRAPH ===
+        # Render directory clusters as visual boxes with nodes inside
+        # Connected nodes get lines drawn between clusters
+
+        dir_order = ["resources", "codebases", "history", "notes"]
+        active_dirs = [d for d in dir_order if d in nodes_by_dir]
+        # Add any dirs not in the standard order
+        for d in nodes_by_dir:
+            if d not in active_dirs:
+                active_dirs.append(d)
+
+        if self.fullscreen:
+            # Fullscreen: render side-by-side cluster boxes
+            self._render_fullscreen_graph(lines, active_dirs, nodes_by_dir, adjacency, node_lookup, max_per_dir)
+        else:
+            # Panel: compact vertical cluster view
+            self._render_panel_graph(lines, active_dirs, nodes_by_dir, adjacency, node_lookup, max_per_dir)
+
+        # Legend
+        lines.append("")
+        legend_parts = []
+        for dir_name in active_dirs:
+            color = self.DIR_COLORS.get(dir_name, self.DIR_COLORS["other"])
+            legend_parts.append(f"[{color}]●[/{color}] {dir_name}")
+        lines.append(" ".join(legend_parts))
 
         if graph.edges:
-            # Group edges by source
-            edges_by_source: dict[str, list[tuple[str, str]]] = {}
-            for edge in graph.edges:
-                if edge.source not in edges_by_source:
-                    edges_by_source[edge.source] = []
-                edges_by_source[edge.source].append((edge.target, edge.link_text))
-
-            # Create node lookup for directory info
-            node_dirs = {node.id: node.directory for node in graph.nodes}
-
-            lines.append("[bold]Links:[/bold]")
-            lines.append("")
-
-            # Show links
-            shown = 0
-            for source, targets in sorted(edges_by_source.items()):
-                if shown >= max_links:
-                    remaining = sum(
-                        len(t) for s, t in list(edges_by_source.items())[shown:]
-                    )
-                    lines.append(f"[dim]... and {remaining} more links[/dim]")
-                    break
-
-                source_name = Path(source).name
-                source_dir = node_dirs.get(source, "other")
-                source_color = self.DIR_COLORS.get(source_dir, self.DIR_COLORS["other"])
-
-                for target, link_text in targets:
-                    if shown >= max_links:
-                        break
-                    target_name = Path(target).name
-                    target_dir = node_dirs.get(target, "other")
-                    target_color = self.DIR_COLORS.get(
-                        target_dir, self.DIR_COLORS["other"]
-                    )
-
-                    # Truncate link text
-                    max_text = 40 if self.fullscreen else 20
-                    display_text = (
-                        link_text[:max_text] + "..."
-                        if len(link_text) > max_text
-                        else link_text
-                    )
-
-                    lines.append(
-                        f"[{source_color}]{source_name}[/{source_color}] "
-                        f"[dim]──>[/dim] "
-                        f"[{target_color}]{target_name}[/{target_color}] "
-                        f"[dim]({display_text})[/dim]"
-                    )
-                    shown += 1
-        else:
-            lines.append("[dim]No links between files[/dim]")
-            lines.append("")
-            lines.append("[dim]Add links in markdown files:[/dim]")
-            lines.append("[dim]  [text](path/to/file.md)[/dim]")
-            lines.append("[dim]  [[wikilink]][/dim]")
-
-        # Show all nodes grouped by directory in fullscreen
-        if self.fullscreen:
-            lines.append("")
-            lines.append("[bold]All Files:[/bold]")
-            nodes_by_dir: dict[str, list] = {}
-            for node in graph.nodes:
-                if node.directory not in nodes_by_dir:
-                    nodes_by_dir[node.directory] = []
-                nodes_by_dir[node.directory].append(node)
-
-            for dir_name in sorted(nodes_by_dir.keys()):
-                color = self.DIR_COLORS.get(dir_name, self.DIR_COLORS["other"])
-                nodes = nodes_by_dir[dir_name]
-                lines.append(f"  [{color}]● {dir_name}/ ({len(nodes)} files)[/{color}]")
-                for node in sorted(nodes, key=lambda n: n.name)[:20]:
-                    size = format_size(node.size_bytes)
-                    lines.append(f"    [{color}]├[/{color}] {node.name} [dim]({size})[/dim]")
-                if len(nodes) > 20:
-                    lines.append(f"    [dim]... and {len(nodes) - 20} more[/dim]")
-
-        # Show legend
-        lines.append("")
-        lines.append("[bold]Legend:[/bold]")
-        for dir_name, color in self.DIR_COLORS.items():
-            if dir_name != "other":
-                lines.append(f"  [{color}]●[/{color}] {dir_name}")
+            lines.append("[dim]─── = link between files[/dim]")
 
         content_widget.update("\n".join(lines))
+
+    def _render_panel_graph(self, lines, active_dirs, nodes_by_dir, adjacency, node_lookup, max_per_dir):
+        """Render compact graph for side panel."""
+        for i, dir_name in enumerate(active_dirs):
+            color = self.DIR_COLORS.get(dir_name, self.DIR_COLORS["other"])
+            nodes = sorted(nodes_by_dir[dir_name], key=lambda n: n.name)
+            count = len(nodes)
+            display_nodes = nodes[:max_per_dir]
+
+            # Cluster box
+            max_name_len = max((len(n.name) for n in display_nodes), default=8)
+            box_width = max(max_name_len + 4, len(dir_name) + 6)
+
+            lines.append(f"[{color}]╭{'─' * box_width}╮[/{color}]")
+            header = f" {dir_name}/ ({count})"
+            lines.append(f"[{color}]│[/{color}][bold {color}]{header:<{box_width}}[/bold {color}][{color}]│[/{color}]")
+            lines.append(f"[{color}]├{'─' * box_width}┤[/{color}]")
+
+            for node in display_nodes:
+                # Check if this node has connections
+                has_links = node.id in adjacency
+                marker = "◆" if has_links else "○"
+                name = node.name[:box_width - 4]
+                padding = box_width - len(name) - 3
+                lines.append(
+                    f"[{color}]│[/{color}] {marker} {name}{' ' * padding}[{color}]│[/{color}]"
+                )
+
+            if count > max_per_dir:
+                more_text = f"  +{count - max_per_dir} more"
+                padding = box_width - len(more_text)
+                lines.append(
+                    f"[{color}]│[/{color}][dim]{more_text}{' ' * padding}[/dim][{color}]│[/{color}]"
+                )
+
+            lines.append(f"[{color}]╰{'─' * box_width}╯[/{color}]")
+
+            # Draw connections from this cluster to others
+            if i < len(active_dirs) - 1:
+                connections = self._get_cross_dir_connections(
+                    dir_name, active_dirs[i + 1:], nodes_by_dir, adjacency
+                )
+                if connections:
+                    for src_name, tgt_name, tgt_dir in connections[:3]:
+                        tgt_color = self.DIR_COLORS.get(tgt_dir, self.DIR_COLORS["other"])
+                        lines.append(
+                            f"  [{color}]{src_name}[/{color}] "
+                            f"[dim]───────>[/dim] "
+                            f"[{tgt_color}]{tgt_name}[/{tgt_color}]"
+                        )
+                else:
+                    lines.append(f"[dim]  │[/dim]")
+
+    def _render_fullscreen_graph(self, lines, active_dirs, nodes_by_dir, adjacency, node_lookup, max_per_dir):
+        """Render expanded graph for fullscreen view."""
+        max_per_dir = 15  # Show more in fullscreen
+
+        # Render each cluster as a larger box
+        for i, dir_name in enumerate(active_dirs):
+            color = self.DIR_COLORS.get(dir_name, self.DIR_COLORS["other"])
+            nodes = sorted(nodes_by_dir[dir_name], key=lambda n: n.name)
+            count = len(nodes)
+            display_nodes = nodes[:max_per_dir]
+
+            # Wider box for fullscreen
+            max_name_len = max((len(n.name) for n in display_nodes), default=8)
+            box_width = max(max_name_len + 20, len(dir_name) + 10, 40)
+
+            lines.append(f"[{color}]╔{'═' * box_width}╗[/{color}]")
+            header = f" ● {dir_name}/ ({count} files)"
+            lines.append(f"[{color}]║[/{color}][bold {color}]{header:<{box_width}}[/bold {color}][{color}]║[/{color}]")
+            lines.append(f"[{color}]╠{'═' * box_width}╣[/{color}]")
+
+            for node in display_nodes:
+                has_links = node.id in adjacency
+                link_count = len(adjacency.get(node.id, set()))
+                marker = "◆" if has_links else "○"
+                size = format_size(node.size_bytes)
+                name_part = node.name[:box_width - 20]
+                link_info = f"({link_count} links)" if link_count > 0 else ""
+                detail = f"{name_part}  [dim]{size} {link_info}[/dim]"
+                # Calculate visible length (without Rich markup)
+                visible_len = len(name_part) + 2 + len(size) + 1 + len(link_info)
+                padding = max(0, box_width - visible_len - 3)
+                lines.append(
+                    f"[{color}]║[/{color}] {marker} {detail}{' ' * padding}[{color}]║[/{color}]"
+                )
+
+            if count > max_per_dir:
+                more_text = f"  ... +{count - max_per_dir} more files"
+                padding = box_width - len(more_text)
+                lines.append(
+                    f"[{color}]║[/{color}][dim]{more_text}{' ' * padding}[/dim][{color}]║[/{color}]"
+                )
+
+            lines.append(f"[{color}]╚{'═' * box_width}╝[/{color}]")
+
+            # Draw connections between this cluster and others
+            if i < len(active_dirs) - 1:
+                connections = self._get_cross_dir_connections(
+                    dir_name, active_dirs[i + 1:], nodes_by_dir, adjacency
+                )
+                if connections:
+                    lines.append("")
+                    for src_name, tgt_name, tgt_dir in connections[:5]:
+                        tgt_color = self.DIR_COLORS.get(tgt_dir, self.DIR_COLORS["other"])
+                        lines.append(
+                            f"    [{color}]{src_name}[/{color}] "
+                            f"[dim]════════════>[/dim] "
+                            f"[{tgt_color}]{tgt_name}[/{tgt_color}] "
+                            f"[dim]({tgt_dir}/)[/dim]"
+                        )
+                    lines.append("")
+                else:
+                    lines.append(f"[dim]    ║[/dim]")
+                    lines.append("")
+
+        # Show all edges in a summary section
+        if adjacency:
+            lines.append("")
+            lines.append("[bold]All Connections:[/bold]")
+            lines.append(f"[dim]{'─' * 50}[/dim]")
+            edge_shown = 0
+            seen_edges: set[tuple[str, str]] = set()
+            for node_id, connected in sorted(adjacency.items()):
+                if node_id not in node_lookup:
+                    continue
+                src_node = node_lookup[node_id]
+                src_color = self.DIR_COLORS.get(src_node.directory, self.DIR_COLORS["other"])
+                for target_id in sorted(connected):
+                    edge_key = tuple(sorted([node_id, target_id]))
+                    if edge_key in seen_edges:
+                        continue
+                    seen_edges.add(edge_key)
+                    if target_id not in node_lookup:
+                        continue
+                    tgt_node = node_lookup[target_id]
+                    tgt_color = self.DIR_COLORS.get(tgt_node.directory, self.DIR_COLORS["other"])
+                    lines.append(
+                        f"  [{src_color}]◆ {src_node.name}[/{src_color}] "
+                        f"[dim]⟷[/dim] "
+                        f"[{tgt_color}]◆ {tgt_node.name}[/{tgt_color}]"
+                    )
+                    edge_shown += 1
+                    if edge_shown >= 20:
+                        remaining = len(seen_edges)
+                        lines.append(f"  [dim]... and more connections[/dim]")
+                        break
+                if edge_shown >= 20:
+                    break
+
+    def _get_cross_dir_connections(self, source_dir, target_dirs, nodes_by_dir, adjacency):
+        """Get connections between nodes in source_dir and target_dirs."""
+        connections = []
+        source_nodes = nodes_by_dir.get(source_dir, [])
+        for src_node in source_nodes:
+            if src_node.id not in adjacency:
+                continue
+            for target_id in adjacency[src_node.id]:
+                for tgt_dir in target_dirs:
+                    for tgt_node in nodes_by_dir.get(tgt_dir, []):
+                        if tgt_node.id == target_id:
+                            connections.append((src_node.name, tgt_node.name, tgt_dir))
+        return connections
 
 
 # === Modal Screens ===
