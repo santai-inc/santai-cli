@@ -357,13 +357,8 @@ class SantaiApp(App):
             self.notify("Graph panel shown")
 
     def action_select_theme(self) -> None:
-        """Cycle through available themes."""
+        """Show theme info."""
+        current = ThemeManager.get_current_theme()
         themes = ThemeManager.get_available_themes()
-        current = ThemeManager.get_current_theme().name
-        idx = themes.index(current)
-        next_idx = (idx + 1) % len(themes)
-        ThemeManager.set_theme(themes[next_idx])
         
-        theme = ThemeManager.get_current_theme()
-        self.stylesheet = theme.css
-        self.notify(f"Theme: {theme.display_name} (restart TUI to apply changes)")
+        self.notify(f"Theme: {current.display_name} | Options: {', '.join(themes)} | Restart with: santai ui --theme <name>")
