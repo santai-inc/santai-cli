@@ -323,7 +323,7 @@ class SantaiApp(App):
         padding: 1 2;
         background: rgba(255, 255, 255, 0.08);
         margin: 1;
-        border-radius: 12;
+        
     }
 
     #tree-title {
@@ -375,7 +375,7 @@ class SantaiApp(App):
         padding: 1 2;
         background: rgba(255, 255, 255, 0.08);
         margin: 1;
-        border-radius: 12;
+        
     }
 
     #notes-container {
@@ -384,7 +384,7 @@ class SantaiApp(App):
         padding: 1 2;
         background: rgba(255, 255, 255, 0.08);
         margin: 1;
-        border-radius: 12;
+        
     }
 
     #right-container {
@@ -399,7 +399,7 @@ class SantaiApp(App):
         padding: 1 2;
         background: rgba(255, 255, 255, 0.08);
         margin: 1;
-        border-radius: 12;
+        
         overflow-y: auto;
     }
 
@@ -423,7 +423,7 @@ class SantaiApp(App):
         margin-bottom: 1;
         background: rgba(255, 255, 255, 0.12);
         padding: 0 1;
-        border-radius: 8;
+        
     }
 
     DataTable > .datatable--header {
