@@ -31,35 +31,35 @@ class Theme:
 
 
 def claude_theme() -> Theme:
-    """Claude Code theme — warm, playful, terracotta accent."""
+    """Claude Code theme — warm, polished, graph-centric with terracotta accent."""
     colors = ThemeColors(
         bg="#1a1a1a",
-        fg="#ffffff",
+        fg="#f0ece8",
         primary="#d77757",
         secondary="#fd5db1",
         accent="#b1b9f9",
         success="#4eba65",
-        warning="#ffc107",
+        warning="#eb9f7f",
         error="#ff6b80",
-        muted="#888888",
-        surface="#373737",
+        muted="#6b6560",
+        surface="#2a2520",
     )
     return Theme(
         name="claude",
         display_name="Claude Code",
         colors=colors,
         border_chars={
-            "top_left": "┌",
-            "top_right": "┐",
-            "bottom_left": "└",
-            "bottom_right": "┘",
+            "top_left": "╭",
+            "top_right": "╮",
+            "bottom_left": "╰",
+            "bottom_right": "╯",
             "horizontal": "─",
             "vertical": "│",
         },
         icons={
             "success": "✓",
             "error": "✗",
-            "warning": "!",
+            "warning": "⚠",
             "running": "▸",
             "bullet": "•",
             "spinner": ["·", "✢", "✳", "✶", "✻", "✽"],
