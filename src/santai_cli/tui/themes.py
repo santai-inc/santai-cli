@@ -144,16 +144,16 @@ def btop_theme() -> Theme:
 def light_theme() -> Theme:
     """Light theme — clean, minimal, paper-like with blue accents."""
     colors = ThemeColors(
-        bg="#f8f6f2",
-        fg="#2c2c2c",
+        bg="#eae8e4",
+        fg="#1a1a1a",
         primary="#2563eb",
         secondary="#7c3aed",
         accent="#db2777",
         success="#16a34a",
-        warning="#d97706",
+        warning="#b45309",
         error="#dc2626",
-        muted="#6b7280",
-        surface="#ffffff",
+        muted="#4b5563",
+        surface="#f8f6f2",
     )
     return Theme(
         name="light",

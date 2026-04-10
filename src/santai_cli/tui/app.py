@@ -993,6 +993,7 @@ class SantaiApp(App):
         Binding("g", "toggle_graph", "Graph"),
         Binding("t", "select_theme", "Theme"),
         Binding("n", "add_note", "Add Note"),
+        Binding("ctrl+p", "cycle_palette", "Palette"),
         Binding("escape", "back", "Back", show=True),
     ]
 
@@ -1068,6 +1069,26 @@ class SantaiApp(App):
     def action_select_theme(self) -> None:
         """Open theme selector modal."""
         self.push_screen(ThemeSelectScreen())
+
+    def action_cycle_palette(self) -> None:
+        """Cycle to next theme palette instantly (Ctrl+P)."""
+        theme = ThemeManager.cycle_theme()
+        new_css = get_theme_css(theme)
+
+        # Replace CSS in stylesheet
+        for key, css_source in self.stylesheet.source.items():
+            if "SantaiApp" in str(key):
+                self.stylesheet.source[key] = css_source._replace(content=new_css)
+                break
+        else:
+            for key, css_source in self.stylesheet.source.items():
+                if not css_source.is_defaults:
+                    self.stylesheet.source[key] = css_source._replace(content=new_css)
+                    break
+
+        SantaiApp.CSS = new_css
+        self.refresh_css()
+        self.notify(f"Theme: {theme.display_name}")
 
     def action_add_note(self) -> None:
         """Open add note modal."""
