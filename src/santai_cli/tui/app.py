@@ -333,8 +333,7 @@ class SantaiApp(App):
         else:
             self.notify("Graph panel hidden")
 
-    def action_cycle_theme(self) -> None:
+def action_cycle_theme(self) -> None:
         """Cycle to the next theme."""
         theme_name = ThemeManager.cycle_theme()
-        self.theme = get_theme_css()
-        self.notify(f"Theme: {theme_name}")
+        self.notify(f"Theme: {theme_name} - Restart TUI to apply")
