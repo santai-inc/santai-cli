@@ -458,6 +458,7 @@ class NoteDetailScreen(ModalScreen):
 
     BINDINGS = [
         Binding("escape", "dismiss", "Close"),
+        Binding("e", "edit_note", "Edit"),
         Binding("d", "delete_note", "Delete"),
         Binding("m", "move_note", "Move"),
     ]
@@ -498,7 +499,7 @@ class NoteDetailScreen(ModalScreen):
             lines.append("")
             lines.append("[dim]... (truncated)[/dim]")
         lines.append("")
-        lines.append("[dim]d = delete · m = move · Esc = close[/dim]")
+        lines.append("[dim]e = edit · d = delete · m = move · Esc = close[/dim]")
 
         body.update("\n".join(lines))
 
@@ -524,6 +525,18 @@ class NoteDetailScreen(ModalScreen):
                 do_delete,
             )
         )
+
+    def action_edit_note(self) -> None:
+        """Open note in edit mode."""
+        note_path = self._find_note_path()
+        if not note_path:
+            self.app.notify("Cannot find note file", severity="error")
+            return
+        project = self._project or self._get_project()
+        if project:
+            edit_screen = EditNoteScreen(note_path, self._note, project)
+            self.dismiss()
+            self.app.call_later(lambda: self.app.push_screen(edit_screen))
 
     def action_move_note(self) -> None:
         """Move this note to another directory."""
@@ -552,6 +565,87 @@ class NoteDetailScreen(ModalScreen):
         if hasattr(self.app, "project"):
             return self.app.project
         return None
+
+
+class EditNoteScreen(ModalScreen):
+    """Modal for editing an existing note's content."""
+
+    BINDINGS = [
+        Binding("escape", "dismiss_edit", "Close"),
+    ]
+
+    def __init__(self, file_path: Path, note, project: SantaiProject) -> None:
+        super().__init__()
+        self._file_path = file_path
+        self._note = note
+        self._project = project
+        self._original_content: str = ""
+        self._has_changes: bool = False
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="edit-note-modal"):
+            with Vertical(id="edit-note-content"):
+                yield Label(
+                    f"[bold]✏️  Editing: {self._note.title}[/bold]",
+                    id="edit-note-title",
+                )
+                yield Static(
+                    f"[dim]{self._file_path.name}[/dim]",
+                    id="edit-note-path",
+                )
+                yield TextArea(id="edit-note-textarea")
+                yield Static(
+                    "[dim]Ctrl+S = save · Esc = close (unsaved changes will prompt)[/dim]",
+                    id="edit-note-help",
+                )
+
+    def on_mount(self) -> None:
+        """Load file content into the editor."""
+        textarea = self.query_one("#edit-note-textarea", TextArea)
+        try:
+            content = self._file_path.read_text(encoding="utf-8")
+            self._original_content = content
+            textarea.load_text(content)
+        except (OSError, UnicodeDecodeError) as e:
+            self.app.notify(f"Error reading file: {e}", severity="error")
+            self.dismiss()
+            return
+        textarea.focus()
+
+    def on_text_area_changed(self, event: TextArea.Changed) -> None:
+        """Track whether content has been modified."""
+        if event.text_area.id == "edit-note-textarea":
+            self._has_changes = event.text_area.text != self._original_content
+
+    def key_ctrl_s(self) -> None:
+        """Save the note."""
+        self._save()
+
+    def _save(self) -> None:
+        """Write content back to file."""
+        textarea = self.query_one("#edit-note-textarea", TextArea)
+        content = textarea.text
+
+        try:
+            self._file_path.write_text(content, encoding="utf-8")
+            self._original_content = content
+            self._has_changes = False
+            self.app.notify(f"Saved: {self._file_path.name}")
+            _reload_all_panels(self.app)
+        except OSError as e:
+            self.app.notify(f"Error saving: {e}", severity="error")
+
+    def action_dismiss_edit(self) -> None:
+        """Dismiss with unsaved changes check."""
+        if self._has_changes:
+            self.app.push_screen(
+                ConfirmScreen(
+                    "You have unsaved changes.\n\nDiscard changes?",
+                    lambda: self.dismiss(),
+                )
+            )
+        else:
+            self.dismiss()
 
 
 class AddNoteScreen(ModalScreen):

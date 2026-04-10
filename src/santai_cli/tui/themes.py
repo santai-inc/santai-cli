@@ -625,7 +625,7 @@ def _generate_css(c: ThemeColors) -> str:
 
     /* === Modal Screens (centered overlay) === */
 
-    NoteDetailScreen, AddNoteScreen, FilePreviewScreen, ThemeSelectScreen, ConfirmScreen, MoveFileScreen, GraphSearchScreen {{
+    NoteDetailScreen, AddNoteScreen, EditNoteScreen, FilePreviewScreen, ThemeSelectScreen, ConfirmScreen, MoveFileScreen, GraphSearchScreen {{
         align: center middle;
         background: {c.bg} 80%;
     }}
@@ -772,6 +772,55 @@ def _generate_css(c: ThemeColors) -> str:
     .theme-option-active {{
         color: {c.primary};
         text-style: bold;
+    }}
+
+    /* === Edit Note Modal === */
+
+    #edit-note-modal {{
+        width: 85%;
+        height: 85%;
+    }}
+
+    #edit-note-content {{
+        width: 100%;
+        height: 100%;
+        border: solid {c.primary};
+        background: {c.surface};
+        padding: 1 3;
+        color: {c.fg};
+    }}
+
+    #edit-note-title {{
+        text-style: bold;
+        color: {c.primary};
+        text-align: center;
+        margin-bottom: 0;
+        border-bottom: solid {c.primary};
+        padding-bottom: 1;
+    }}
+
+    #edit-note-path {{
+        text-align: center;
+        color: {c.muted};
+        margin-bottom: 1;
+    }}
+
+    #edit-note-textarea {{
+        height: 1fr;
+        min-height: 10;
+        background: {c.bg};
+        color: {c.fg};
+        border: solid {c.muted};
+    }}
+
+    #edit-note-textarea:focus {{
+        border: solid {c.primary};
+    }}
+
+    #edit-note-help {{
+        color: {c.muted};
+        text-align: center;
+        margin-top: 1;
     }}
 
     /* === Graph Search Modal === */
