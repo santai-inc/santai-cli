@@ -446,12 +446,25 @@ class ThemeSelectScreen(ModalScreen):
         ThemeManager.set_theme(name)
         theme = ThemeManager.get_current_theme()
         new_css = get_theme_css(theme)
-        # Clear existing sources and add new theme CSS
-        self.app.stylesheet.source.clear()
-        self.app.stylesheet.rules.clear()
-        self.app.stylesheet.add_source(new_css, read_from=("theme", "__theme__"))
-        self.app.stylesheet.reparse()
-        self.app.stylesheet.apply(self.app)
+
+        # Find and replace the SantaiApp.CSS source in the stylesheet
+        for key, css_source in self.app.stylesheet.source.items():
+            if "SantaiApp" in str(key):
+                self.app.stylesheet.source[key] = css_source._replace(content=new_css)
+                break
+        else:
+            # Fallback: replace all non-default sources
+            for key, css_source in self.app.stylesheet.source.items():
+                if not css_source.is_defaults:
+                    self.app.stylesheet.source[key] = css_source._replace(content=new_css)
+                    break
+
+        # Also update the class variable for consistency
+        SantaiApp.CSS = new_css
+
+        # Use Textual's built-in refresh_css which handles reparse + update + layout
+        self.app.refresh_css()
+
         self._refresh_options()
         self.app.notify(f"Theme: {theme.display_name}")
 
