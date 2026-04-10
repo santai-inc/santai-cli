@@ -5,7 +5,8 @@ from pathlib import Path
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Container, Horizontal, Vertical
+from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.screen import ModalScreen
 from textual.widgets import (
     DataTable,
     DirectoryTree,
@@ -146,6 +147,7 @@ class NotesPanel(Static):
 
     def refresh_notes(self) -> None:
         """Refresh notes data."""
+        theme = ThemeManager.get_current_theme()
         notes = get_notes(self.project)
         content_widget = self.query_one("#notes-content", Static)
 
@@ -157,14 +159,16 @@ class NotesPanel(Static):
 
         # Build notes preview content
         lines = []
+        accent = theme.colors.success
+        muted = theme.colors.muted
         for note in notes[:5]:  # Show up to 5 notes
-            lines.append(f"[bold #10B981]{note.title}[/bold #10B981]")
+            lines.append(f"[bold {accent}]{note.title}[/bold {accent}]")
             lines.append(f"[dim]{format_time_ago(note.modified_at)}[/dim]")
             # Truncate preview for display
             preview = (
                 note.preview[:100] + "..." if len(note.preview) > 100 else note.preview
             )
-            lines.append(f"[#AEAEB2]{preview}[/#AEAEB2]")
+            lines.append(f"[{muted}]{preview}[/{muted}]")
             lines.append("")
 
         content_widget.update("\n".join(lines))
@@ -188,7 +192,11 @@ class GraphPanel(Static):
         self.fullscreen = fullscreen
 
     def compose(self) -> ComposeResult:
-        title = "[bold]File Graph (Press g to exit)[/bold]" if self.fullscreen else "[bold]File Graph[/bold]"
+        title = (
+            "[bold]File Graph (Press g to exit)[/bold]"
+            if self.fullscreen
+            else "[bold]File Graph[/bold]"
+        )
         yield Label(title, id="graph-title")
         yield Static(id="graph-content")
 
@@ -213,6 +221,8 @@ class GraphPanel(Static):
         )
         lines.append("")
 
+        max_links = 30 if self.fullscreen else 15
+
         if graph.edges:
             # Group edges by source
             edges_by_source: dict[str, list[tuple[str, str]]] = {}
@@ -227,9 +237,8 @@ class GraphPanel(Static):
             lines.append("[bold]Links:[/bold]")
             lines.append("")
 
-            # Show links (limit to avoid overflow)
+            # Show links
             shown = 0
-            max_links = 15
             for source, targets in sorted(edges_by_source.items()):
                 if shown >= max_links:
                     remaining = sum(
@@ -252,8 +261,11 @@ class GraphPanel(Static):
                     )
 
                     # Truncate link text
+                    max_text = 40 if self.fullscreen else 20
                     display_text = (
-                        link_text[:20] + "..." if len(link_text) > 20 else link_text
+                        link_text[:max_text] + "..."
+                        if len(link_text) > max_text
+                        else link_text
                     )
 
                     lines.append(
@@ -270,6 +282,26 @@ class GraphPanel(Static):
             lines.append("[dim]  [text](path/to/file.md)[/dim]")
             lines.append("[dim]  [[wikilink]][/dim]")
 
+        # Show all nodes grouped by directory in fullscreen
+        if self.fullscreen:
+            lines.append("")
+            lines.append("[bold]All Files:[/bold]")
+            nodes_by_dir: dict[str, list] = {}
+            for node in graph.nodes:
+                if node.directory not in nodes_by_dir:
+                    nodes_by_dir[node.directory] = []
+                nodes_by_dir[node.directory].append(node)
+
+            for dir_name in sorted(nodes_by_dir.keys()):
+                color = self.DIR_COLORS.get(dir_name, self.DIR_COLORS["other"])
+                nodes = nodes_by_dir[dir_name]
+                lines.append(f"  [{color}]● {dir_name}/ ({len(nodes)} files)[/{color}]")
+                for node in sorted(nodes, key=lambda n: n.name)[:20]:
+                    size = format_size(node.size_bytes)
+                    lines.append(f"    [{color}]├[/{color}] {node.name} [dim]({size})[/dim]")
+                if len(nodes) > 20:
+                    lines.append(f"    [dim]... and {len(nodes) - 20} more[/dim]")
+
         # Show legend
         lines.append("")
         lines.append("[bold]Legend:[/bold]")
@@ -280,85 +312,251 @@ class GraphPanel(Static):
         content_widget.update("\n".join(lines))
 
 
+# === Modal Screens ===
+
+
+class NotesModalScreen(ModalScreen):
+    """Full-screen notes viewer modal."""
+
+    BINDINGS = [
+        Binding("escape", "dismiss", "Close"),
+        Binding("n", "dismiss", "Close"),
+    ]
+
+    def __init__(self, project: SantaiProject) -> None:
+        super().__init__()
+        self.project = project
+
+    def compose(self) -> ComposeResult:
+        theme = ThemeManager.get_current_theme()
+        c = theme.colors
+        with Vertical(id="notes-modal"):
+            with VerticalScroll(id="notes-modal-content"):
+                yield Label("[bold]Notes (press Esc to close)[/bold]", id="notes-modal-title")
+                yield Static(id="notes-modal-body")
+
+    def on_mount(self) -> None:
+        """Populate notes."""
+        theme = ThemeManager.get_current_theme()
+        notes = get_notes(self.project)
+        body = self.query_one("#notes-modal-body", Static)
+
+        if not notes:
+            body.update("[dim]No notes found. Add .md or .txt files to notes/[/dim]")
+            return
+
+        lines = []
+        accent = theme.colors.primary
+        for note in notes:
+            lines.append(f"[bold {accent}]{'─' * 40}[/bold {accent}]")
+            lines.append(f"[bold {accent}]{note.title}[/bold {accent}]")
+            lines.append(f"[dim]{format_time_ago(note.modified_at)} · {format_size(note.size_bytes)}[/dim]")
+            lines.append("")
+            # Show full content (truncated to reasonable length)
+            content = note.content[:2000] if len(note.content) > 2000 else note.content
+            lines.append(content)
+            lines.append("")
+
+        body.update("\n".join(lines))
+
+
+class FilePreviewScreen(ModalScreen):
+    """File preview modal for viewing file contents."""
+
+    BINDINGS = [
+        Binding("escape", "dismiss", "Close"),
+    ]
+
+    def __init__(self, file_path: Path) -> None:
+        super().__init__()
+        self.file_path = file_path
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="file-preview-modal"):
+            with VerticalScroll(id="file-preview-content"):
+                yield Label(
+                    f"[bold]{self.file_path.name} (press Esc to close)[/bold]",
+                    id="file-preview-title",
+                )
+                yield Static(id="file-preview-body")
+
+    def on_mount(self) -> None:
+        """Load file content."""
+        body = self.query_one("#file-preview-body", Static)
+        try:
+            content = self.file_path.read_text(encoding="utf-8")
+            if len(content) > 5000:
+                content = content[:5000] + "\n\n[dim]... (truncated)[/dim]"
+            body.update(content)
+        except UnicodeDecodeError:
+            body.update(f"[dim]Binary file: {format_size(self.file_path.stat().st_size)}[/dim]")
+        except OSError as e:
+            body.update(f"[dim]Error reading file: {e}[/dim]")
+
+
+class ThemeSelectScreen(ModalScreen):
+    """Theme selection modal with live switching."""
+
+    BINDINGS = [
+        Binding("escape", "dismiss", "Close"),
+        Binding("t", "dismiss", "Close"),
+        Binding("1", "select_theme_1", "Claude"),
+        Binding("2", "select_theme_2", "Catppuccin"),
+        Binding("3", "select_theme_3", "btop"),
+    ]
+
+    def compose(self) -> ComposeResult:
+        theme = ThemeManager.get_current_theme()
+        with Vertical(id="theme-modal"):
+            with Vertical(id="theme-modal-content"):
+                yield Label("[bold]Theme Selector (press Esc to close)[/bold]", id="theme-modal-title")
+                yield Static(id="theme-options")
+
+    def on_mount(self) -> None:
+        """Show theme options."""
+        self._refresh_options()
+
+    def _refresh_options(self) -> None:
+        """Refresh the theme options display."""
+        current = ThemeManager.get_current_theme()
+        options = self.query_one("#theme-options", Static)
+
+        lines = []
+        lines.append("")
+        themes_info = [
+            ("1", "claude", "Claude Code", "Warm terracotta, hot pink tools, playful"),
+            ("2", "catppuccin", "Catppuccin", "Soothing pastels, mauve primary, cozy"),
+            ("3", "btop", "btop", "Dense dashboard, green/red gradients, dark"),
+        ]
+
+        for key, name, display, desc in themes_info:
+            marker = "▸" if current.name == name else " "
+            active = " [bold](active)[/bold]" if current.name == name else ""
+            lines.append(f"  {marker} [{key}] {display}{active}")
+            lines.append(f"      [dim]{desc}[/dim]")
+            lines.append("")
+
+        lines.append("  [dim]Press 1/2/3 to switch theme, Esc to close[/dim]")
+        lines.append("  [dim]Theme applies immediately.[/dim]")
+
+        options.update("\n".join(lines))
+
+    def _apply_theme(self, name: str) -> None:
+        """Apply a theme and refresh the app."""
+        ThemeManager.set_theme(name)
+        theme = ThemeManager.get_current_theme()
+        new_css = get_theme_css(theme)
+        # Clear existing sources and add new theme CSS
+        self.app.stylesheet.source.clear()
+        self.app.stylesheet.rules.clear()
+        self.app.stylesheet.add_source(new_css, read_from=("theme", "__theme__"))
+        self.app.stylesheet.reparse()
+        self.app.stylesheet.apply(self.app)
+        self._refresh_options()
+        self.app.notify(f"Theme: {theme.display_name}")
+
+    def action_select_theme_1(self) -> None:
+        self._apply_theme("claude")
+
+    def action_select_theme_2(self) -> None:
+        self._apply_theme("catppuccin")
+
+    def action_select_theme_3(self) -> None:
+        self._apply_theme("btop")
+
+
+# === Main App ===
+
+
 class SantaiApp(App):
     """Santai TUI application."""
 
     TITLE = "Santai"
-    CSS = get_theme_css() + """
-    #graph-fullscreen {
-        width: 100%;
-        height: 100%;
-    }
-    #graph-fullscreen > #graph-title {
-        text-align: center;
-        padding: 1 2;
-    }
-    #theme-selector {
-        width: 50%;
-        height: auto;
-        background: $surface;
-        border: solid $primary;
-        padding: 2 4;
-        margin: 1 2;
-    }
-    """
 
     BINDINGS = [
         Binding("q", "quit", "Quit"),
         Binding("r", "refresh", "Refresh"),
         Binding("g", "toggle_graph", "Graph"),
         Binding("t", "select_theme", "Theme"),
+        Binding("n", "show_notes", "Notes"),
     ]
 
     def __init__(self, project: SantaiProject) -> None:
-        super().__init__()
+        super().__init__(css=get_theme_css())
         self.project = project
         self.sub_title = project.name
         self._graph_fullscreen = False
 
     def compose(self) -> ComposeResult:
         yield Header()
-        if self._graph_fullscreen:
-            with Vertical(id="graph-fullscreen"):
-                yield GraphPanel(self.project, fullscreen=True)
-        else:
-            with Horizontal():
-                with Vertical(id="tree-container"):
-                    yield Label(
-                        f"[bold]Project: {self.project.name}[/bold]", id="tree-title"
-                    )
-                    yield FilteredDirectoryTree(self.project.root, id="tree")
-                with Vertical(id="middle-container"):
-                    with Vertical(id="stats-container"):
-                        yield StatsPanel(self.project)
-                    with Vertical(id="notes-container"):
-                        yield NotesPanel(self.project)
-                with Vertical(id="right-container"):
-                    with Vertical(id="graph-container"):
-                        yield GraphPanel(self.project)
+        # Main dashboard layout - always present
+        with Horizontal(id="main-layout"):
+            with Vertical(id="tree-container"):
+                yield Label(
+                    f"[bold]Project: {self.project.name}[/bold]", id="tree-title"
+                )
+                yield FilteredDirectoryTree(self.project.root, id="tree")
+            with Vertical(id="middle-container"):
+                with Vertical(id="stats-container"):
+                    yield StatsPanel(self.project)
+                with Vertical(id="notes-container"):
+                    yield NotesPanel(self.project)
+            with Vertical(id="right-container"):
+                with Vertical(id="graph-container"):
+                    yield GraphPanel(self.project)
+        # Fullscreen graph - hidden by default
+        with Vertical(id="graph-fullscreen"):
+            yield GraphPanel(self.project, fullscreen=True)
         yield Footer()
+
+    def on_mount(self) -> None:
+        """Set initial visibility."""
+        # Hide fullscreen graph on startup
+        self.query_one("#graph-fullscreen").display = False
+        # Ensure graph panel is visible
+        self.query_one("#graph-container").display = True
 
     def action_refresh(self) -> None:
         """Refresh all panels."""
-        stats_panel = self.query_one(StatsPanel)
-        stats_panel.refresh_stats()
-        notes_panel = self.query_one(NotesPanel)
-        notes_panel.refresh_notes()
-        graph_panel = self.query_one(GraphPanel)
-        graph_panel.refresh_graph()
+        for panel in self.query(StatsPanel):
+            panel.refresh_stats()
+        for panel in self.query(NotesPanel):
+            panel.refresh_notes()
+        for panel in self.query(GraphPanel):
+            panel.refresh_graph()
         self.notify("Refreshed all panels")
 
     def action_toggle_graph(self) -> None:
-        """Toggle graph view: panel <-> fullscreen."""
+        """Toggle between panel view and fullscreen graph."""
         self._graph_fullscreen = not self._graph_fullscreen
+
+        main_layout = self.query_one("#main-layout")
+        graph_fs = self.query_one("#graph-fullscreen")
+
         if self._graph_fullscreen:
-            self.notify("Graph fullscreen - press g to exit")
+            main_layout.display = False
+            graph_fs.display = True
+            # Refresh the fullscreen graph panel
+            for panel in graph_fs.query(GraphPanel):
+                panel.refresh_graph()
+            self.notify("Graph fullscreen — press g to exit")
         else:
-            self.notify("Graph panel shown")
+            graph_fs.display = False
+            main_layout.display = True
+            self.notify("Dashboard view")
 
     def action_select_theme(self) -> None:
-        """Show theme info."""
-        current = ThemeManager.get_current_theme()
-        themes = ThemeManager.get_available_themes()
-        
-        self.notify(f"Theme: {current.display_name} | Options: {', '.join(themes)} | Restart with: santai ui --theme <name>")
+        """Open theme selector modal."""
+        self.push_screen(ThemeSelectScreen())
+
+    def action_show_notes(self) -> None:
+        """Open notes viewer modal."""
+        self.push_screen(NotesModalScreen(self.project))
+
+    def on_directory_tree_file_selected(
+        self, event: DirectoryTree.FileSelected
+    ) -> None:
+        """Handle file selection in directory tree — show file preview."""
+        file_path = event.path
+        if file_path.is_file():
+            self.push_screen(FilePreviewScreen(file_path))

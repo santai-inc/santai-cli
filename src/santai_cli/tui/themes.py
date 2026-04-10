@@ -1,11 +1,6 @@
-"""TUI Theme System."""
+"""TUI Theme System with runtime switching support."""
 
-from dataclasses import dataclass
-from typing import Callable
-
-import rich.theme
-from rich.style import Style
-from rich.text import Text
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -31,13 +26,12 @@ class Theme:
     name: str
     display_name: str
     colors: ThemeColors
-    border_chars: dict
-    icons: dict
-    css: str
+    border_chars: dict = field(default_factory=dict)
+    icons: dict = field(default_factory=dict)
 
 
 def claude_theme() -> Theme:
-    """Claude Code theme."""
+    """Claude Code theme — warm, playful, terracotta accent."""
     colors = ThemeColors(
         bg="#1a1a1a",
         fg="#ffffff",
@@ -70,12 +64,11 @@ def claude_theme() -> Theme:
             "bullet": "•",
             "spinner": ["·", "✢", "✳", "✶", "✻", "✽"],
         },
-        css=_claude_css(colors),
     )
 
 
 def catppuccin_theme() -> Theme:
-    """Catppuccin Mocha theme."""
+    """Catppuccin Mocha theme — soothing pastels, mauve primary."""
     colors = ThemeColors(
         bg="#1e1e2e",
         fg="#cdd6f4",
@@ -108,12 +101,11 @@ def catppuccin_theme() -> Theme:
             "bullet": "◦",
             "spinner": ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"],
         },
-        css=_catppuccin_css(colors),
     )
 
 
 def btop_theme() -> Theme:
-    """btop theme."""
+    """btop theme — dense, gradient-rich, dashboard style."""
     colors = ThemeColors(
         bg="#000000",
         fg="#cccccc",
@@ -146,455 +138,10 @@ def btop_theme() -> Theme:
             "bullet": "│",
             "spinner": ["│", "/", "─", "\\"],
         },
-        css=_btop_css(colors),
     )
 
 
-def _claude_css(colors: ThemeColors) -> str:
-    """Generate Claude Code CSS."""
-    return f"""
-    Screen {{
-        layout: horizontal;
-        background: {colors.bg};
-    }}
-
-    Header {{
-        background: {colors.surface};
-        color: {colors.primary};
-        text-style: bold;
-    }}
-
-    Header > HeaderTitle {{
-        color: {colors.primary};
-        text-style: bold;
-    }}
-
-    Header > HeaderIcon {{
-        color: {colors.primary};
-    }}
-
-    Footer {{
-        background: {colors.surface};
-        color: {colors.muted};
-    }}
-
-    Footer > .footer--key {{
-        background: {colors.surface};
-        color: {colors.fg};
-    }}
-
-    Footer > .footer--description {{
-        color: {colors.muted};
-    }}
-
-    #tree-container {{
-        width: 1fr;
-        height: 100%;
-        border: solid {colors.muted};
-        padding: 1 2;
-        background: {colors.surface};
-        margin: 1;
-    }}
-
-    #tree-title {{
-        text-style: bold;
-        color: {colors.primary};
-        margin-bottom: 1;
-        text-align: center;
-        width: 100%;
-    }}
-
-    DirectoryTree {{
-        background: transparent;
-        padding: 0 1;
-    }}
-
-    DirectoryTree > .directory-tree--folder {{
-        color: {colors.fg};
-        text-style: bold;
-    }}
-
-    DirectoryTree > .directory-tree--extension {{
-        color: {colors.muted};
-    }}
-
-    DirectoryTree > .directory-tree--file {{
-        color: {colors.fg};
-    }}
-
-    DirectoryTree:focus > .directory-tree--cursor {{
-        background: {colors.primary};
-        color: {colors.bg};
-    }}
-
-    DirectoryTree > .directory-tree--cursor {{
-        background: {colors.secondary} 30%;
-        color: {colors.fg};
-    }}
-
-    #middle-container, #right-container {{
-        width: 2fr;
-        height: 100%;
-        layout: vertical;
-    }}
-
-    #stats-container, #notes-container, #graph-container {{
-        height: 1fr;
-        border: solid {colors.muted};
-        padding: 1 2;
-        background: {colors.surface};
-        margin: 1;
-    }}
-
-    #stats-title, #types-title, #recent-title, #notes-title, #graph-title {{
-        margin-bottom: 1;
-        color: {colors.primary};
-        text-style: bold;
-        border-bottom: solid {colors.primary};
-        padding-bottom: 1;
-    }}
-
-    #notes-content, #graph-content {{
-        color: {colors.fg};
-        padding: 1;
-        height: auto;
-    }}
-
-    DataTable {{
-        height: auto;
-        max-height: 10;
-        margin-bottom: 1;
-        background: {colors.surface};
-        padding: 0 1;
-    }}
-
-    DataTable > .datatable--header {{
-        background: {colors.primary};
-        color: {colors.bg};
-        text-style: bold;
-    }}
-
-    DataTable > .datatable--cursor {{
-        background: {colors.primary} 40%;
-        color: {colors.bg};
-    }}
-
-    DataTable > .datatable--even-row, .datatable--odd-row {{
-        background: {colors.surface};
-    }}
-
-    DataTable:focus > .datatable--cursor {{
-        background: {colors.primary};
-        color: {colors.bg};
-    }}
-
-    StatsPanel, NotesPanel, GraphPanel {{
-        background: transparent;
-    }}
-
-    StatsPanel > Label, NotesPanel > Label, GraphPanel > Label {{
-        color: {colors.fg};
-    }}
-    """
-
-
-def _catppuccin_css(colors: ThemeColors) -> str:
-    """Generate Catppuccin CSS."""
-    return f"""
-    Screen {{
-        layout: horizontal;
-        background: {colors.bg};
-    }}
-
-    Header {{
-        background: {colors.surface};
-        color: {colors.primary};
-        text-style: bold;
-    }}
-
-    Header > HeaderTitle {{
-        color: {colors.primary};
-        text-style: bold;
-    }}
-
-    Header > HeaderIcon {{
-        color: {colors.primary};
-    }}
-
-    Footer {{
-        background: {colors.surface};
-        color: {colors.muted};
-    }}
-
-    Footer > .footer--key {{
-        background: {colors.surface};
-        color: {colors.fg};
-    }}
-
-    Footer > .footer--description {{
-        color: {colors.muted};
-    }}
-
-    #tree-container {{
-        width: 1fr;
-        height: 100%;
-        border: solid {colors.muted};
-        padding: 1 2;
-        background: {colors.surface};
-        margin: 1;
-    }}
-
-    #tree-title {{
-        text-style: bold;
-        color: {colors.primary};
-        margin-bottom: 1;
-        text-align: center;
-        width: 100%;
-    }}
-
-    DirectoryTree {{
-        background: transparent;
-        padding: 0 1;
-    }}
-
-    DirectoryTree > .directory-tree--folder {{
-        color: {colors.fg};
-        text-style: bold;
-    }}
-
-    DirectoryTree > .directory-tree--extension {{
-        color: {colors.muted};
-    }}
-
-    DirectoryTree > .directory-tree--file {{
-        color: {colors.fg};
-    }}
-
-    DirectoryTree:focus > .directory-tree--cursor {{
-        background: {colors.primary};
-        color: {colors.bg};
-    }}
-
-    DirectoryTree > .directory-tree--cursor {{
-        background: {colors.primary} 30%;
-        color: {colors.fg};
-    }}
-
-    #middle-container, #right-container {{
-        width: 2fr;
-        height: 100%;
-        layout: vertical;
-    }}
-
-    #stats-container, #notes-container, #graph-container {{
-        height: 1fr;
-        border: solid {colors.muted};
-        padding: 1 2;
-        background: {colors.surface};
-        margin: 1;
-    }}
-
-    #stats-title, #types-title, #recent-title, #notes-title, #graph-title {{
-        margin-bottom: 1;
-        color: {colors.primary};
-        text-style: bold;
-        border-bottom: solid {colors.primary};
-        padding-bottom: 1;
-    }}
-
-    #notes-content, #graph-content {{
-        color: {colors.fg};
-        padding: 1;
-        height: auto;
-    }}
-
-    DataTable {{
-        height: auto;
-        max-height: 10;
-        margin-bottom: 1;
-        background: {colors.surface};
-        padding: 0 1;
-    }}
-
-    DataTable > .datatable--header {{
-        background: {colors.primary};
-        color: {colors.bg};
-        text-style: bold;
-    }}
-
-    DataTable > .datatable--cursor {{
-        background: {colors.primary} 40%;
-        color: {colors.bg};
-    }}
-
-    DataTable > .datatable--even-row, .datatable--odd-row {{
-        background: {colors.surface};
-    }}
-
-    DataTable:focus > .datatable--cursor {{
-        background: {colors.primary};
-        color: {colors.bg};
-    }}
-
-    StatsPanel, NotesPanel, GraphPanel {{
-        background: transparent;
-    }}
-
-    StatsPanel > Label, NotesPanel > Label, GraphPanel > Label {{
-        color: {colors.fg};
-    }}
-    """
-
-
-def _btop_css(colors: ThemeColors) -> str:
-    """Generate btop CSS."""
-    return f"""
-    Screen {{
-        layout: horizontal;
-        background: {colors.bg};
-    }}
-
-    Header {{
-        background: {colors.surface};
-        color: {colors.primary};
-        text-style: bold;
-    }}
-
-    Header > HeaderTitle {{
-        color: {colors.primary};
-        text-style: bold;
-    }}
-
-    Header > HeaderIcon {{
-        color: {colors.secondary};
-    }}
-
-    Footer {{
-        background: {colors.surface};
-        color: {colors.muted};
-    }}
-
-    Footer > .footer--key {{
-        background: {colors.surface};
-        color: {colors.fg};
-    }}
-
-    Footer > .footer--description {{
-        color: {colors.muted};
-    }}
-
-    #tree-container {{
-        width: 1fr;
-        height: 100%;
-        border: solid {colors.muted};
-        padding: 1 2;
-        background: {colors.surface};
-        margin: 1;
-    }}
-
-    #tree-title {{
-        text-style: bold;
-        color: {colors.primary};
-        margin-bottom: 1;
-        text-align: center;
-        width: 100%;
-    }}
-
-    DirectoryTree {{
-        background: transparent;
-        padding: 0 1;
-    }}
-
-    DirectoryTree > .directory-tree--folder {{
-        color: {colors.fg};
-        text-style: bold;
-    }}
-
-    DirectoryTree > .directory-tree--extension {{
-        color: {colors.muted};
-    }}
-
-    DirectoryTree > .directory-tree--file {{
-        color: {colors.fg};
-    }}
-
-    DirectoryTree:focus > .directory-tree--cursor {{
-        background: {colors.accent};
-        color: {colors.fg};
-    }}
-
-    DirectoryTree > .directory-tree--cursor {{
-        background: {colors.accent} 30%;
-        color: {colors.fg};
-    }}
-
-    #middle-container, #right-container {{
-        width: 2fr;
-        height: 100%;
-        layout: vertical;
-    }}
-
-    #stats-container, #notes-container, #graph-container {{
-        height: 1fr;
-        border: solid {colors.muted};
-        padding: 1 2;
-        background: {colors.surface};
-        margin: 1;
-    }}
-
-    #stats-title, #types-title, #recent-title, #notes-title, #graph-title {{
-        margin-bottom: 1;
-        color: {colors.secondary};
-        text-style: bold;
-        border-bottom: solid {colors.secondary};
-        padding-bottom: 1;
-    }}
-
-    #notes-content, #graph-content {{
-        color: {colors.fg};
-        padding: 1;
-        height: auto;
-    }}
-
-    DataTable {{
-        height: auto;
-        max-height: 10;
-        margin-bottom: 1;
-        background: {colors.surface};
-        padding: 0 1;
-    }}
-
-    DataTable > .datatable--header {{
-        background: {colors.secondary};
-        color: {colors.bg};
-        text-style: bold;
-    }}
-
-    DataTable > .datatable--cursor {{
-        background: {colors.accent} 40%;
-        color: {colors.fg};
-    }}
-
-    DataTable > .datatable--even-row, .datatable--odd-row {{
-        background: {colors.surface};
-    }}
-
-    DataTable:focus > .datatable--cursor {{
-        background: {colors.accent};
-        color: {colors.fg};
-    }}
-
-    StatsPanel, NotesPanel, GraphPanel {{
-        background: transparent;
-    }}
-
-    StatsPanel > Label, NotesPanel > Label, GraphPanel > Label {{
-        color: {colors.fg};
-    }}
-    """
-
-
-AVAILABLE_THEMES = {
+AVAILABLE_THEMES: dict[str, callable] = {
     "claude": claude_theme,
     "catppuccin": catppuccin_theme,
     "btop": btop_theme,
@@ -602,7 +149,7 @@ AVAILABLE_THEMES = {
 
 
 class ThemeManager:
-    """Manages TUI themes."""
+    """Manages TUI themes with runtime switching support."""
 
     _current: Theme = btop_theme()
     _theme_names = list(AVAILABLE_THEMES.keys())
@@ -621,12 +168,12 @@ class ThemeManager:
         return cls._current
 
     @classmethod
-    def cycle_theme(cls) -> str:
-        """Cycle to the next theme."""
+    def cycle_theme(cls) -> Theme:
+        """Cycle to the next theme and return it."""
         current_idx = cls._theme_names.index(cls._current.name)
         next_idx = (current_idx + 1) % len(cls._theme_names)
         cls._current = AVAILABLE_THEMES[cls._theme_names[next_idx]]()
-        return cls._current.display_name
+        return cls._current
 
     @classmethod
     def get_available_themes(cls) -> list[str]:
@@ -634,6 +181,296 @@ class ThemeManager:
         return cls._theme_names.copy()
 
 
-def get_theme_css() -> str:
-    """Get CSS for the current theme."""
-    return ThemeManager.get_current_theme().css
+def get_theme_css(theme: Theme | None = None) -> str:
+    """Generate CSS for a theme. Uses current theme if none specified.
+
+    Uses CSS variables pattern so the app can override get_css_variables()
+    for runtime theme switching.
+    """
+    if theme is None:
+        theme = ThemeManager.get_current_theme()
+    c = theme.colors
+    return _generate_css(c)
+
+
+def _generate_css(c: ThemeColors) -> str:
+    """Generate the full CSS for a given color palette."""
+    return f"""
+    Screen {{
+        layout: horizontal;
+        background: {c.bg};
+    }}
+
+    Header {{
+        background: {c.surface};
+        color: {c.primary};
+        text-style: bold;
+    }}
+
+    Header > HeaderTitle {{
+        color: {c.primary};
+        text-style: bold;
+    }}
+
+    Header > HeaderIcon {{
+        color: {c.primary};
+    }}
+
+    Footer {{
+        background: {c.surface};
+        color: {c.muted};
+    }}
+
+    Footer > .footer--key {{
+        background: {c.surface};
+        color: {c.fg};
+    }}
+
+    Footer > .footer--description {{
+        color: {c.muted};
+    }}
+
+    /* === Main Layout Containers === */
+
+    #main-layout {{
+        width: 100%;
+        height: 100%;
+    }}
+
+    #tree-container {{
+        width: 1fr;
+        height: 100%;
+        border: solid {c.muted};
+        padding: 1 2;
+        background: {c.surface};
+        margin: 1;
+    }}
+
+    #tree-title {{
+        text-style: bold;
+        color: {c.primary};
+        margin-bottom: 1;
+        text-align: center;
+        width: 100%;
+    }}
+
+    DirectoryTree {{
+        background: transparent;
+        padding: 0 1;
+    }}
+
+    DirectoryTree > .directory-tree--folder {{
+        color: {c.fg};
+        text-style: bold;
+    }}
+
+    DirectoryTree > .directory-tree--extension {{
+        color: {c.muted};
+    }}
+
+    DirectoryTree > .directory-tree--file {{
+        color: {c.fg};
+    }}
+
+    DirectoryTree:focus > .directory-tree--cursor {{
+        background: {c.primary};
+        color: {c.bg};
+    }}
+
+    DirectoryTree > .directory-tree--cursor {{
+        background: {c.primary} 30%;
+        color: {c.fg};
+    }}
+
+    #middle-container, #right-container {{
+        width: 2fr;
+        height: 100%;
+        layout: vertical;
+    }}
+
+    #stats-container, #notes-container, #graph-container {{
+        height: 1fr;
+        border: solid {c.muted};
+        padding: 1 2;
+        background: {c.surface};
+        margin: 1;
+    }}
+
+    #stats-title, #types-title, #recent-title, #notes-title, #graph-title {{
+        margin-bottom: 1;
+        color: {c.primary};
+        text-style: bold;
+        border-bottom: solid {c.primary};
+        padding-bottom: 1;
+    }}
+
+    #notes-content, #graph-content {{
+        color: {c.fg};
+        padding: 1;
+        height: auto;
+    }}
+
+    DataTable {{
+        height: auto;
+        max-height: 10;
+        margin-bottom: 1;
+        background: {c.surface};
+        padding: 0 1;
+    }}
+
+    DataTable > .datatable--header {{
+        background: {c.primary};
+        color: {c.bg};
+        text-style: bold;
+    }}
+
+    DataTable > .datatable--cursor {{
+        background: {c.primary} 40%;
+        color: {c.bg};
+    }}
+
+    DataTable > .datatable--even-row, .datatable--odd-row {{
+        background: {c.surface};
+    }}
+
+    DataTable:focus > .datatable--cursor {{
+        background: {c.primary};
+        color: {c.bg};
+    }}
+
+    StatsPanel, NotesPanel, GraphPanel {{
+        background: transparent;
+    }}
+
+    StatsPanel > Label, NotesPanel > Label, GraphPanel > Label {{
+        color: {c.fg};
+    }}
+
+    /* === Graph Fullscreen === */
+
+    #graph-fullscreen {{
+        width: 100%;
+        height: 100%;
+        border: solid {c.primary};
+        padding: 1 2;
+        background: {c.surface};
+        margin: 1;
+    }}
+
+    #graph-fullscreen #graph-title {{
+        text-align: center;
+        padding: 1 2;
+        color: {c.primary};
+    }}
+
+    #graph-fullscreen #graph-content {{
+        color: {c.fg};
+        padding: 1 2;
+        height: 100%;
+    }}
+
+    /* === Notes Modal === */
+
+    #notes-modal {{
+        align: center middle;
+        width: 80%;
+        height: 80%;
+    }}
+
+    #notes-modal-content {{
+        width: 100%;
+        height: 100%;
+        border: solid {c.primary};
+        background: {c.surface};
+        padding: 2 4;
+        overflow-y: auto;
+    }}
+
+    #notes-modal-title {{
+        text-style: bold;
+        color: {c.primary};
+        text-align: center;
+        margin-bottom: 1;
+        border-bottom: solid {c.primary};
+        padding-bottom: 1;
+    }}
+
+    #notes-modal-body {{
+        color: {c.fg};
+        padding: 1;
+        height: auto;
+    }}
+
+    /* === File Preview Modal === */
+
+    #file-preview-modal {{
+        align: center middle;
+        width: 80%;
+        height: 80%;
+    }}
+
+    #file-preview-content {{
+        width: 100%;
+        height: 100%;
+        border: solid {c.secondary};
+        background: {c.surface};
+        padding: 2 4;
+        overflow-y: auto;
+    }}
+
+    #file-preview-title {{
+        text-style: bold;
+        color: {c.secondary};
+        text-align: center;
+        margin-bottom: 1;
+        border-bottom: solid {c.secondary};
+        padding-bottom: 1;
+    }}
+
+    #file-preview-body {{
+        color: {c.fg};
+        padding: 1;
+        height: auto;
+    }}
+
+    /* === Theme Selector Modal === */
+
+    #theme-modal {{
+        align: center middle;
+        width: 60%;
+        height: auto;
+        max-height: 70%;
+    }}
+
+    #theme-modal-content {{
+        width: 100%;
+        height: auto;
+        border: solid {c.primary};
+        background: {c.surface};
+        padding: 2 4;
+    }}
+
+    #theme-modal-title {{
+        text-style: bold;
+        color: {c.primary};
+        text-align: center;
+        margin-bottom: 1;
+        border-bottom: solid {c.primary};
+        padding-bottom: 1;
+    }}
+
+    .theme-option {{
+        padding: 1 2;
+        margin: 0 1;
+        color: {c.fg};
+    }}
+
+    .theme-option:hover {{
+        background: {c.primary} 30%;
+    }}
+
+    .theme-option-active {{
+        color: {c.primary};
+        text-style: bold;
+    }}
+    """
