@@ -468,22 +468,143 @@ class GraphPanel(Static):
 # === Modal Screens ===
 
 
+class ConfirmScreen(ModalScreen):
+    """Generic confirmation dialog."""
+
+    BINDINGS = [
+        Binding("escape", "dismiss", "Cancel"),
+        Binding("y", "confirm", "Yes"),
+        Binding("n", "dismiss", "No"),
+    ]
+
+    def __init__(self, message: str, on_confirm: callable) -> None:
+        super().__init__()
+        self._message = message
+        self._on_confirm = on_confirm
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="theme-modal"):
+            with Vertical(id="theme-modal-content"):
+                yield Label("[bold]Confirm[/bold]", id="theme-modal-title")
+                yield Static(id="confirm-body")
+
+    def on_mount(self) -> None:
+        body = self.query_one("#confirm-body", Static)
+        body.update(
+            f"{self._message}\n\n"
+            f"[bold]y[/bold] = Yes  |  [bold]n[/bold] / Esc = Cancel"
+        )
+
+    def action_confirm(self) -> None:
+        self._on_confirm()
+        self.dismiss()
+
+
+class MoveFileScreen(ModalScreen):
+    """Modal to move a file to another santai directory."""
+
+    BINDINGS = [
+        Binding("escape", "dismiss", "Cancel"),
+        Binding("1", "move_1", "resources"),
+        Binding("2", "move_2", "codebases"),
+        Binding("3", "move_3", "history"),
+        Binding("4", "move_4", "notes"),
+    ]
+
+    DIRS = ["resources", "codebases", "history", "notes"]
+
+    def __init__(self, file_path: Path, project: SantaiProject) -> None:
+        super().__init__()
+        self._file_path = file_path
+        self._project = project
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="theme-modal"):
+            with Vertical(id="theme-modal-content"):
+                yield Label("[bold]Move File[/bold]", id="theme-modal-title")
+                yield Static(id="move-body")
+
+    def on_mount(self) -> None:
+        body = self.query_one("#move-body", Static)
+        # Determine current directory
+        try:
+            rel = self._file_path.relative_to(self._project.root)
+            current_dir = rel.parts[0] if rel.parts else "unknown"
+        except ValueError:
+            current_dir = "unknown"
+
+        lines = [
+            f"File: [bold]{self._file_path.name}[/bold]",
+            f"Current: [dim]{current_dir}/[/dim]",
+            "",
+            "Move to:",
+        ]
+        for i, d in enumerate(self.DIRS, 1):
+            marker = " [dim](current)[/dim]" if d == current_dir else ""
+            lines.append(f"  [{i}] {d}/{marker}")
+        lines.append("")
+        lines.append("[dim]Press 1-4 to move, Esc to cancel[/dim]")
+        body.update("\n".join(lines))
+
+    def _move_to(self, dest_dir: str) -> None:
+        dest_path = self._project.root / dest_dir / self._file_path.name
+        if dest_path.exists():
+            # Add suffix to avoid overwrite
+            stem = self._file_path.stem
+            suffix = self._file_path.suffix
+            counter = 1
+            while dest_path.exists():
+                dest_path = self._project.root / dest_dir / f"{stem}-{counter}{suffix}"
+                counter += 1
+        try:
+            dest_path.parent.mkdir(parents=True, exist_ok=True)
+            self._file_path.rename(dest_path)
+            self.app.notify(f"Moved to {dest_dir}/{dest_path.name}")
+            self._refresh_panels()
+        except OSError as e:
+            self.app.notify(f"Error: {e}", severity="error")
+        self.dismiss()
+
+    def _refresh_panels(self) -> None:
+        for panel in self.app.query(StatsPanel):
+            panel.refresh_stats()
+        for panel in self.app.query(NotesPanel):
+            panel.refresh_notes()
+        for panel in self.app.query(GraphPanel):
+            panel.refresh_graph()
+
+    def action_move_1(self) -> None:
+        self._move_to("resources")
+
+    def action_move_2(self) -> None:
+        self._move_to("codebases")
+
+    def action_move_3(self) -> None:
+        self._move_to("history")
+
+    def action_move_4(self) -> None:
+        self._move_to("notes")
+
+
 class NoteDetailScreen(ModalScreen):
     """Modal showing a single note's full content."""
 
     BINDINGS = [
         Binding("escape", "dismiss", "Close"),
+        Binding("d", "delete_note", "Delete"),
+        Binding("m", "move_note", "Move"),
     ]
 
-    def __init__(self, note) -> None:
+    def __init__(self, note, project: SantaiProject | None = None) -> None:
         super().__init__()
         self._note = note
+        self._project = project
 
     def compose(self) -> ComposeResult:
         with Vertical(id="notes-modal"):
             with VerticalScroll(id="notes-modal-content"):
                 yield Label(
-                    f"[bold]📄 {self._note.title} (press Esc to close)[/bold]",
+                    f"[bold]📄 {self._note.title}[/bold]",
                     id="notes-modal-title",
                 )
                 yield Static(id="notes-modal-body")
@@ -509,8 +630,68 @@ class NoteDetailScreen(ModalScreen):
         if len(self._note.content) > 5000:
             lines.append("")
             lines.append("[dim]... (truncated)[/dim]")
+        lines.append("")
+        lines.append("[dim]d = delete · m = move · Esc = close[/dim]")
 
         body.update("\n".join(lines))
+
+    def action_delete_note(self) -> None:
+        """Delete this note with confirmation."""
+        note_path = self._find_note_path()
+        if not note_path:
+            self.app.notify("Cannot find note file", severity="error")
+            return
+
+        def do_delete():
+            try:
+                note_path.unlink()
+                self.app.notify(f"Deleted: {self._note.filename}")
+                self._refresh_panels()
+            except OSError as e:
+                self.app.notify(f"Error: {e}", severity="error")
+            self.dismiss()
+
+        self.app.push_screen(
+            ConfirmScreen(
+                f"Delete [bold]{self._note.filename}[/bold]?\n\nThis cannot be undone.",
+                do_delete,
+            )
+        )
+
+    def action_move_note(self) -> None:
+        """Move this note to another directory."""
+        note_path = self._find_note_path()
+        if not note_path:
+            self.app.notify("Cannot find note file", severity="error")
+            return
+        project = self._project or self._get_project()
+        if project:
+            self.app.push_screen(MoveFileScreen(note_path, project))
+            self.dismiss()
+
+    def _find_note_path(self) -> Path | None:
+        """Find the actual file path for this note."""
+        project = self._project or self._get_project()
+        if not project:
+            return None
+        note_path = project.notes_path / self._note.filename
+        if note_path.exists():
+            return note_path
+        return None
+
+    def _get_project(self) -> SantaiProject | None:
+        """Get project from the app."""
+        if hasattr(self.app, "project"):
+            return self.app.project
+        return None
+
+    def _refresh_panels(self) -> None:
+        for panel in self.app.query(StatsPanel):
+            panel.refresh_stats()
+        for panel in self.app.query(NotesPanel):
+            panel.refresh_notes()
+        for panel in self.app.query(GraphPanel):
+            panel.refresh_graph()
 
 
 class AddNoteScreen(ModalScreen):
@@ -606,17 +787,20 @@ class FilePreviewScreen(ModalScreen):
 
     BINDINGS = [
         Binding("escape", "dismiss", "Close"),
+        Binding("d", "delete_file", "Delete"),
+        Binding("m", "move_file", "Move"),
     ]
 
-    def __init__(self, file_path: Path) -> None:
+    def __init__(self, file_path: Path, project: SantaiProject | None = None) -> None:
         super().__init__()
         self.file_path = file_path
+        self._project = project
 
     def compose(self) -> ComposeResult:
         with Vertical(id="file-preview-modal"):
             with VerticalScroll(id="file-preview-content"):
                 yield Label(
-                    f"[bold]{self.file_path.name} (press Esc to close)[/bold]",
+                    f"[bold]{self.file_path.name}[/bold]",
                     id="file-preview-title",
                 )
                 yield Static(id="file-preview-body")
@@ -628,11 +812,57 @@ class FilePreviewScreen(ModalScreen):
             content = self.file_path.read_text(encoding="utf-8")
             if len(content) > 5000:
                 content = content[:5000] + "\n\n[dim]... (truncated)[/dim]"
+            content += "\n\n[dim]d = delete · m = move · Esc = close[/dim]"
             body.update(content)
         except UnicodeDecodeError:
-            body.update(f"[dim]Binary file: {format_size(self.file_path.stat().st_size)}[/dim]")
+            body.update(
+                f"[dim]Binary file: {format_size(self.file_path.stat().st_size)}[/dim]\n\n"
+                f"[dim]d = delete · m = move · Esc = close[/dim]"
+            )
         except OSError as e:
             body.update(f"[dim]Error reading file: {e}[/dim]")
+
+    def _get_project(self) -> SantaiProject | None:
+        if self._project:
+            return self._project
+        if hasattr(self.app, "project"):
+            return self.app.project
+        return None
+
+    def action_delete_file(self) -> None:
+        """Delete this file with confirmation."""
+        def do_delete():
+            try:
+                self.file_path.unlink()
+                self.app.notify(f"Deleted: {self.file_path.name}")
+                self._refresh_panels()
+            except OSError as e:
+                self.app.notify(f"Error: {e}", severity="error")
+            self.dismiss()
+
+        self.app.push_screen(
+            ConfirmScreen(
+                f"Delete [bold]{self.file_path.name}[/bold]?\n\nThis cannot be undone.",
+                do_delete,
+            )
+        )
+
+    def action_move_file(self) -> None:
+        """Move this file to another directory."""
+        project = self._get_project()
+        if project:
+            self.app.push_screen(MoveFileScreen(self.file_path, project))
+            self.dismiss()
+        else:
+            self.app.notify("Cannot determine project", severity="error")
+
+    def _refresh_panels(self) -> None:
+        for panel in self.app.query(StatsPanel):
+            panel.refresh_stats()
+        for panel in self.app.query(NotesPanel):
+            panel.refresh_notes()
+        for panel in self.app.query(GraphPanel):
+            panel.refresh_graph()
 
 
 class ThemeSelectScreen(ModalScreen):
@@ -813,7 +1043,7 @@ class SantaiApp(App):
 
     def on_clickable_note_clicked(self, event: ClickableNote.Clicked) -> None:
         """Handle click on a note — open note detail modal."""
-        self.push_screen(NoteDetailScreen(event.note))
+        self.push_screen(NoteDetailScreen(event.note, project=self.project))
 
     def action_back(self) -> None:
         """Go back — exit fullscreen graph or do nothing on dashboard."""
@@ -831,7 +1061,7 @@ class SantaiApp(App):
                 if 0 <= row_index < len(panel._recent_files):
                     file_info = panel._recent_files[row_index]
                     if file_info.path.is_file():
-                        self.push_screen(FilePreviewScreen(file_info.path))
+                        self.push_screen(FilePreviewScreen(file_info.path, project=self.project))
 
     def on_directory_tree_file_selected(
         self, event: DirectoryTree.FileSelected
@@ -839,4 +1069,4 @@ class SantaiApp(App):
         """Handle file selection in directory tree — show file preview."""
         file_path = event.path
         if file_path.is_file():
-            self.push_screen(FilePreviewScreen(file_path))
+            self.push_screen(FilePreviewScreen(file_path, project=self.project))
