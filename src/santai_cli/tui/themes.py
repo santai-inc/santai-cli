@@ -389,7 +389,10 @@ class ThemeManager:
     @classmethod
     def cycle_theme(cls) -> Theme:
         """Cycle to the next theme and return it."""
-        current_idx = cls._theme_names.index(cls._current_theme.name)
+        try:
+            current_idx = cls._theme_names.index(cls._current_theme.name)
+        except ValueError:
+            current_idx = 0
         next_idx = (current_idx + 1) % len(cls._theme_names)
         cls._current_theme = AVAILABLE_THEMES[cls._theme_names[next_idx]]()
         cls._current_palette_idx = 0

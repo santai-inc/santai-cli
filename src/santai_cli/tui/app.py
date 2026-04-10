@@ -533,10 +533,12 @@ class NoteDetailScreen(ModalScreen):
             self.app.notify("Cannot find note file", severity="error")
             return
         project = self._project or self._get_project()
-        if project:
-            edit_screen = EditNoteScreen(note_path, self._note, project)
-            self.dismiss()
-            self.app.call_later(lambda: self.app.push_screen(edit_screen))
+        if not project:
+            self.app.notify("Cannot determine project", severity="error")
+            return
+        edit_screen = EditNoteScreen(note_path, self._note, project)
+        self.dismiss()
+        self.app.call_later(lambda: self.app.push_screen(edit_screen))
 
     def action_move_note(self) -> None:
         """Move this note to another directory."""
