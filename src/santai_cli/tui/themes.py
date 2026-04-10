@@ -387,10 +387,16 @@ def _generate_css(c: ThemeColors) -> str:
         height: auto;
     }}
 
+    /* === Modal Screens (centered overlay) === */
+
+    NoteDetailScreen, AddNoteScreen, FilePreviewScreen, ThemeSelectScreen {{
+        align: center middle;
+        background: {c.bg} 80%;
+    }}
+
     /* === Notes Modal === */
 
     #notes-modal {{
-        align: center middle;
         width: 80%;
         height: 80%;
     }}
@@ -452,7 +458,6 @@ def _generate_css(c: ThemeColors) -> str:
     /* === File Preview Modal === */
 
     #file-preview-modal {{
-        align: center middle;
         width: 80%;
         height: 80%;
     }}
@@ -484,7 +489,6 @@ def _generate_css(c: ThemeColors) -> str:
     /* === Theme Selector Modal === */
 
     #theme-modal {{
-        align: center middle;
         width: 60%;
         height: auto;
         max-height: 70%;
