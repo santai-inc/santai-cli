@@ -6,59 +6,39 @@
     <title>Santai - {{ project_name }}</title>
     <style>
         :root {
-            /* Colors */
-            --color-bg: #F5F5F7;
-            --color-surface: #FFFFFF;
-            --color-text-primary: #1D1D1F;
-            --color-text-secondary: #86868B;
-            --color-text-tertiary: #AEAEB2;
-            --color-accent: #10B981;
-            --color-accent-hover: #059669;
-            --color-border: #E5E5EA;
-            --color-border-light: #EFEFEF;
+            --orange-50: #fff7ed;
+            --orange-100: #ffedd5;
+            --orange-200: #fed7aa;
+            --orange-300: #fdba74;
+            --orange-400: #fb923c;
+            --orange-500: #f97316;
+            --orange-600: #ea580c;
+            --orange-700: #c2410c;
+            --orange-800: #9a3412;
+            --orange-900: #7c2d12;
+            --orange-950: #431407;
             
-            /* Glass */
-            --glass-bg: rgba(255, 255, 255, 0.08);
-            --glass-bg-hover: rgba(255, 255, 255, 0.12);
-            --glass-bg-active: rgba(255, 255, 255, 0.18);
-            --glass-border: rgba(255, 255, 255, 0.18);
-            --glass-highlight: rgba(255, 255, 255, 0.5);
-            --glass-shadow: 0 4px 24px rgba(0, 0, 0, 0.06), 0 1px 6px rgba(0, 0, 0, 0.04);
-            --glass-shadow-elevated: 0 16px 56px rgba(0, 0, 0, 0.10), 0 6px 20px rgba(0, 0, 0, 0.06);
-            --glass-inner-highlight: inset 0 0.5px 0 rgba(255, 255, 255, 0.5);
+            --stone-50: #fafaf9;
+            --stone-100: #f5f5f4;
+            --stone-200: #e7e5e4;
+            --stone-300: #d6d3d1;
+            --stone-400: #a8a29e;
+            --stone-500: #78716c;
+            --stone-600: #57534e;
+            --stone-700: #44403c;
+            --stone-800: #292524;
+            --stone-900: #1c1917;
+            --stone-950: #0c0a09;
             
-            /* Glass fills for nested elements */
-            --glass-fill: rgba(255, 255, 255, 0.12);
-            --glass-fill-hover: rgba(255, 255, 255, 0.20);
-            --glass-fill-active: rgba(255, 255, 255, 0.28);
-            
-            /* Spacing */
-            --space-1: 4px;
-            --space-2: 8px;
-            --space-3: 12px;
-            --space-4: 16px;
-            --space-5: 20px;
-            --space-6: 24px;
-            --space-8: 32px;
-            
-            /* Border radius */
-            --radius-sm: 6px;
-            --radius-md: 10px;
-            --radius-lg: 14px;
-            --radius-xl: 20px;
-            
-            /* Typography */
-            --font-size-xs: 0.75rem;
-            --font-size-sm: 0.8125rem;
-            --font-size-base: 0.875rem;
-            --font-size-md: 1rem;
-            --font-size-lg: 1.25rem;
-            --font-size-xl: 1.5rem;
-            --font-size-2xl: 2rem;
-            
-            /* Transitions */
-            --transition-fast: 150ms cubic-bezier(0.23, 1, 0.32, 1);
-            --transition-base: 250ms cubic-bezier(0.23, 1, 0.32, 1);
+            --bg-primary: var(--stone-950);
+            --bg-secondary: var(--stone-900);
+            --bg-tertiary: var(--stone-800);
+            --text-primary: var(--stone-50);
+            --text-secondary: var(--stone-400);
+            --accent: var(--orange-500);
+            --accent-light: var(--orange-400);
+            --accent-dark: var(--orange-600);
+            --border: var(--stone-700);
         }
 
         * {
@@ -68,66 +48,34 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Segoe UI', Roboto, 'Helvetica Neue', Helvetica, Arial, sans-serif;
-            background-color: var(--color-bg);
-            color: var(--color-text-primary);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
             min-height: 100vh;
             line-height: 1.6;
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
-        }
-
-        /* Scrollbar styling - Apple minimal */
-        ::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
-        }
-
-        ::-webkit-scrollbar-track {
-            background: transparent;
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background: rgba(0, 0, 0, 0.12);
-            border-radius: 3px;
-        }
-
-        ::-webkit-scrollbar-thumb:hover {
-            background: rgba(0, 0, 0, 0.20);
-        }
-
-        /* Reduced motion */
-        @media (prefers-reduced-motion: reduce) {
-            *, *::before, *::after {
-                transition: none !important;
-                animation: none !important;
-            }
         }
 
         header {
-            background: var(--glass-bg);
-            backdrop-filter: blur(56px) saturate(200%) brightness(1.1);
-            -webkit-backdrop-filter: blur(56px) saturate(200%) brightness(1.1);
-            padding: var(--space-4) var(--space-8);
-            border-bottom: 0.5px solid var(--glass-border);
-            box-shadow: var(--glass-shadow);
+            background: linear-gradient(135deg, var(--orange-600) 0%, var(--orange-500) 100%);
+            padding: 1.25rem 2rem;
+            box-shadow: 0 4px 20px rgba(249, 115, 22, 0.3);
         }
 
         header h1 {
-            font-size: var(--font-size-xl);
-            font-weight: 600;
-            color: var(--color-text-primary);
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--stone-950);
             display: flex;
             align-items: center;
-            gap: var(--space-2);
+            gap: 0.5rem;
         }
 
         header h1::before {
             content: '';
             display: inline-block;
-            width: 10px;
-            height: 10px;
-            background: var(--color-accent);
+            width: 8px;
+            height: 8px;
+            background: var(--stone-950);
             border-radius: 50%;
             animation: pulse 2s infinite;
         }
@@ -138,66 +86,63 @@
         }
 
         header h1 span {
-            color: var(--color-text-secondary);
-            font-weight: 400;
-            margin-left: var(--space-1);
+            color: var(--stone-950);
+            font-weight: 300;
+            margin-left: 0.25rem;
         }
 
         .container {
             display: grid;
             grid-template-columns: 320px 1fr;
-            gap: var(--space-4);
-            padding: var(--space-4);
+            gap: 1.5rem;
+            padding: 1.5rem;
             max-width: 1600px;
             margin: 0 auto;
             min-height: calc(100vh - 80px);
         }
 
         .panel {
-            background: var(--glass-bg);
-            backdrop-filter: blur(56px) saturate(200%) brightness(1.1);
-            -webkit-backdrop-filter: blur(56px) saturate(200%) brightness(1.1);
-            border-radius: var(--radius-xl);
-            padding: var(--space-5);
-            border: 0.5px solid var(--glass-border);
-            box-shadow: var(--glass-shadow), var(--glass-inner-highlight);
-            transition: all var(--transition-base);
+            background-color: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 1.25rem;
+            border: 1px solid var(--border);
+            transition: border-color 0.2s ease;
         }
 
         .panel:hover {
-            background: var(--glass-bg-hover);
+            border-color: var(--orange-700);
         }
 
         .panel h2 {
-            font-size: var(--font-size-xs);
+            font-size: 0.8rem;
             font-weight: 600;
-            margin-bottom: var(--space-4);
-            color: var(--color-text-secondary);
+            margin-bottom: 1rem;
+            color: var(--accent);
             text-transform: uppercase;
-            letter-spacing: 0.08em;
+            letter-spacing: 0.1em;
             display: flex;
             align-items: center;
-            gap: var(--space-2);
+            gap: 0.5rem;
         }
 
         .panel h2::before {
             content: '';
             display: inline-block;
-            width: 4px;
+            width: 3px;
             height: 1rem;
-            background: var(--color-accent);
+            background: var(--accent);
             border-radius: 2px;
         }
 
         /* File Tree */
         .file-tree {
             font-family: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', monospace;
-            font-size: var(--font-size-sm);
+            font-size: 0.85rem;
         }
 
         .file-tree ul {
             list-style: none;
-            padding-left: var(--space-3);
+            padding-left: 1.25rem;
         }
 
         .file-tree > ul {
@@ -205,28 +150,28 @@
         }
 
         .file-tree li {
-            padding: var(--space-1) 0;
+            padding: 0.35rem 0;
         }
 
         .file-tree .folder {
-            color: var(--color-text-primary);
+            color: var(--text-primary);
             cursor: pointer;
-            font-weight: 500;
-            transition: color var(--transition-fast);
+            font-weight: 600;
+            transition: color 0.15s ease;
             display: inline-flex;
             align-items: center;
-            gap: var(--space-2);
+            gap: 0.5rem;
         }
 
         .file-tree .folder:hover {
-            color: var(--color-accent);
+            color: var(--accent);
         }
 
         .file-tree .folder::before {
             content: '▼';
-            font-size: 0.5rem;
-            color: var(--color-accent);
-            transition: transform var(--transition-base);
+            font-size: 0.6rem;
+            color: var(--accent);
+            transition: transform 0.2s ease;
         }
 
         .file-tree .folder.collapsed::before {
@@ -238,50 +183,42 @@
         }
 
         .file-tree .file {
-            color: var(--color-text-secondary);
+            color: var(--text-secondary);
             display: inline-flex;
             align-items: center;
-            gap: var(--space-2);
-            transition: color var(--transition-fast);
+            gap: 0.5rem;
+            transition: color 0.15s ease;
         }
 
         .file-tree .file:hover {
-            color: var(--color-text-primary);
+            color: var(--text-primary);
         }
 
         .file-tree .file::before {
             content: '○';
             font-size: 0.5rem;
-            color: var(--color-text-tertiary);
+            color: var(--stone-600);
         }
 
         /* Dashboard */
         .dashboard {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-            gap: var(--space-4);
+            gap: 1.5rem;
             align-content: start;
         }
 
         .stat-card {
-            background: var(--glass-fill);
-            backdrop-filter: blur(48px) saturate(180%);
-            -webkit-backdrop-filter: blur(48px) saturate(180%);
-            border-radius: var(--radius-lg);
-            padding: var(--space-4);
-            border: 0.5px solid rgba(255, 255, 255, 0.15);
-            box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.4);
-            transition: all var(--transition-base);
-        }
-
-        .stat-card:hover {
-            background: var(--glass-fill-hover);
+            background-color: var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 1rem;
+            border-left: 3px solid var(--accent);
         }
 
         .stat-card h3 {
-            font-size: var(--font-size-base);
-            color: var(--color-text-secondary);
-            margin-bottom: var(--space-2);
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
         }
 
         table {
@@ -291,30 +228,30 @@
 
         th, td {
             text-align: left;
-            padding: var(--space-2) var(--space-3);
-            border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+            padding: 0.625rem 0.75rem;
+            border-bottom: 1px solid var(--border);
         }
 
         th {
-            color: var(--color-text-secondary);
+            color: var(--accent);
             font-weight: 600;
-            font-size: var(--font-size-xs);
+            font-size: 0.7rem;
             text-transform: uppercase;
             letter-spacing: 0.05em;
-            background: rgba(255, 255, 255, 0.08);
+            background: var(--bg-secondary);
         }
 
         td {
-            font-size: var(--font-size-base);
-            color: var(--color-text-primary);
+            font-size: 0.875rem;
+            color: var(--text-primary);
         }
 
         tbody tr {
-            transition: background-color var(--transition-fast);
+            transition: background-color 0.15s ease;
         }
 
         tbody tr:hover {
-            background: rgba(255, 255, 255, 0.08);
+            background-color: var(--stone-700);
         }
 
         tr:last-child td {
@@ -322,31 +259,28 @@
         }
 
         .total-row {
-            font-weight: 600;
-            color: var(--color-accent);
-            background: rgba(16, 185, 129, 0.08);
+            font-weight: 700;
+            color: var(--accent);
+            background-color: var(--bg-secondary);
         }
 
         .total-row:hover {
-            background: rgba(16, 185, 129, 0.12);
+            background-color: var(--bg-secondary);
         }
 
         /* History & Notes */
         .history-entry, .note-entry {
-            background: var(--glass-fill);
-            backdrop-filter: blur(48px) saturate(180%);
-            -webkit-backdrop-filter: blur(48px) saturate(180%);
-            border-radius: var(--radius-lg);
-            padding: var(--space-4);
-            margin-bottom: var(--space-3);
-            border: 0.5px solid rgba(255, 255, 255, 0.15);
-            box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.4);
-            transition: all var(--transition-base);
+            background-color: var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            border-left: 3px solid var(--accent);
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
         }
 
         .history-entry:hover, .note-entry:hover {
-            background: var(--glass-fill-hover);
             transform: translateX(4px);
+            box-shadow: -4px 0 0 var(--accent-light);
         }
 
         .history-entry:last-child, .note-entry:last-child {
@@ -354,32 +288,32 @@
         }
 
         .history-entry h4, .note-entry h4 {
-            font-size: var(--font-size-base);
-            margin-bottom: var(--space-1);
-            color: var(--color-text-primary);
+            font-size: 0.95rem;
+            margin-bottom: 0.35rem;
+            color: var(--text-primary);
         }
 
         .history-entry .date, .note-entry .meta {
-            font-size: var(--font-size-sm);
-            color: var(--color-accent);
+            font-size: 0.75rem;
+            color: var(--accent-light);
             font-weight: 500;
         }
 
         .note-entry .preview {
-            font-size: var(--font-size-sm);
-            color: var(--color-text-secondary);
-            margin-top: var(--space-2);
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
             line-height: 1.5;
         }
 
         .empty-state {
-            color: var(--color-text-tertiary);
+            color: var(--text-secondary);
             font-style: italic;
-            padding: var(--space-4);
+            padding: 1.5rem;
             text-align: center;
-            background: var(--glass-fill);
-            border-radius: var(--radius-lg);
-            border: 1px dashed rgba(0, 0, 0, 0.1);
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            border: 1px dashed var(--border);
         }
 
         /* Graph View */
@@ -388,12 +322,9 @@
         }
 
         .graph-container {
-            background: var(--glass-fill);
-            backdrop-filter: blur(48px) saturate(180%);
-            -webkit-backdrop-filter: blur(48px) saturate(180%);
-            border-radius: var(--radius-lg);
-            border: 0.5px solid rgba(255, 255, 255, 0.15);
-            box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.4);
+            background-color: var(--bg-tertiary);
+            border-radius: 8px;
+            border-left: 3px solid var(--accent);
             height: 400px;
             position: relative;
             overflow: hidden;
@@ -406,7 +337,7 @@
 
         .graph-node {
             cursor: pointer;
-            transition: opacity var(--transition-base);
+            transition: opacity 0.2s ease;
         }
 
         .graph-node:hover {
@@ -414,22 +345,21 @@
         }
 
         .graph-node circle {
-            stroke: rgba(255, 255, 255, 0.8);
+            stroke: var(--stone-950);
             stroke-width: 2px;
         }
 
         .graph-node text {
             font-size: 10px;
-            fill: var(--color-text-primary);
+            fill: var(--text-primary);
             pointer-events: none;
         }
 
         .graph-link {
             fill: none;
-            stroke: var(--color-accent);
+            stroke: var(--accent);
             stroke-opacity: 0.6;
             stroke-width: 1.5px;
-            transition: all var(--transition-fast);
         }
 
         .graph-link:hover {
@@ -439,15 +369,13 @@
 
         .graph-legend {
             position: absolute;
-            top: var(--space-3);
-            right: var(--space-3);
-            background: var(--glass-fill);
-            backdrop-filter: blur(24px) saturate(180%);
-            -webkit-backdrop-filter: blur(24px) saturate(180%);
-            padding: var(--space-3);
-            border-radius: var(--radius-md);
-            font-size: var(--font-size-sm);
-            border: 0.5px solid rgba(255, 255, 255, 0.15);
+            top: 10px;
+            right: 10px;
+            background: var(--bg-secondary);
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            border: 1px solid var(--border);
         }
 
         .graph-legend-item {
@@ -469,18 +397,15 @@
 
         .graph-tooltip {
             position: absolute;
-            background: var(--glass-fill);
-            backdrop-filter: blur(24px) saturate(180%);
-            -webkit-backdrop-filter: blur(24px) saturate(180%);
-            border: 0.5px solid var(--color-accent);
-            border-radius: var(--radius-md);
-            padding: var(--space-2) var(--space-3);
-            font-size: var(--font-size-sm);
+            background: var(--bg-secondary);
+            border: 1px solid var(--accent);
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 0.8rem;
             pointer-events: none;
             opacity: 0;
-            transition: opacity var(--transition-fast);
+            transition: opacity 0.2s ease;
             z-index: 100;
-            box-shadow: var(--glass-shadow);
         }
 
         .graph-tooltip.visible {
@@ -489,29 +414,27 @@
 
         .graph-stats {
             position: absolute;
-            bottom: var(--space-3);
-            left: var(--space-3);
-            background: var(--glass-fill);
-            backdrop-filter: blur(24px) saturate(180%);
-            -webkit-backdrop-filter: blur(24px) saturate(180%);
-            padding: var(--space-2) var(--space-3);
-            border-radius: var(--radius-md);
-            font-size: var(--font-size-sm);
-            border: 0.5px solid rgba(255, 255, 255, 0.15);
-            color: var(--color-text-secondary);
+            bottom: 10px;
+            left: 10px;
+            background: var(--bg-secondary);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
         }
 
         footer {
             text-align: center;
-            padding: var(--space-5);
-            color: var(--color-text-secondary);
-            font-size: var(--font-size-sm);
-            border-top: 0.5px solid rgba(0, 0, 0, 0.06);
-            background: rgba(255, 255, 255, 0.5);
+            padding: 1.5rem;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            border-top: 1px solid var(--border);
+            background: var(--bg-secondary);
         }
 
         footer strong {
-            color: var(--color-accent);
+            color: var(--accent);
         }
 
         @media (max-width: 768px) {
@@ -520,7 +443,7 @@
             }
             
             header h1 {
-                font-size: var(--font-size-lg);
+                font-size: 1.25rem;
             }
         }
     </style>
@@ -686,19 +609,19 @@
                     <svg id="graph-svg"></svg>
                     <div class="graph-legend">
                         <div class="graph-legend-item">
-                            <span class="graph-legend-color" style="background: #10B981;"></span>
+                            <span class="graph-legend-color" style="background: #f97316;"></span>
                             <span>resources</span>
                         </div>
                         <div class="graph-legend-item">
-                            <span class="graph-legend-color" style="background: #06B6D4;"></span>
+                            <span class="graph-legend-color" style="background: #22c55e;"></span>
                             <span>codebases</span>
                         </div>
                         <div class="graph-legend-item">
-                            <span class="graph-legend-color" style="background: #8B5CF6;"></span>
+                            <span class="graph-legend-color" style="background: #3b82f6;"></span>
                             <span>history</span>
                         </div>
                         <div class="graph-legend-item">
-                            <span class="graph-legend-color" style="background: #F59E0B;"></span>
+                            <span class="graph-legend-color" style="background: #a855f7;"></span>
                             <span>notes</span>
                         </div>
                     </div>
@@ -715,13 +638,13 @@
 
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <script>
-        // Directory color mapping - harmonized with glass aesthetic
+        // Directory color mapping
         const dirColors = {
-            resources: '#10B981',
-            codebases: '#06B6D4',
-            history: '#8B5CF6',
-            notes: '#F59E0B',
-            other: '#AEAEB2'
+            resources: '#f97316',
+            codebases: '#22c55e',
+            history: '#3b82f6',
+            notes: '#a855f7',
+            other: '#78716c'
         };
 
         // Fetch graph data and render
@@ -778,7 +701,7 @@
                 .force('center', d3.forceCenter(width / 2, height / 2))
                 .force('collision', d3.forceCollide().radius(30));
 
-            // Create arrow marker for directed edges - green accent
+            // Create arrow marker for directed edges
             svg.append('defs').append('marker')
                 .attr('id', 'arrowhead')
                 .attr('viewBox', '-0 -5 10 10')
@@ -789,7 +712,7 @@
                 .attr('markerHeight', 6)
                 .append('path')
                 .attr('d', 'M 0,-5 L 10,0 L 0,5')
-                .attr('fill', '#10B981');
+                .attr('fill', '#f97316');
 
             // Create link elements
             const link = svg.append('g')
@@ -833,9 +756,7 @@
             // Add circles to nodes
             node.append('circle')
                 .attr('r', d => Math.max(8, Math.min(20, Math.sqrt(d.size / 100))))
-                .attr('fill', d => dirColors[d.directory] || dirColors.other)
-                .attr('stroke', 'rgba(255, 255, 255, 0.8)')
-                .attr('stroke-width', 2);
+                .attr('fill', d => dirColors[d.directory] || dirColors.other);
 
             // Add labels to nodes
             node.append('text')
