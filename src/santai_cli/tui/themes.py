@@ -429,7 +429,7 @@ def get_theme_css(theme: Theme | None = None) -> str:
 
 
 def _generate_css(c: ThemeColors) -> str:
-    """Generate the full CSS for a given color palette."""
+    """Generate the full CSS for a given color palette — dashboard style."""
     return f"""
     Screen {{
         layout: horizontal;
@@ -466,40 +466,42 @@ def _generate_css(c: ThemeColors) -> str:
         color: {c.fg};
     }}
 
+    /* === Main Layout Containers === */
+
     #main-layout {{
         width: 100%;
-        height: 1fr;
+        height: 100%;
     }}
 
     #tree-container {{
-        width: 30;
-        min-width: 25;
-        max-width: 40;
+        width: 1fr;
         height: 100%;
-        border-right: solid {c.muted};
+        border: solid {c.muted};
+        padding: 1 2;
+        background: {c.surface};
+        margin: 1;
     }}
 
     #tree-title {{
-        padding: 0 1;
-        color: {c.primary};
         text-style: bold;
-    }}
-
-    #tree {{
+        color: {c.primary};
+        margin-bottom: 1;
+        text-align: center;
         width: 100%;
-        height: 1fr;
-        background: {c.bg};
-        color: {c.fg};
     }}
 
     DirectoryTree {{
-        background: {c.bg};
-        color: {c.fg};
+        background: transparent;
+        padding: 0 1;
     }}
 
     DirectoryTree > .directory-tree--folder {{
-        color: {c.primary};
+        color: {c.fg};
         text-style: bold;
+    }}
+
+    DirectoryTree > .directory-tree--extension {{
+        color: {c.muted};
     }}
 
     DirectoryTree > .directory-tree--file {{
@@ -507,74 +509,62 @@ def _generate_css(c: ThemeColors) -> str:
     }}
 
     DirectoryTree:focus > .directory-tree--cursor {{
+        background: {c.primary};
+        color: {c.bg};
+    }}
+
+    DirectoryTree > .directory-tree--cursor {{
         background: {c.primary} 30%;
         color: {c.fg};
     }}
 
-    #middle-container {{
-        width: 1fr;
+    #middle-container, #right-container {{
+        width: 2fr;
         height: 100%;
+        layout: vertical;
     }}
 
-    #stats-container {{
-        height: auto;
-        max-height: 60%;
-        padding: 0 1;
-    }}
-
-    #notes-container {{
+    #stats-container, #notes-container, #graph-container {{
         height: 1fr;
-        padding: 0 1;
-        border-top: solid {c.muted};
-    }}
-
-    #right-container {{
-        width: 40;
-        min-width: 30;
-        max-width: 50;
-        height: 100%;
-        border-left: solid {c.muted};
-    }}
-
-    #graph-container {{
-        height: 100%;
-        padding: 0 1;
-    }}
-
-    #graph-fullscreen {{
-        width: 100%;
-        height: 1fr;
+        border: solid {c.muted};
         padding: 1 2;
-        background: {c.bg};
-        display: none;
-    }}
-
-    StatsPanel {{
-        height: auto;
-        color: {c.fg};
-    }}
-
-    NotesPanel {{
-        height: 1fr;
-        color: {c.fg};
-    }}
-
-    GraphPanel {{
-        height: auto;
-        color: {c.fg};
+        background: {c.surface};
+        margin: 1;
     }}
 
     #stats-title, #types-title, #recent-title, #notes-title, #graph-title {{
-        padding: 1 0 0 0;
+        margin-bottom: 1;
         color: {c.primary};
         text-style: bold;
+        border-bottom: solid {c.primary};
+        padding-bottom: 1;
+    }}
+
+    #notes-list, #graph-content {{
+        color: {c.fg};
+        padding: 1;
+        height: auto;
+    }}
+
+    ClickableNote {{
+        padding: 1 2;
+        margin-bottom: 1;
+        background: {c.surface};
+        border: solid {c.muted};
+        height: auto;
+    }}
+
+    ClickableNote:hover {{
+        background: {c.bg};
+        border: solid {c.primary};
     }}
 
     DataTable {{
         height: auto;
-        max-height: 12;
+        max-height: 10;
+        margin-bottom: 1;
         background: {c.surface};
-        color: {c.fg};
+        padding: 0 1;
     }}
 
     DataTable > .datatable--header {{
@@ -585,40 +575,165 @@ def _generate_css(c: ThemeColors) -> str:
 
     DataTable > .datatable--cursor {{
         background: {c.primary} 40%;
-        color: {c.fg};
+        color: {c.bg};
     }}
 
-    DataTable > .datatable--even-row {{
+    DataTable > .datatable--even-row, .datatable--odd-row {{
         background: {c.surface};
     }}
 
-    DataTable > .datatable--odd-row {{
-        background: {c.bg};
+    DataTable:focus > .datatable--cursor {{
+        background: {c.primary};
+        color: {c.bg};
     }}
 
-    ClickableNote {{
-        padding: 0 1;
-        margin: 0 0 1 0;
-        background: {c.surface};
+    StatsPanel, NotesPanel, GraphPanel {{
+        background: transparent;
+        height: auto;
+    }}
+
+    StatsPanel > Label, NotesPanel > Label, GraphPanel > Label {{
         color: {c.fg};
     }}
 
-    ClickableNote:hover {{
-        background: {c.bg};
+    /* === Graph Fullscreen === */
+
+    #graph-fullscreen {{
+        width: 100%;
+        height: 100%;
+        border: solid {c.primary};
+        padding: 1 2;
+        background: {c.surface};
+        margin: 1;
+    }}
+
+    #graph-fullscreen GraphPanel {{
+        height: auto;
+    }}
+
+    #graph-fullscreen #graph-title {{
+        text-align: center;
+        padding: 1 2;
         color: {c.primary};
     }}
 
-    #notes-list {{
-        height: 1fr;
+    #graph-fullscreen #graph-content {{
+        color: {c.fg};
+        padding: 1 2;
+        height: auto;
+    }}
+
+    /* === Modal Screens (centered overlay) === */
+
+    NoteDetailScreen, AddNoteScreen, FilePreviewScreen, ThemeSelectScreen, ConfirmScreen, MoveFileScreen {{
+        align: center middle;
+        background: {c.bg} 80%;
+    }}
+
+    #confirm-body, #move-body {{
+        color: {c.fg};
+        padding: 1;
+        height: auto;
+    }}
+
+    /* === Notes Modal === */
+
+    #notes-modal {{
+        width: 80%;
+        height: 80%;
+    }}
+
+    #notes-modal-content {{
+        width: 100%;
+        height: 100%;
+        border: solid {c.primary};
+        background: {c.surface};
+        padding: 2 4;
         overflow-y: auto;
     }}
 
-    /* Modal styling */
-    #theme-modal, #notes-modal, #file-preview-modal {{
-        align: center middle;
+    #notes-modal-title {{
+        text-style: bold;
+        color: {c.primary};
+        text-align: center;
+        margin-bottom: 1;
+        border-bottom: solid {c.primary};
+        padding-bottom: 1;
+    }}
+
+    #notes-modal-body {{
+        color: {c.fg};
+        padding: 1;
+        height: auto;
+    }}
+
+    #note-title-input {{
+        margin: 1 0;
+        background: {c.bg};
+        color: {c.fg};
+        border: solid {c.muted};
+    }}
+
+    #note-title-input:focus {{
+        border: solid {c.primary};
+    }}
+
+    #note-content-input {{
+        margin: 1 0;
+        min-height: 10;
+        height: 1fr;
+        background: {c.bg};
+        color: {c.fg};
+        border: solid {c.muted};
+    }}
+
+    #note-content-input:focus {{
+        border: solid {c.primary};
+    }}
+
+    #note-help {{
+        color: {c.muted};
+        text-align: center;
+        margin-top: 1;
+    }}
+
+    /* === File Preview Modal === */
+
+    #file-preview-modal {{
+        width: 80%;
+        height: 80%;
+    }}
+
+    #file-preview-content {{
         width: 100%;
         height: 100%;
-        background: {c.bg} 80%;
+        border: solid {c.secondary};
+        background: {c.surface};
+        padding: 2 4;
+        overflow-y: auto;
+    }}
+
+    #file-preview-title {{
+        text-style: bold;
+        color: {c.secondary};
+        text-align: center;
+        margin-bottom: 1;
+        border-bottom: solid {c.secondary};
+        padding-bottom: 1;
+    }}
+
+    #file-preview-body {{
+        color: {c.fg};
+        padding: 1;
+        height: auto;
+    }}
+
+    /* === Theme Selector Modal === */
+
+    #theme-modal {{
+        width: 60%;
+        height: auto;
+        max-height: 70%;
     }}
 
     #theme-modal-content {{
@@ -636,90 +751,26 @@ def _generate_css(c: ThemeColors) -> str:
     }}
 
     #theme-modal-title {{
+        text-style: bold;
+        color: {c.primary};
+        text-align: center;
+        margin-bottom: 1;
+        border-bottom: solid {c.primary};
+        padding-bottom: 1;
+    }}
+
+    .theme-option {{
+        padding: 1 2;
+        margin: 0 1;
+        color: {c.fg};
+    }}
+
+    .theme-option:hover {{
+        background: {c.primary} 30%;
+    }}
+
+    .theme-option-active {{
         color: {c.primary};
         text-style: bold;
-        padding: 0 0 1 0;
-    }}
-
-    #notes-modal-content {{
-        width: 80%;
-        max-width: 100;
-        height: 80%;
-        border: solid {c.primary};
-        background: {c.surface};
-        padding: 2 4;
-        color: {c.fg};
-    }}
-
-    #notes-modal-title {{
-        color: {c.primary};
-        text-style: bold;
-        padding: 0 0 1 0;
-    }}
-
-    #notes-modal-body {{
-        height: auto;
-        color: {c.fg};
-    }}
-
-    #file-preview-content {{
-        width: 80%;
-        max-width: 100;
-        height: 80%;
-        border: solid {c.primary};
-        background: {c.surface};
-        padding: 2 4;
-        color: {c.fg};
-    }}
-
-    #file-preview-title {{
-        color: {c.primary};
-        text-style: bold;
-        padding: 0 0 1 0;
-    }}
-
-    #file-preview-body {{
-        height: auto;
-        color: {c.fg};
-    }}
-
-    /* Note creation modal */
-    Input {{
-        margin: 0 0 1 0;
-        background: {c.bg};
-        color: {c.fg};
-        border: solid {c.muted};
-    }}
-
-    Input:focus {{
-        border: solid {c.primary};
-    }}
-
-    TextArea {{
-        height: 10;
-        margin: 0 0 1 0;
-        background: {c.bg};
-        color: {c.fg};
-        border: solid {c.muted};
-    }}
-
-    TextArea:focus {{
-        border: solid {c.primary};
-    }}
-
-    #note-help {{
-        color: {c.muted};
-    }}
-
-    /* Confirm dialog */
-    #confirm-body {{
-        height: auto;
-        color: {c.fg};
-    }}
-
-    /* Move file dialog */
-    #move-body {{
-        height: auto;
-        color: {c.fg};
     }}
     """
