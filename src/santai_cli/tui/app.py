@@ -993,7 +993,7 @@ class SantaiApp(App):
         Binding("g", "toggle_graph", "Graph"),
         Binding("t", "select_theme", "Theme"),
         Binding("n", "add_note", "Add Note"),
-        Binding("ctrl+p", "cycle_palette", "Palette"),
+        Binding("p", "cycle_palette", "Palette"),
         Binding("escape", "back", "Back", show=True),
     ]
 
