@@ -353,6 +353,7 @@ def _generate_css(c: ThemeColors) -> str:
 
     StatsPanel, NotesPanel, GraphPanel {{
         background: transparent;
+        height: auto;
     }}
 
     StatsPanel > Label, NotesPanel > Label, GraphPanel > Label {{
@@ -370,6 +371,10 @@ def _generate_css(c: ThemeColors) -> str:
         margin: 1;
     }}
 
+    #graph-fullscreen GraphPanel {{
+        height: auto;
+    }}
+
     #graph-fullscreen #graph-title {{
         text-align: center;
         padding: 1 2;
@@ -379,7 +384,7 @@ def _generate_css(c: ThemeColors) -> str:
     #graph-fullscreen #graph-content {{
         color: {c.fg};
         padding: 1 2;
-        height: 100%;
+        height: auto;
     }}
 
     /* === Notes Modal === */

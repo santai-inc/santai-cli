@@ -716,8 +716,8 @@ class SantaiApp(App):
             with Vertical(id="right-container"):
                 with Vertical(id="graph-container"):
                     yield GraphPanel(self.project)
-        # Fullscreen graph - hidden by default
-        with Vertical(id="graph-fullscreen"):
+        # Fullscreen graph - hidden by default, scrollable
+        with VerticalScroll(id="graph-fullscreen"):
             yield GraphPanel(self.project, fullscreen=True)
         yield Footer()
 
