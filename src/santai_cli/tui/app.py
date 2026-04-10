@@ -74,6 +74,7 @@ class StatsPanel(Static):
     def __init__(self, project: SantaiProject) -> None:
         super().__init__()
         self.project = project
+        self._recent_files: list = []
 
     def compose(self) -> ComposeResult:
         yield Label("[bold]Directory Statistics[/bold]", id="stats-title")
@@ -82,8 +83,8 @@ class StatsPanel(Static):
         yield Label("[bold]File Types[/bold]", id="types-title")
         yield DataTable(id="types-table")
         yield Label("")
-        yield Label("[bold]Recent Files[/bold]", id="recent-title")
-        yield DataTable(id="recent-table")
+        yield Label("[bold]Recent Files[/bold] [dim](click to open)[/dim]", id="recent-title")
+        yield DataTable(id="recent-table", cursor_type="row")
 
     def on_mount(self) -> None:
         """Populate tables with data."""
@@ -92,6 +93,7 @@ class StatsPanel(Static):
     def refresh_stats(self) -> None:
         """Refresh statistics data."""
         stats = get_directory_stats(self.project)
+        self._recent_files = stats.recent_files[:5]
 
         # Directory stats table
         dir_table = self.query_one("#dir-stats-table", DataTable)
@@ -118,16 +120,16 @@ class StatsPanel(Static):
         if not stats.file_types:
             types_table.add_row("[dim]No files[/dim]", "")
 
-        # Recent files table
+        # Recent files table (clickable rows)
         recent_table = self.query_one("#recent-table", DataTable)
         recent_table.clear(columns=True)
         recent_table.add_columns("File", "Modified")
-        for file_info in stats.recent_files[:5]:
+        for file_info in self._recent_files:
             recent_table.add_row(
                 file_info.name,
                 format_time_ago(file_info.modified_at),
             )
-        if not stats.recent_files:
+        if not self._recent_files:
             recent_table.add_row("[dim]No files[/dim]", "")
 
 
@@ -686,6 +688,7 @@ class SantaiApp(App):
         Binding("g", "toggle_graph", "Graph"),
         Binding("t", "select_theme", "Theme"),
         Binding("n", "show_notes", "Notes"),
+        Binding("escape", "back", "Back", show=True),
     ]
 
     def __init__(self, project: SantaiProject) -> None:
@@ -765,6 +768,24 @@ class SantaiApp(App):
     def on_clickable_note_clicked(self, event: ClickableNote.Clicked) -> None:
         """Handle click on a note — open note detail modal."""
         self.push_screen(NoteDetailScreen(event.note))
+
+    def action_back(self) -> None:
+        """Go back — exit fullscreen graph or do nothing on dashboard."""
+        if self._graph_fullscreen:
+            self.action_toggle_graph()
+
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        """Handle row selection in data tables — open file preview for recent files."""
+        # Check if this is the recent files table
+        table = event.data_table
+        if table.id == "recent-table":
+            # Find the StatsPanel that owns this table
+            for panel in self.query(StatsPanel):
+                row_index = event.cursor_row
+                if 0 <= row_index < len(panel._recent_files):
+                    file_info = panel._recent_files[row_index]
+                    if file_info.path.is_file():
+                        self.push_screen(FilePreviewScreen(file_info.path))
 
     def on_directory_tree_file_selected(
         self, event: DirectoryTree.FileSelected
