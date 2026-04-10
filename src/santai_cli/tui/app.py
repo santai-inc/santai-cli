@@ -182,12 +182,14 @@ class GraphPanel(Static):
         "other": "#78716C",  # gray
     }
 
-    def __init__(self, project: SantaiProject) -> None:
+    def __init__(self, project: SantaiProject, fullscreen: bool = False) -> None:
         super().__init__()
         self.project = project
+        self.fullscreen = fullscreen
 
     def compose(self) -> ComposeResult:
-        yield Label("[bold]File Graph[/bold]", id="graph-title")
+        title = "[bold]File Graph (Press g to exit)[/bold]" if self.fullscreen else "[bold]File Graph[/bold]"
+        yield Label(title, id="graph-title")
         yield Static(id="graph-content")
 
     def on_mount(self) -> None:
@@ -282,35 +284,58 @@ class SantaiApp(App):
     """Santai TUI application."""
 
     TITLE = "Santai"
-    CSS = get_theme_css()
+    CSS = get_theme_css() + """
+    #graph-fullscreen {
+        width: 100%;
+        height: 100%;
+    }
+    #graph-fullscreen > #graph-title {
+        text-align: center;
+        padding: 1 2;
+    }
+    #theme-selector {
+        width: 50%;
+        height: auto;
+        background: $surface;
+        border: solid $primary;
+        padding: 2 4;
+        margin: 1 2;
+    }
+    """
 
     BINDINGS = [
         Binding("q", "quit", "Quit"),
         Binding("r", "refresh", "Refresh"),
         Binding("g", "toggle_graph", "Graph"),
+        Binding("t", "select_theme", "Theme"),
     ]
 
     def __init__(self, project: SantaiProject) -> None:
         super().__init__()
         self.project = project
         self.sub_title = project.name
+        self._graph_fullscreen = False
 
     def compose(self) -> ComposeResult:
         yield Header()
-        with Horizontal():
-            with Vertical(id="tree-container"):
-                yield Label(
-                    f"[bold]Project: {self.project.name}[/bold]", id="tree-title"
-                )
-                yield FilteredDirectoryTree(self.project.root, id="tree")
-            with Vertical(id="middle-container"):
-                with Vertical(id="stats-container"):
-                    yield StatsPanel(self.project)
-                with Vertical(id="notes-container"):
-                    yield NotesPanel(self.project)
-            with Vertical(id="right-container"):
-                with Vertical(id="graph-container"):
-                    yield GraphPanel(self.project)
+        if self._graph_fullscreen:
+            with Vertical(id="graph-fullscreen"):
+                yield GraphPanel(self.project, fullscreen=True)
+        else:
+            with Horizontal():
+                with Vertical(id="tree-container"):
+                    yield Label(
+                        f"[bold]Project: {self.project.name}[/bold]", id="tree-title"
+                    )
+                    yield FilteredDirectoryTree(self.project.root, id="tree")
+                with Vertical(id="middle-container"):
+                    with Vertical(id="stats-container"):
+                        yield StatsPanel(self.project)
+                    with Vertical(id="notes-container"):
+                        yield NotesPanel(self.project)
+                with Vertical(id="right-container"):
+                    with Vertical(id="graph-container"):
+                        yield GraphPanel(self.project)
         yield Footer()
 
     def action_refresh(self) -> None:
@@ -324,10 +349,36 @@ class SantaiApp(App):
         self.notify("Refreshed all panels")
 
     def action_toggle_graph(self) -> None:
-        """Toggle graph panel visibility."""
-        graph_container = self.query_one("#right-container")
-        graph_container.display = not graph_container.display
-        if graph_container.display:
-            self.notify("Graph panel shown")
+        """Toggle graph panel visibility / fullscreen."""
+        if self._right_container_exists():
+            graph_container = self.query_one("#right-container")
+            if graph_container.display:
+                self._graph_fullscreen = True
+                self.notify("Graph fullscreen - press g to exit")
+            else:
+                self._graph_fullscreen = False
+                graph_container.display = True
+                self.notify("Graph panel shown")
+            self.app.refresh()
         else:
-            self.notify("Graph panel hidden")
+            self._graph_fullscreen = False
+            self.app.refresh()
+            self.notify("Graph panel shown")
+
+    def _right_container_exists(self) -> bool:
+        """Check if right container exists in current layout."""
+        try:
+            return self.query_one("#right-container").display
+        except:
+            return False
+
+    def action_select_theme(self) -> None:
+        """Show theme selector."""
+        from textual.pilot import Pilot
+        from textual.widgets import Static, Button
+
+        current = ThemeManager.get_current_theme().display_name
+        themes = ThemeManager.get_available_themes()
+        
+        msg = f"Current: {current}\nThemes: {', '.join(themes)}\nRestart TUI with: santai ui --theme <name>"
+        self.notify(msg)
