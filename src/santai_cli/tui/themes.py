@@ -152,7 +152,7 @@ def light_theme() -> Theme:
         success="#16a34a",
         warning="#d97706",
         error="#dc2626",
-        muted="#9ca3af",
+        muted="#6b7280",
         surface="#ffffff",
     )
     return Theme(
@@ -255,17 +255,18 @@ def _generate_css(c: ThemeColors) -> str:
     }}
 
     Footer {{
-        background: {c.surface};
-        color: {c.muted};
-    }}
-
-    Footer > .footer--key {{
-        background: {c.surface};
+        background: {c.bg};
         color: {c.fg};
     }}
 
+    Footer > .footer--key {{
+        background: {c.primary};
+        color: {c.bg};
+        text-style: bold;
+    }}
+
     Footer > .footer--description {{
-        color: {c.muted};
+        color: {c.fg};
     }}
 
     /* === Main Layout Containers === */
@@ -544,6 +545,12 @@ def _generate_css(c: ThemeColors) -> str:
         border: solid {c.primary};
         background: {c.surface};
         padding: 2 4;
+        color: {c.fg};
+    }}
+
+    #theme-options {{
+        color: {c.fg};
+        height: auto;
     }}
 
     #theme-modal-title {{
