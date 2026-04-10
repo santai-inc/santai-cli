@@ -705,8 +705,9 @@ class NoteDetailScreen(ModalScreen):
             return
         project = self._project or self._get_project()
         if project:
-            self.app.push_screen(MoveFileScreen(note_path, project))
+            move_screen = MoveFileScreen(note_path, project)
             self.dismiss()
+            self.app.call_later(lambda: self.app.push_screen(move_screen))
 
     def _find_note_path(self) -> Path | None:
         """Find the actual file path for this note."""
@@ -890,8 +891,9 @@ class FilePreviewScreen(ModalScreen):
         """Move this file to another directory."""
         project = self._get_project()
         if project:
-            self.app.push_screen(MoveFileScreen(self.file_path, project))
+            move_screen = MoveFileScreen(self.file_path, project)
             self.dismiss()
+            self.app.call_later(lambda: self.app.push_screen(move_screen))
         else:
             self.app.notify("Cannot determine project", severity="error")
 
