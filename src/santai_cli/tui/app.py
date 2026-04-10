@@ -157,13 +157,13 @@ class NotesPanel(Static):
         # Build notes preview content
         lines = []
         for note in notes[:5]:  # Show up to 5 notes
-            lines.append(f"[bold #f97316]{note.title}[/bold #f97316]")
+            lines.append(f"[bold #10B981]{note.title}[/bold #10B981]")
             lines.append(f"[dim]{format_time_ago(note.modified_at)}[/dim]")
             # Truncate preview for display
             preview = (
                 note.preview[:100] + "..." if len(note.preview) > 100 else note.preview
             )
-            lines.append(f"[#d6d3d1]{preview}[/#d6d3d1]")
+            lines.append(f"[#AEAEB2]{preview}[/#AEAEB2]")
             lines.append("")
 
         content_widget.update("\n".join(lines))
@@ -172,13 +172,13 @@ class NotesPanel(Static):
 class GraphPanel(Static):
     """Panel showing file graph with backlinks."""
 
-    # Directory color codes for rich markup
+    # Directory color codes - harmonized with glass aesthetic
     DIR_COLORS = {
-        "resources": "#f97316",  # orange
-        "codebases": "#22c55e",  # green
-        "history": "#3b82f6",  # blue
-        "notes": "#a855f7",  # purple
-        "other": "#78716c",  # gray
+        "resources": "#10B981",  # green (accent)
+        "codebases": "#06B6D4",  # cyan
+        "history": "#8B5CF6",  # purple
+        "notes": "#F59E0B",  # amber
+        "other": "#78716C",  # gray
     }
 
     def __init__(self, project: SantaiProject) -> None:
@@ -284,50 +284,51 @@ class SantaiApp(App):
     CSS = """
     Screen {
         layout: horizontal;
-        background: #0c0a09;
+        background: #0C0A09;
     }
 
     Header {
-        background: #f97316;
-        color: #0c0a09;
+        background: rgba(255, 255, 255, 0.08);
+        color: #F5F5F7;
         text-style: bold;
     }
 
     Header > HeaderTitle {
-        color: #0c0a09;
+        color: #F5F5F7;
         text-style: bold;
     }
 
     Header > HeaderIcon {
-        color: #0c0a09;
+        color: #10B981;
     }
 
     Footer {
-        background: #f97316;
-        color: #0c0a09;
+        background: rgba(255, 255, 255, 0.08);
+        color: #F5F5F7;
     }
 
     Footer > .footer--key {
-        background: #7c2d12;
-        color: #fed7aa;
+        background: rgba(255, 255, 255, 0.12);
+        color: #F5F5F7;
     }
 
     Footer > .footer--description {
-        color: #0c0a09;
+        color: #AEAEB2;
     }
 
     #tree-container {
         width: 1fr;
         height: 100%;
-        border: thick #f97316 50%;
+        border: solid rgba(255, 255, 255, 0.18);
         padding: 1 2;
-        background: #1c1917;
+        background: rgba(255, 255, 255, 0.08);
         margin: 1;
+        border-radius: 12;
     }
 
     #tree-title {
         text-style: bold;
-        color: #f97316;
+        color: #10B981;
         margin-bottom: 1;
         text-align: center;
         width: 100%;
@@ -339,27 +340,27 @@ class SantaiApp(App):
     }
 
     DirectoryTree > .directory-tree--folder {
-        color: #ffffff;
+        color: #F5F5F7;
         text-style: bold;
     }
 
     DirectoryTree > .directory-tree--extension {
-        color: #a8a29e;
+        color: #AEAEB2;
     }
 
     DirectoryTree > .directory-tree--file {
-        color: #d6d3d1;
+        color: #D6D3D1;
     }
 
     DirectoryTree:focus > .directory-tree--cursor {
-        background: #f97316;
-        color: #0c0a09;
+        background: #10B981;
+        color: #0C0A09;
         text-style: bold;
     }
 
     DirectoryTree > .directory-tree--cursor {
-        background: #ea580c 60%;
-        color: #0c0a09;
+        background: rgba(16, 185, 129, 0.3);
+        color: #F5F5F7;
     }
 
     #middle-container {
@@ -370,18 +371,20 @@ class SantaiApp(App):
 
     #stats-container {
         height: 1fr;
-        border: thick #f97316 50%;
+        border: solid rgba(255, 255, 255, 0.18);
         padding: 1 2;
-        background: #1c1917;
+        background: rgba(255, 255, 255, 0.08);
         margin: 1;
+        border-radius: 12;
     }
 
     #notes-container {
         height: 1fr;
-        border: thick #f97316 50%;
+        border: solid rgba(255, 255, 255, 0.18);
         padding: 1 2;
-        background: #1c1917;
+        background: rgba(255, 255, 255, 0.08);
         margin: 1;
+        border-radius: 12;
     }
 
     #right-container {
@@ -392,23 +395,24 @@ class SantaiApp(App):
 
     #graph-container {
         height: 100%;
-        border: thick #f97316 50%;
+        border: solid rgba(255, 255, 255, 0.18);
         padding: 1 2;
-        background: #1c1917;
+        background: rgba(255, 255, 255, 0.08);
         margin: 1;
+        border-radius: 12;
         overflow-y: auto;
     }
 
     #stats-title, #types-title, #recent-title, #notes-title, #graph-title {
         margin-bottom: 1;
-        color: #f97316;
+        color: #10B981;
         text-style: bold;
-        border-bottom: solid #f97316 50%;
+        border-bottom: solid #10B981;
         padding-bottom: 1;
     }
 
     #notes-content, #graph-content {
-        color: #fafaf9;
+        color: #F5F5F7;
         padding: 1;
         height: auto;
     }
@@ -417,33 +421,34 @@ class SantaiApp(App):
         height: auto;
         max-height: 10;
         margin-bottom: 1;
-        background: #1c1917;
+        background: rgba(255, 255, 255, 0.12);
         padding: 0 1;
+        border-radius: 8;
     }
 
     DataTable > .datatable--header {
-        background: #f97316;
-        color: #0c0a09;
+        background: #10B981;
+        color: #0C0A09;
         text-style: bold;
     }
 
     DataTable > .datatable--cursor {
-        background: #fb923c;
-        color: #0c0a09;
+        background: rgba(16, 185, 129, 0.4);
+        color: #F5F5F7;
         text-style: bold;
     }
 
     DataTable > .datatable--even-row {
-        background: #292524;
+        background: rgba(255, 255, 255, 0.12);
     }
 
     DataTable > .datatable--odd-row {
-        background: #1c1917;
+        background: rgba(255, 255, 255, 0.06);
     }
 
     DataTable:focus > .datatable--cursor {
-        background: #f97316;
-        color: #0c0a09;
+        background: #10B981;
+        color: #0C0A09;
     }
 
     #dir-stats-table {
@@ -463,7 +468,7 @@ class SantaiApp(App):
     }
 
     StatsPanel > Label {
-        color: #fafaf9;
+        color: #F5F5F7;
     }
 
     NotesPanel {
@@ -471,7 +476,7 @@ class SantaiApp(App):
     }
 
     NotesPanel > Label {
-        color: #fafaf9;
+        color: #F5F5F7;
     }
 
     GraphPanel {
@@ -479,7 +484,7 @@ class SantaiApp(App):
     }
 
     GraphPanel > Label {
-        color: #fafaf9;
+        color: #F5F5F7;
     }
     """
 
