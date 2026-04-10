@@ -16,7 +16,7 @@ console = Console()
 def ui(
     theme: Annotated[
         str,
-        typer.Option("--theme", "-t", help="Theme: claude, catppuccin, btop"),
+        typer.Option("--theme", "-t", help="Theme: claude, catppuccin, btop, light"),
     ] = "btop",
 ) -> None:
     """Launch the TUI dashboard.

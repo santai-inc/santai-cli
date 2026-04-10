@@ -141,10 +141,48 @@ def btop_theme() -> Theme:
     )
 
 
+def light_theme() -> Theme:
+    """Light theme — clean, minimal, paper-like with blue accents."""
+    colors = ThemeColors(
+        bg="#f8f6f2",
+        fg="#2c2c2c",
+        primary="#2563eb",
+        secondary="#7c3aed",
+        accent="#db2777",
+        success="#16a34a",
+        warning="#d97706",
+        error="#dc2626",
+        muted="#9ca3af",
+        surface="#ffffff",
+    )
+    return Theme(
+        name="light",
+        display_name="Light",
+        colors=colors,
+        border_chars={
+            "top_left": "╭",
+            "top_right": "╮",
+            "bottom_left": "╰",
+            "bottom_right": "╯",
+            "horizontal": "─",
+            "vertical": "│",
+        },
+        icons={
+            "success": "✓",
+            "error": "✗",
+            "warning": "⚠",
+            "running": "▸",
+            "bullet": "•",
+            "spinner": ["◐", "◓", "◑", "◒"],
+        },
+    )
+
+
 AVAILABLE_THEMES: dict[str, callable] = {
     "claude": claude_theme,
     "catppuccin": catppuccin_theme,
     "btop": btop_theme,
+    "light": light_theme,
 }
 
 

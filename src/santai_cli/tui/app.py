@@ -913,6 +913,7 @@ class ThemeSelectScreen(ModalScreen):
         Binding("1", "select_theme_1", "Claude"),
         Binding("2", "select_theme_2", "Catppuccin"),
         Binding("3", "select_theme_3", "btop"),
+        Binding("4", "select_theme_4", "Light"),
     ]
 
     def compose(self) -> ComposeResult:
@@ -937,6 +938,7 @@ class ThemeSelectScreen(ModalScreen):
             ("1", "claude", "Claude Code", "Warm terracotta, hot pink tools, playful"),
             ("2", "catppuccin", "Catppuccin", "Soothing pastels, mauve primary, cozy"),
             ("3", "btop", "btop", "Dense dashboard, green/red gradients, dark"),
+            ("4", "light", "Light", "Clean paper-like, blue accents, minimal"),
         ]
 
         for key, name, display, desc in themes_info:
@@ -946,7 +948,7 @@ class ThemeSelectScreen(ModalScreen):
             lines.append(f"      [dim]{desc}[/dim]")
             lines.append("")
 
-        lines.append("  [dim]Press 1/2/3 to switch theme, Esc to close[/dim]")
+        lines.append("  [dim]Press 1/2/3/4 to switch theme, Esc to close[/dim]")
         lines.append("  [dim]Theme applies immediately.[/dim]")
 
         options.update("\n".join(lines))
@@ -986,6 +988,9 @@ class ThemeSelectScreen(ModalScreen):
 
     def action_select_theme_3(self) -> None:
         self._apply_theme("btop")
+
+    def action_select_theme_4(self) -> None:
+        self._apply_theme("light")
 
 
 # === Main App ===
