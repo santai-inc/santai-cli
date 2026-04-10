@@ -472,6 +472,7 @@ class SantaiApp(App):
     """Santai TUI application."""
 
     TITLE = "Santai"
+    CSS = get_theme_css()
 
     BINDINGS = [
         Binding("q", "quit", "Quit"),
@@ -482,7 +483,9 @@ class SantaiApp(App):
     ]
 
     def __init__(self, project: SantaiProject) -> None:
-        super().__init__(css=get_theme_css())
+        # Set CSS class var to current theme before super().__init__
+        SantaiApp.CSS = get_theme_css()
+        super().__init__()
         self.project = project
         self.sub_title = project.name
         self._graph_fullscreen = False
