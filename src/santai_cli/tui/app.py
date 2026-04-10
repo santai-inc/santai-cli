@@ -288,7 +288,6 @@ class SantaiApp(App):
         Binding("q", "quit", "Quit"),
         Binding("r", "refresh", "Refresh"),
         Binding("g", "toggle_graph", "Graph"),
-        Binding("t", "cycle_theme", "Theme"),
     ]
 
     def __init__(self, project: SantaiProject) -> None:
@@ -332,8 +331,3 @@ class SantaiApp(App):
             self.notify("Graph panel shown")
         else:
             self.notify("Graph panel hidden")
-
-def action_cycle_theme(self) -> None:
-        """Cycle to the next theme."""
-        theme_name = ThemeManager.cycle_theme()
-        self.notify(f"Theme: {theme_name} - Restart TUI to apply")
