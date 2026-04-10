@@ -419,6 +419,36 @@ def _generate_css(c: ThemeColors) -> str:
         height: auto;
     }}
 
+    #note-title-input {{
+        margin: 1 0;
+        background: {c.bg};
+        color: {c.fg};
+        border: solid {c.muted};
+    }}
+
+    #note-title-input:focus {{
+        border: solid {c.primary};
+    }}
+
+    #note-content-input {{
+        margin: 1 0;
+        min-height: 10;
+        height: 1fr;
+        background: {c.bg};
+        color: {c.fg};
+        border: solid {c.muted};
+    }}
+
+    #note-content-input:focus {{
+        border: solid {c.primary};
+    }}
+
+    #note-help {{
+        color: {c.muted};
+        text-align: center;
+        margin-top: 1;
+    }}
+
     /* === File Preview Modal === */
 
     #file-preview-modal {{

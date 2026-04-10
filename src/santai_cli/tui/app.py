@@ -13,8 +13,10 @@ from textual.widgets import (
     DirectoryTree,
     Footer,
     Header,
+    Input,
     Label,
     Static,
+    TextArea,
 )
 
 from santai_cli.core.project import (
@@ -511,12 +513,11 @@ class NoteDetailScreen(ModalScreen):
         body.update("\n".join(lines))
 
 
-class NotesModalScreen(ModalScreen):
-    """Full-screen notes list modal (press n)."""
+class AddNoteScreen(ModalScreen):
+    """Modal for creating a new note."""
 
     BINDINGS = [
         Binding("escape", "dismiss", "Close"),
-        Binding("n", "dismiss", "Close"),
     ]
 
     def __init__(self, project: SantaiProject) -> None:
@@ -524,35 +525,80 @@ class NotesModalScreen(ModalScreen):
         self.project = project
 
     def compose(self) -> ComposeResult:
-        theme = ThemeManager.get_current_theme()
         with Vertical(id="notes-modal"):
-            with VerticalScroll(id="notes-modal-content"):
-                yield Label("[bold]All Notes (press Esc to close)[/bold]", id="notes-modal-title")
-                yield Static(id="notes-modal-body")
+            with Vertical(id="notes-modal-content"):
+                yield Label(
+                    "[bold]📝 Add Note (Esc to cancel)[/bold]",
+                    id="notes-modal-title",
+                )
+                yield Label("Title:")
+                yield Input(
+                    placeholder="my-note (will be saved as my-note.md)",
+                    id="note-title-input",
+                )
+                yield Label("Content:")
+                yield TextArea(id="note-content-input")
+                yield Static(
+                    "[dim]Tab to switch fields · Ctrl+S to save · Esc to cancel[/dim]",
+                    id="note-help",
+                )
 
     def on_mount(self) -> None:
-        """Populate notes."""
-        theme = ThemeManager.get_current_theme()
-        notes = get_notes(self.project)
-        body = self.query_one("#notes-modal-body", Static)
+        """Focus the title input."""
+        self.query_one("#note-title-input", Input).focus()
 
-        if not notes:
-            body.update("[dim]No notes found. Add .md or .txt files to notes/[/dim]")
+    def key_ctrl_s(self) -> None:
+        """Save the note."""
+        self._save_note()
+
+    def _save_note(self) -> None:
+        """Save the note to the notes/ directory."""
+        title_input = self.query_one("#note-title-input", Input)
+        content_input = self.query_one("#note-content-input", TextArea)
+
+        title = title_input.value.strip()
+        content = content_input.text.strip()
+
+        if not title:
+            self.app.notify("Title is required", severity="error")
+            title_input.focus()
             return
 
-        lines = []
-        accent = theme.colors.primary
-        for note in notes:
-            lines.append(f"[bold {accent}]{'─' * 40}[/bold {accent}]")
-            lines.append(f"[bold {accent}]{note.title}[/bold {accent}]")
-            lines.append(f"[dim]{format_time_ago(note.modified_at)} · {format_size(note.size_bytes)}[/dim]")
-            lines.append("")
-            # Show full content (truncated to reasonable length)
-            content = note.content[:2000] if len(note.content) > 2000 else note.content
-            lines.append(content)
-            lines.append("")
+        # Sanitize filename
+        filename = title.lower().replace(" ", "-")
+        # Remove non-alphanumeric chars except hyphens
+        filename = "".join(c for c in filename if c.isalnum() or c == "-")
+        if not filename:
+            filename = "untitled"
+        filename = filename + ".md"
 
-        body.update("\n".join(lines))
+        # Ensure notes directory exists
+        notes_dir = self.project.notes_path
+        notes_dir.mkdir(parents=True, exist_ok=True)
+
+        file_path = notes_dir / filename
+
+        # Don't overwrite existing files
+        if file_path.exists():
+            counter = 1
+            while file_path.exists():
+                file_path = notes_dir / f"{filename[:-3]}-{counter}.md"
+                counter += 1
+
+        # Write the note with a markdown header
+        note_content = f"# {title}\n\n{content}\n"
+        file_path.write_text(note_content, encoding="utf-8")
+
+        self.app.notify(f"Saved: {file_path.name}")
+
+        # Refresh notes panel
+        for panel in self.app.query(NotesPanel):
+            panel.refresh_notes()
+        # Refresh stats
+        for panel in self.app.query(StatsPanel):
+            panel.refresh_stats()
+
+        self.dismiss()
 
 
 class FilePreviewScreen(ModalScreen):
@@ -687,7 +733,7 @@ class SantaiApp(App):
         Binding("r", "refresh", "Refresh"),
         Binding("g", "toggle_graph", "Graph"),
         Binding("t", "select_theme", "Theme"),
-        Binding("n", "show_notes", "Notes"),
+        Binding("n", "add_note", "Add Note"),
         Binding("escape", "back", "Back", show=True),
     ]
 
@@ -761,9 +807,9 @@ class SantaiApp(App):
         """Open theme selector modal."""
         self.push_screen(ThemeSelectScreen())
 
-    def action_show_notes(self) -> None:
-        """Open notes viewer modal."""
-        self.push_screen(NotesModalScreen(self.project))
+    def action_add_note(self) -> None:
+        """Open add note modal."""
+        self.push_screen(AddNoteScreen(self.project))
 
     def on_clickable_note_clicked(self, event: ClickableNote.Clicked) -> None:
         """Handle click on a note — open note detail modal."""
