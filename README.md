@@ -85,22 +85,6 @@ uv sync
 uv run santai --help
 ```
 
-### Using pip
-
-```bash
-git clone https://github.com/santai-inc/santai-cli.git
-cd santai-cli
-
-# Install globally
-pip install .
-
-# Or install in development/editable mode
-pip install -e .
-
-# Verify
-santai --help
-```
-
 ## Quick Start
 
 ```bash
