@@ -539,6 +539,18 @@ class ConfirmScreen(ModalScreen):
         self.dismiss()
 
 
+def _reload_all_panels(app: App) -> None:
+    """Reload all panels and directory tree in the app."""
+    for panel in app.query(StatsPanel):
+        panel.refresh_stats()
+    for panel in app.query(NotesPanel):
+        panel.refresh_notes()
+    for panel in app.query(GraphPanel):
+        panel.refresh_graph()
+    for tree in app.query(FilteredDirectoryTree):
+        tree.reload()
+
+
 class MoveFileScreen(ModalScreen):
     """Modal to move a file to another santai directory."""
 
@@ -599,18 +611,10 @@ class MoveFileScreen(ModalScreen):
             dest_path.parent.mkdir(parents=True, exist_ok=True)
             self._file_path.rename(dest_path)
             self.app.notify(f"Moved to {dest_dir}/{dest_path.name}")
-            self._refresh_panels()
+            _reload_all_panels(self.app)
         except OSError as e:
             self.app.notify(f"Error: {e}", severity="error")
         self.dismiss()
-
-    def _refresh_panels(self) -> None:
-        for panel in self.app.query(StatsPanel):
-            panel.refresh_stats()
-        for panel in self.app.query(NotesPanel):
-            panel.refresh_notes()
-        for panel in self.app.query(GraphPanel):
-            panel.refresh_graph()
 
     def action_move_1(self) -> None:
         self._move_to("resources")
@@ -685,7 +689,7 @@ class NoteDetailScreen(ModalScreen):
             try:
                 note_path.unlink()
                 self.app.notify(f"Deleted: {self._note.filename}")
-                self._refresh_panels()
+                _reload_all_panels(self.app)
             except OSError as e:
                 self.app.notify(f"Error: {e}", severity="error")
             self.dismiss()
@@ -724,14 +728,6 @@ class NoteDetailScreen(ModalScreen):
         if hasattr(self.app, "project"):
             return self.app.project
         return None
-
-    def _refresh_panels(self) -> None:
-        for panel in self.app.query(StatsPanel):
-            panel.refresh_stats()
-        for panel in self.app.query(NotesPanel):
-            panel.refresh_notes()
-        for panel in self.app.query(GraphPanel):
-            panel.refresh_graph()
 
 
 class AddNoteScreen(ModalScreen):
@@ -812,12 +808,8 @@ class AddNoteScreen(ModalScreen):
 
         self.app.notify(f"Saved: {file_path.name}")
 
-        # Refresh notes panel
-        for panel in self.app.query(NotesPanel):
-            panel.refresh_notes()
-        # Refresh stats
-        for panel in self.app.query(StatsPanel):
-            panel.refresh_stats()
+        # Refresh all panels including directory tree
+        _reload_all_panels(self.app)
 
         self.dismiss()
 
@@ -875,7 +867,7 @@ class FilePreviewScreen(ModalScreen):
             try:
                 self.file_path.unlink()
                 self.app.notify(f"Deleted: {self.file_path.name}")
-                self._refresh_panels()
+                _reload_all_panels(self.app)
             except OSError as e:
                 self.app.notify(f"Error: {e}", severity="error")
             self.dismiss()
@@ -896,15 +888,6 @@ class FilePreviewScreen(ModalScreen):
             self.app.call_later(lambda: self.app.push_screen(move_screen))
         else:
             self.app.notify("Cannot determine project", severity="error")
-
-    def _refresh_panels(self) -> None:
-        for panel in self.app.query(StatsPanel):
-            panel.refresh_stats()
-        for panel in self.app.query(NotesPanel):
-            panel.refresh_notes()
-        for panel in self.app.query(GraphPanel):
-            panel.refresh_graph()
-
 
 class ThemeSelectScreen(ModalScreen):
     """Theme selection modal with live switching."""
@@ -1051,13 +1034,16 @@ class SantaiApp(App):
         self.query_one("#graph-container").display = True
 
     def action_refresh(self) -> None:
-        """Refresh all panels."""
+        """Refresh all panels including directory tree."""
         for panel in self.query(StatsPanel):
             panel.refresh_stats()
         for panel in self.query(NotesPanel):
             panel.refresh_notes()
         for panel in self.query(GraphPanel):
             panel.refresh_graph()
+        # Reload directory tree to reflect file changes
+        for tree in self.query(FilteredDirectoryTree):
+            tree.reload()
         self.notify("Refreshed all panels")
 
     def action_toggle_graph(self) -> None:
