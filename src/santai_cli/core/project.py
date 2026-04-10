@@ -312,7 +312,7 @@ def get_notes(project: SantaiProject) -> list[NoteEntry]:
                     title=title,
                     content=content,
                     preview=_generate_preview(content),
-                    filename=file_path.name,
+                    filename=str(file_path.relative_to(notes_path)),
                     modified_at=datetime.fromtimestamp(stat.st_mtime),
                     size_bytes=stat.st_size,
                 )
