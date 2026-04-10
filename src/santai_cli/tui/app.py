@@ -913,28 +913,32 @@ class ThemeSelectScreen(ModalScreen):
         self._refresh_options()
 
     def _refresh_options(self) -> None:
-        """Refresh the theme options display."""
+        """Refresh the theme options display with palette info."""
         current = ThemeManager.get_current_theme()
+        current_palette = ThemeManager.get_current_palette()
         options = self.query_one("#theme-options", Static)
 
         lines = []
         lines.append("")
         themes_info = [
-            ("1", "claude", "Claude Code", "Warm terracotta, hot pink tools, playful"),
-            ("2", "catppuccin", "Catppuccin", "Soothing pastels, mauve primary, cozy"),
-            ("3", "btop", "btop", "Dense dashboard, green/red gradients, dark"),
-            ("4", "light", "Light", "Clean paper-like, blue accents, minimal"),
+            ("1", "claude", "Claude Code", "Palettes: Terracotta · Midnight · Forest"),
+            ("2", "catppuccin", "Catppuccin", "Palettes: Mocha · Macchiato · Frappé"),
+            ("3", "btop", "btop", "Palettes: Default · Green · Blue"),
+            ("4", "light", "Light", "Palettes: Paper · Sand · Ice"),
         ]
 
         for key, name, display, desc in themes_info:
             marker = "▸" if current.name == name else " "
-            active = " [bold](active)[/bold]" if current.name == name else ""
+            active = ""
+            if current.name == name:
+                active = f" [bold](active — {current_palette.display_name})[/bold]"
             lines.append(f"  {marker} [{key}] {display}{active}")
             lines.append(f"      [dim]{desc}[/dim]")
             lines.append("")
 
-        lines.append("  [dim]Press 1/2/3/4 to switch theme, Esc to close[/dim]")
-        lines.append("  [dim]Theme applies immediately.[/dim]")
+        lines.append("  [dim]Press 1/2/3/4 to switch theme[/dim]")
+        lines.append("  [dim]Press p to cycle palettes within theme[/dim]")
+        lines.append("  [dim]Esc to close[/dim]")
 
         options.update("\n".join(lines))
 
@@ -963,7 +967,8 @@ class ThemeSelectScreen(ModalScreen):
         self.app.refresh_css()
 
         self._refresh_options()
-        self.app.notify(f"Theme: {theme.display_name}")
+        palette = ThemeManager.get_current_palette()
+        self.app.notify(f"Theme: {theme.display_name} — {palette.display_name}")
 
     def action_select_theme_1(self) -> None:
         self._apply_theme("claude")
@@ -1071,9 +1076,9 @@ class SantaiApp(App):
         self.push_screen(ThemeSelectScreen())
 
     def action_cycle_palette(self) -> None:
-        """Cycle to next theme palette instantly (Ctrl+P)."""
-        theme = ThemeManager.cycle_theme()
-        new_css = get_theme_css(theme)
+        """Cycle to next palette within the current theme (p key)."""
+        palette = ThemeManager.cycle_palette()
+        new_css = get_theme_css()
 
         # Replace CSS in stylesheet
         for key, css_source in self.stylesheet.source.items():
@@ -1088,7 +1093,8 @@ class SantaiApp(App):
 
         SantaiApp.CSS = new_css
         self.refresh_css()
-        self.notify(f"Theme: {theme.display_name}")
+        theme = ThemeManager.get_current_theme()
+        self.notify(f"{theme.display_name}: {palette.display_name} ({ThemeManager.get_palette_info()})")
 
     def action_add_note(self) -> None:
         """Open add note modal."""
