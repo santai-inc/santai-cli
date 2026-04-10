@@ -6,6 +6,7 @@ from pathlib import Path
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.message import Message
 from textual.screen import ModalScreen
 from textual.widgets import (
     DataTable,
@@ -130,16 +131,35 @@ class StatsPanel(Static):
             recent_table.add_row("[dim]No files[/dim]", "")
 
 
+class ClickableNote(Static):
+    """A clickable note item in the notes panel."""
+
+    class Clicked(Message):
+        """Message sent when a note is clicked."""
+        def __init__(self, note: "NoteEntry") -> None:
+            super().__init__()
+            self.note = note
+
+    def __init__(self, note: "NoteEntry") -> None:
+        super().__init__()
+        self.note = note
+
+    def on_click(self) -> None:
+        """Handle click on this note."""
+        self.post_message(self.Clicked(self.note))
+
+
 class NotesPanel(Static):
-    """Panel showing notes preview."""
+    """Panel showing notes preview with clickable note items."""
 
     def __init__(self, project: SantaiProject) -> None:
         super().__init__()
         self.project = project
+        self._notes: list = []
 
     def compose(self) -> ComposeResult:
-        yield Label("[bold]Notes Preview[/bold]", id="notes-title")
-        yield Static(id="notes-content")
+        yield Label("[bold]Notes[/bold] [dim](click to open)[/dim]", id="notes-title")
+        yield Vertical(id="notes-list")
 
     def on_mount(self) -> None:
         """Populate notes preview."""
@@ -147,31 +167,35 @@ class NotesPanel(Static):
 
     def refresh_notes(self) -> None:
         """Refresh notes data."""
-        theme = ThemeManager.get_current_theme()
-        notes = get_notes(self.project)
-        content_widget = self.query_one("#notes-content", Static)
+        from santai_cli.core.project import NoteEntry
 
-        if not notes:
-            content_widget.update(
-                "[dim]No notes yet. Add .md or .txt files to notes/[/dim]"
+        theme = ThemeManager.get_current_theme()
+        self._notes = get_notes(self.project)
+        notes_list = self.query_one("#notes-list", Vertical)
+
+        # Remove old children
+        notes_list.remove_children()
+
+        if not self._notes:
+            notes_list.mount(
+                Static("[dim]No notes yet. Add .md or .txt files to notes/[/dim]")
             )
             return
 
-        # Build notes preview content
-        lines = []
         accent = theme.colors.success
         muted = theme.colors.muted
-        for note in notes[:5]:  # Show up to 5 notes
-            lines.append(f"[bold {accent}]{note.title}[/bold {accent}]")
-            lines.append(f"[dim]{format_time_ago(note.modified_at)}[/dim]")
-            # Truncate preview for display
+        for note in self._notes[:8]:  # Show up to 8 notes
             preview = (
-                note.preview[:100] + "..." if len(note.preview) > 100 else note.preview
+                note.preview[:80] + "..." if len(note.preview) > 80 else note.preview
             )
-            lines.append(f"[{muted}]{preview}[/{muted}]")
-            lines.append("")
-
-        content_widget.update("\n".join(lines))
+            content = (
+                f"[bold {accent}]📄 {note.title}[/bold {accent}]\n"
+                f"[dim]{format_time_ago(note.modified_at)}[/dim]  "
+                f"[{muted}]{preview}[/{muted}]"
+            )
+            widget = ClickableNote(note)
+            widget.update(content)
+            notes_list.mount(widget)
 
 
 class GraphPanel(Static):
@@ -440,8 +464,53 @@ class GraphPanel(Static):
 # === Modal Screens ===
 
 
+class NoteDetailScreen(ModalScreen):
+    """Modal showing a single note's full content."""
+
+    BINDINGS = [
+        Binding("escape", "dismiss", "Close"),
+    ]
+
+    def __init__(self, note) -> None:
+        super().__init__()
+        self._note = note
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="notes-modal"):
+            with VerticalScroll(id="notes-modal-content"):
+                yield Label(
+                    f"[bold]📄 {self._note.title} (press Esc to close)[/bold]",
+                    id="notes-modal-title",
+                )
+                yield Static(id="notes-modal-body")
+
+    def on_mount(self) -> None:
+        """Populate note content."""
+        theme = ThemeManager.get_current_theme()
+        body = self.query_one("#notes-modal-body", Static)
+        accent = theme.colors.primary
+
+        lines = []
+        lines.append(f"[bold {accent}]{self._note.title}[/bold {accent}]")
+        lines.append(
+            f"[dim]{format_time_ago(self._note.modified_at)} · "
+            f"{format_size(self._note.size_bytes)} · "
+            f"{self._note.filename}[/dim]"
+        )
+        lines.append(f"[{accent}]{'─' * 50}[/{accent}]")
+        lines.append("")
+        # Show full content
+        content = self._note.content[:5000] if len(self._note.content) > 5000 else self._note.content
+        lines.append(content)
+        if len(self._note.content) > 5000:
+            lines.append("")
+            lines.append("[dim]... (truncated)[/dim]")
+
+        body.update("\n".join(lines))
+
+
 class NotesModalScreen(ModalScreen):
-    """Full-screen notes viewer modal."""
+    """Full-screen notes list modal (press n)."""
 
     BINDINGS = [
         Binding("escape", "dismiss", "Close"),
@@ -454,10 +523,9 @@ class NotesModalScreen(ModalScreen):
 
     def compose(self) -> ComposeResult:
         theme = ThemeManager.get_current_theme()
-        c = theme.colors
         with Vertical(id="notes-modal"):
             with VerticalScroll(id="notes-modal-content"):
-                yield Label("[bold]Notes (press Esc to close)[/bold]", id="notes-modal-title")
+                yield Label("[bold]All Notes (press Esc to close)[/bold]", id="notes-modal-title")
                 yield Static(id="notes-modal-body")
 
     def on_mount(self) -> None:
@@ -693,6 +761,10 @@ class SantaiApp(App):
     def action_show_notes(self) -> None:
         """Open notes viewer modal."""
         self.push_screen(NotesModalScreen(self.project))
+
+    def on_clickable_note_clicked(self, event: ClickableNote.Clicked) -> None:
+        """Handle click on a note — open note detail modal."""
+        self.push_screen(NoteDetailScreen(event.note))
 
     def on_directory_tree_file_selected(
         self, event: DirectoryTree.FileSelected

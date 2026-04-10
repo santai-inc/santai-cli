@@ -304,10 +304,23 @@ def _generate_css(c: ThemeColors) -> str:
         padding-bottom: 1;
     }}
 
-    #notes-content, #graph-content {{
+    #notes-list, #graph-content {{
         color: {c.fg};
         padding: 1;
         height: auto;
+    }}
+
+    ClickableNote {{
+        padding: 1 2;
+        margin-bottom: 1;
+        background: {c.surface};
+        border: solid {c.muted};
+        height: auto;
+    }}
+
+    ClickableNote:hover {{
+        background: {c.bg};
+        border: solid {c.primary};
     }}
 
     DataTable {{
