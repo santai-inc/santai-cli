@@ -16,6 +16,10 @@ ruff format .        # Format code
 # Install dev tools
 uv sync --group dev  # Includes ruff and pre-commit
 pre-commit install   # Set up git hooks
+
+# Install prek (if not already installed)
+uv tool install prek # Install prek globally
+prek install         # Set up pre-commit hooks via prek
 ```
 
 ## Project Structure
