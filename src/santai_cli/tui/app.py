@@ -25,6 +25,7 @@ from santai_cli.core.project import (
     get_file_graph,
     get_notes,
 )
+from santai_cli.tui.graph_render import search_nodes as graph_search_nodes
 from santai_cli.tui.themes import ThemeManager, get_theme_css
 
 
@@ -218,10 +219,13 @@ class GraphPanel(Static):
         super().__init__()
         self.project = project
         self.fullscreen = fullscreen
+        self._selected_id: str | None = None
+        self._highlight_ids: set[str] | None = None
+        self._search_query: str = ""
 
     def compose(self) -> ComposeResult:
         title = (
-            "[bold]File Graph (Press g to exit)[/bold]"
+            "[bold]File Graph[/bold] [dim](g=exit  /=search)[/dim]"
             if self.fullscreen
             else "[bold]File Graph[/bold]"
         )
@@ -230,6 +234,20 @@ class GraphPanel(Static):
 
     def on_mount(self) -> None:
         """Populate graph view."""
+        self.refresh_graph()
+
+    def set_search(self, query: str, selected_id: str | None = None, highlight_ids: set[str] | None = None) -> None:
+        """Set search state and re-render."""
+        self._search_query = query
+        self._selected_id = selected_id
+        self._highlight_ids = highlight_ids
+        self.refresh_graph()
+
+    def clear_search(self) -> None:
+        """Clear search highlighting."""
+        self._search_query = ""
+        self._selected_id = None
+        self._highlight_ids = None
         self.refresh_graph()
 
     def refresh_graph(self) -> None:
@@ -265,6 +283,8 @@ class GraphPanel(Static):
             width=render_width,
             height=render_height,
             dir_colors=self.DIR_COLORS,
+            selected_id=self._selected_id,
+            highlight_ids=self._highlight_ids,
             show_labels=True,
             fullscreen=self.fullscreen,
         )
@@ -272,11 +292,15 @@ class GraphPanel(Static):
         # Build output
         lines = []
 
-        # Stats header
-        lines.append(
+        # Stats header with search indicator
+        stats_line = (
             f"[bold]Nodes:[/bold] {len(graph_data.nodes)}  "
             f"[bold]Edges:[/bold] {len(graph_data.edges)}"
         )
+        if self._search_query:
+            match_count = len(self._highlight_ids) if self._highlight_ids else 0
+            stats_line += f"  [bold yellow]Search:[/bold yellow] \"{self._search_query}\" ({match_count} match{'es' if match_count != 1 else ''})"
+        lines.append(stats_line)
         lines.append("")
 
         # The graph visualization
@@ -298,7 +322,7 @@ class GraphPanel(Static):
 
         if graph_data.edges:
             lines.append(
-                "[dim]⬢ hub (5+)  ◆ connected (3+)  ● linked  ○ isolated  ─ edge[/dim]"
+                "[dim]⬢ hub (5+)  ◆ connected (3+)  ● linked  ○ isolated  ◈ match  ◉ selected[/dim]"
             )
 
         content_widget.update("\n".join(lines))
@@ -783,6 +807,149 @@ class ThemeSelectScreen(ModalScreen):
         self._apply_theme("light")
 
 
+# === Graph Search ===
+
+
+class GraphSearchScreen(ModalScreen):
+    """Modal for searching graph nodes with live results."""
+
+    BINDINGS = [
+        Binding("escape", "dismiss", "Close"),
+    ]
+
+    def __init__(self, project: SantaiProject) -> None:
+        super().__init__()
+        self._project = project
+        self._results: list = []
+        self._selected_index: int = 0
+        self._all_nodes: list = []
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="graph-search-modal"):
+            with Vertical(id="graph-search-content"):
+                yield Label(
+                    "[bold]🔍 Graph Search[/bold] [dim](type to filter, ↑↓ to select, Enter to highlight, Esc to close)[/dim]",
+                    id="graph-search-title",
+                )
+                yield Input(
+                    placeholder="Search files...",
+                    id="graph-search-input",
+                )
+                yield Static(id="graph-search-results")
+
+    def on_mount(self) -> None:
+        """Focus the search input and load nodes."""
+        from santai_cli.tui.graph_render import build_graph_from_project_data
+
+        graph_data = get_file_graph(self._project)
+        nodes, _ = build_graph_from_project_data(graph_data)
+        self._all_nodes = nodes
+
+        self.query_one("#graph-search-input", Input).focus()
+        self._update_results("")
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        """Handle search input changes — live filtering."""
+        if event.input.id == "graph-search-input":
+            self._selected_index = 0
+            self._update_results(event.value)
+
+    def key_down(self) -> None:
+        """Move selection down."""
+        if self._results:
+            self._selected_index = min(self._selected_index + 1, len(self._results) - 1)
+            self._render_results()
+
+    def key_up(self) -> None:
+        """Move selection up."""
+        if self._results:
+            self._selected_index = max(self._selected_index - 1, 0)
+            self._render_results()
+
+    def key_enter(self) -> None:
+        """Select the highlighted result and apply to graph."""
+        if not self._results:
+            return
+
+        selected = self._results[self._selected_index]
+        query = self.query_one("#graph-search-input", Input).value.strip()
+
+        # Build highlight set from all results
+        highlight_ids = {node.id for node in self._results}
+
+        # Apply search to the fullscreen graph panel
+        graph_fs = self.app.query_one("#graph-fullscreen")
+        for panel in graph_fs.query(GraphPanel):
+            panel.set_search(
+                query=query,
+                selected_id=selected.id,
+                highlight_ids=highlight_ids,
+            )
+
+        self.app.notify(f"Focused: {selected.label} ({selected.directory}/)")
+        self.dismiss()
+
+    def _update_results(self, query: str) -> None:
+        """Update search results based on query."""
+        query = query.strip()
+        if query:
+            self._results = graph_search_nodes(self._all_nodes, query, max_results=15)
+        else:
+            # Show all nodes sorted by label when no query
+            self._results = sorted(self._all_nodes, key=lambda n: n.label.lower())[:15]
+        self._render_results()
+
+    def _render_results(self) -> None:
+        """Render the results list with selection highlight."""
+        results_widget = self.query_one("#graph-search-results", Static)
+
+        dir_colors = GraphPanel.DIR_COLORS
+
+        if not self._results:
+            query = self.query_one("#graph-search-input", Input).value.strip()
+            if query:
+                results_widget.update("[dim]No matches found[/dim]")
+            else:
+                results_widget.update("[dim]No files in project[/dim]")
+            return
+
+        lines = []
+        for i, node in enumerate(self._results):
+            color = dir_colors.get(node.directory, dir_colors.get("other", "#6b6560"))
+            is_selected = i == self._selected_index
+
+            # Selection indicator
+            if is_selected:
+                prefix = "[bold white on #333333] ▸ [/bold white on #333333]"
+                name_style = f"bold {color}"
+                path_style = "white on #333333"
+                line_end = ""
+            else:
+                prefix = "   "
+                name_style = color
+                path_style = "dim"
+                line_end = ""
+
+            # Degree info
+            degree_str = f" ({node.degree} links)" if node.degree > 0 else ""
+
+            line = (
+                f"{prefix}"
+                f"[{name_style}]{node.label}[/{name_style}]"
+                f"[{path_style}]  {node.directory}/{degree_str}[/{path_style}]"
+                f"{line_end}"
+            )
+            lines.append(line)
+
+        # Footer info
+        total = len(self._all_nodes)
+        showing = len(self._results)
+        lines.append("")
+        lines.append(f"[dim]{showing} of {total} files · Enter to highlight in graph · Esc to cancel[/dim]")
+
+        results_widget.update("\n".join(lines))
+
+
 # === Main App ===
 
 
@@ -796,9 +963,11 @@ class SantaiApp(App):
         Binding("q", "quit", "Quit"),
         Binding("r", "refresh", "Refresh"),
         Binding("g", "toggle_graph", "Graph"),
+        Binding("slash", "graph_search", "Search", show=False),
         Binding("t", "select_theme", "Theme"),
         Binding("n", "add_note", "Add Note"),
         Binding("p", "cycle_palette", "Palette"),
+        Binding("c", "clear_graph_search", "Clear Search", show=False),
         Binding("escape", "back", "Back", show=True),
     ]
 
@@ -895,6 +1064,29 @@ class SantaiApp(App):
         self.refresh_css()
         theme = ThemeManager.get_current_theme()
         self.notify(f"{theme.display_name}: {palette.display_name} ({ThemeManager.get_palette_info()})")
+
+    def action_graph_search(self) -> None:
+        """Open graph search modal (only in fullscreen graph mode)."""
+        if self._graph_fullscreen:
+            self.push_screen(GraphSearchScreen(self.project))
+        else:
+            # Auto-enter fullscreen graph mode, then open search
+            self._graph_fullscreen = True
+            main_layout = self.query_one("#main-layout")
+            graph_fs = self.query_one("#graph-fullscreen")
+            main_layout.display = False
+            graph_fs.display = True
+            for panel in graph_fs.query(GraphPanel):
+                panel.refresh_graph()
+            self.push_screen(GraphSearchScreen(self.project))
+
+    def action_clear_graph_search(self) -> None:
+        """Clear graph search highlighting."""
+        if self._graph_fullscreen:
+            graph_fs = self.query_one("#graph-fullscreen")
+            for panel in graph_fs.query(GraphPanel):
+                panel.clear_search()
+            self.notify("Search cleared")
 
     def action_add_note(self) -> None:
         """Open add note modal."""

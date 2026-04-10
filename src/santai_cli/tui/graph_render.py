@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import math
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -348,6 +348,59 @@ class BrailleCanvas:
         return grid
 
 
+def search_nodes(
+    nodes: list[GraphNode],
+    query: str,
+    max_results: int = 20,
+) -> list[GraphNode]:
+    """Fuzzy search nodes by label/id. Returns matches sorted by relevance."""
+    if not query:
+        return []
+
+    query_lower = query.lower()
+    scored: list[tuple[float, GraphNode]] = []
+
+    for node in nodes:
+        label_lower = node.label.lower()
+        id_lower = node.id.lower()
+
+        # Exact match on label
+        if label_lower == query_lower:
+            scored.append((0.0, node))
+            continue
+
+        # Starts with query
+        if label_lower.startswith(query_lower):
+            scored.append((1.0, node))
+            continue
+
+        # Contains query as substring
+        idx = label_lower.find(query_lower)
+        if idx >= 0:
+            scored.append((2.0 + idx * 0.01, node))
+            continue
+
+        # Check id (path) contains query
+        idx = id_lower.find(query_lower)
+        if idx >= 0:
+            scored.append((3.0 + idx * 0.01, node))
+            continue
+
+        # Fuzzy: check if all query chars appear in order
+        qi = 0
+        penalty = 0.0
+        for ci, ch in enumerate(label_lower):
+            if qi < len(query_lower) and ch == query_lower[qi]:
+                qi += 1
+            else:
+                penalty += 0.1
+        if qi == len(query_lower):
+            scored.append((4.0 + penalty, node))
+
+    scored.sort(key=lambda x: x[0])
+    return [node for _, node in scored[:max_results]]
+
+
 def render_graph(
     nodes: list[GraphNode],
     edges: list[GraphEdge],
@@ -355,6 +408,7 @@ def render_graph(
     height: int,
     dir_colors: dict[str, str],
     selected_id: str | None = None,
+    highlight_ids: set[str] | None = None,
     show_labels: bool = True,
     fullscreen: bool = False,
 ) -> str:
@@ -384,14 +438,25 @@ def render_graph(
         tgt = node_map[edge.target]
         canvas.draw_line(src.x, src.y, tgt.x, tgt.y, edge_color)
 
+    # Determine which nodes are highlighted (search results or neighbors of selected)
+    hl = highlight_ids or set()
+
     # Draw nodes
     for node in layout_nodes:
         degree = len(adjacency.get(node.id, set()))
         color = dir_colors.get(node.directory, dir_colors.get("other", "#6b6560"))
 
+        # Dim non-highlighted nodes when there's an active highlight set
+        is_highlighted = node.id in hl or node.id == selected_id
+        if hl and not is_highlighted:
+            color = "dim #3a3a3a"
+
         if node.id == selected_id:
             char = "◉"
-            color = "bold " + color
+            color = "bold #ffffff"
+        elif node.id in hl and hl:
+            char = "◈"
+            color = "bold " + dir_colors.get(node.directory, dir_colors.get("other", "#6b6560"))
         elif degree >= 5:
             char = "⬢"
         elif degree >= 3:
@@ -407,14 +472,25 @@ def render_graph(
     if show_labels:
         for node in layout_nodes:
             degree = len(adjacency.get(node.id, set()))
+            is_highlighted = node.id in hl or node.id == selected_id
             threshold = 1 if fullscreen else 2
-            if degree >= threshold or node.id == selected_id:
+
+            # Always show labels for selected/highlighted nodes
+            if degree >= threshold or is_highlighted:
                 color = dir_colors.get(node.directory, dir_colors.get("other", "#6b6560"))
                 label = node.label
                 if len(label) > 12:
                     label = label[:11] + "…"
-                if degree < 2:
+
+                if is_highlighted:
+                    color = "bold " + color
+                elif degree < 2:
                     color = f"dim {color}"
+
+                # Dim labels when highlight is active but this node isn't highlighted
+                if hl and not is_highlighted:
+                    color = "dim #3a3a3a"
+
                 canvas.add_label(node.x, node.y, label, color)
 
     # Render canvas to Rich markup

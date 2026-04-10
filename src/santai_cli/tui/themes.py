@@ -625,7 +625,7 @@ def _generate_css(c: ThemeColors) -> str:
 
     /* === Modal Screens (centered overlay) === */
 
-    NoteDetailScreen, AddNoteScreen, FilePreviewScreen, ThemeSelectScreen, ConfirmScreen, MoveFileScreen {{
+    NoteDetailScreen, AddNoteScreen, FilePreviewScreen, ThemeSelectScreen, ConfirmScreen, MoveFileScreen, GraphSearchScreen {{
         align: center middle;
         background: {c.bg} 80%;
     }}
@@ -772,5 +772,42 @@ def _generate_css(c: ThemeColors) -> str:
     .theme-option-active {{
         color: {c.primary};
         text-style: bold;
+    }}
+
+    /* === Graph Search Modal === */
+
+    #graph-search-modal {{
+        width: 60%;
+        height: auto;
+        max-height: 80%;
+        align: center middle;
+    }}
+
+    #graph-search-content {{
+        width: 100%;
+        height: auto;
+        border: solid {c.primary};
+        background: {c.surface};
+        padding: 1 3;
+        color: {c.fg};
+    }}
+
+    #graph-search-title {{
+        text-style: bold;
+        color: {c.primary};
+        text-align: center;
+        margin-bottom: 1;
+        border-bottom: solid {c.primary};
+        padding-bottom: 1;
+    }}
+
+    #graph-search-input {{
+        margin-bottom: 1;
+    }}
+
+    #graph-search-results {{
+        color: {c.fg};
+        height: auto;
+        max-height: 20;
     }}
     """
