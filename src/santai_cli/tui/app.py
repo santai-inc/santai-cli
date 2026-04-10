@@ -349,36 +349,21 @@ class SantaiApp(App):
         self.notify("Refreshed all panels")
 
     def action_toggle_graph(self) -> None:
-        """Toggle graph panel visibility / fullscreen."""
-        if self._right_container_exists():
-            graph_container = self.query_one("#right-container")
-            if graph_container.display:
-                self._graph_fullscreen = True
-                self.notify("Graph fullscreen - press g to exit")
-            else:
-                self._graph_fullscreen = False
-                graph_container.display = True
-                self.notify("Graph panel shown")
-            self.app.refresh()
+        """Toggle graph view: panel <-> fullscreen."""
+        self._graph_fullscreen = not self._graph_fullscreen
+        if self._graph_fullscreen:
+            self.notify("Graph fullscreen - press g to exit")
         else:
-            self._graph_fullscreen = False
-            self.app.refresh()
             self.notify("Graph panel shown")
 
-    def _right_container_exists(self) -> bool:
-        """Check if right container exists in current layout."""
-        try:
-            return self.query_one("#right-container").display
-        except:
-            return False
-
     def action_select_theme(self) -> None:
-        """Show theme selector."""
-        from textual.pilot import Pilot
-        from textual.widgets import Static, Button
-
-        current = ThemeManager.get_current_theme().display_name
+        """Cycle through available themes."""
         themes = ThemeManager.get_available_themes()
+        current = ThemeManager.get_current_theme().name
+        idx = themes.index(current)
+        next_idx = (idx + 1) % len(themes)
+        ThemeManager.set_theme(themes[next_idx])
         
-        msg = f"Current: {current}\nThemes: {', '.join(themes)}\nRestart TUI with: santai ui --theme <name>"
-        self.notify(msg)
+        theme = ThemeManager.get_current_theme()
+        self.stylesheet = theme.css
+        self.notify(f"Theme: {theme.display_name} (restart TUI to apply changes)")
