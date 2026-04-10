@@ -16,6 +16,12 @@ dependencies = [
     "rich>=13.0.0",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "ruff==0.15.6",
+    "pre-commit>=3.5.0",
+]
+
 [project.scripts]
 santai = "santai_cli.cli:app"
 

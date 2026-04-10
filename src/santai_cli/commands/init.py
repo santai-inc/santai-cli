@@ -1,7 +1,6 @@
 """Initialize a new Santai project."""
 
 import subprocess
-import sys
 from pathlib import Path
 from typing import Annotated
 
@@ -81,7 +80,7 @@ def _is_directory_empty(path: Path) -> bool:
 def _run_command(cmd: list[str], cwd: Path) -> bool:
     """Run a command and return True if successful."""
     try:
-        result = subprocess.run(
+        subprocess.run(
             cmd,
             cwd=cwd,
             capture_output=True,
