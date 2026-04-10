@@ -203,7 +203,7 @@ class NotesPanel(Static):
 
 
 class GraphPanel(Static):
-    """Panel showing file graph with backlinks."""
+    """Panel showing file graph — Obsidian-style force-directed visualization."""
 
     # Directory color codes — warm palette inspired by Obsidian graph
     DIR_COLORS = {
@@ -213,10 +213,6 @@ class GraphPanel(Static):
         "notes": "#d77757",  # terracotta
         "other": "#6b6560",  # warm gray
     }
-
-    # Braille edge characters for smoother connections
-    BRAILLE_DOTS = "⠁⠂⠃⠄⠅⠆⠇⡀⡁⡂⡃⡄⡅⡆⡇⠈⠉⠊⠋⠌⠍⠎⠏⡈⡉⡊⡋⡌⡍⡎⡏"
-    EDGE_CHARS = ["⡀", "⠄", "⠂", "⠁", "⠈", "⠐", "⠠", "⡀"]
 
     def __init__(self, project: SantaiProject, fullscreen: bool = False) -> None:
         super().__init__()
@@ -237,271 +233,75 @@ class GraphPanel(Static):
         self.refresh_graph()
 
     def refresh_graph(self) -> None:
-        """Refresh graph data with visual ASCII graph rendering."""
-        graph = get_file_graph(self.project)
+        """Refresh graph with Obsidian-style force-directed visualization."""
+        from santai_cli.tui.graph_render import (
+            build_graph_from_project_data,
+            render_graph,
+        )
+
+        graph_data = get_file_graph(self.project)
         content_widget = self.query_one("#graph-content", Static)
 
-        if not graph.nodes:
-            content_widget.update("[dim]No files found. Add files to resources/, notes/, etc.[/dim]")
+        if not graph_data.nodes:
+            content_widget.update(
+                "[dim]No files found. Add files to resources/, notes/, etc.[/dim]"
+            )
             return
 
+        nodes, edges = build_graph_from_project_data(graph_data)
+
+        # Determine render dimensions based on mode
+        if self.fullscreen:
+            render_width = 100
+            render_height = 36
+        else:
+            render_width = 44
+            render_height = 18
+
+        # Render the force-directed graph
+        graph_viz = render_graph(
+            nodes=nodes,
+            edges=edges,
+            width=render_width,
+            height=render_height,
+            dir_colors=self.DIR_COLORS,
+            show_labels=True,
+            fullscreen=self.fullscreen,
+        )
+
+        # Build output
         lines = []
 
         # Stats header
         lines.append(
-            f"[bold]Nodes:[/bold] {len(graph.nodes)}  "
-            f"[bold]Edges:[/bold] {len(graph.edges)}"
+            f"[bold]Nodes:[/bold] {len(graph_data.nodes)}  "
+            f"[bold]Edges:[/bold] {len(graph_data.edges)}"
         )
         lines.append("")
 
-        # Group nodes by directory
-        nodes_by_dir: dict[str, list] = {}
-        for node in graph.nodes:
-            if node.directory not in nodes_by_dir:
-                nodes_by_dir[node.directory] = []
-            nodes_by_dir[node.directory].append(node)
-
-        # Build node lookup
-        node_lookup = {node.id: node for node in graph.nodes}
-
-        # Build adjacency: node_id -> set of connected node_ids
-        adjacency: dict[str, set[str]] = {}
-        for edge in graph.edges:
-            adjacency.setdefault(edge.source, set()).add(edge.target)
-            adjacency.setdefault(edge.target, set()).add(edge.source)
-
-        # Determine max nodes to show per directory
-        max_per_dir = 8 if self.fullscreen else 4
-
-        # === VISUAL GRAPH ===
-        # Render directory clusters as visual boxes with nodes inside
-        # Connected nodes get lines drawn between clusters
-
-        dir_order = ["resources", "codebases", "history", "notes"]
-        active_dirs = [d for d in dir_order if d in nodes_by_dir]
-        # Add any dirs not in the standard order
-        for d in nodes_by_dir:
-            if d not in active_dirs:
-                active_dirs.append(d)
-
-        if self.fullscreen:
-            # Fullscreen: render side-by-side cluster boxes
-            self._render_fullscreen_graph(lines, active_dirs, nodes_by_dir, adjacency, node_lookup, max_per_dir)
-        else:
-            # Panel: compact vertical cluster view
-            self._render_panel_graph(lines, active_dirs, nodes_by_dir, adjacency, node_lookup, max_per_dir)
+        # The graph visualization
+        lines.append(graph_viz)
 
         # Legend
         lines.append("")
+        dirs_present = {n.directory for n in graph_data.nodes}
         legend_parts = []
-        for dir_name in active_dirs:
-            color = self.DIR_COLORS.get(dir_name, self.DIR_COLORS["other"])
-            legend_parts.append(f"[{color}]●[/{color}] {dir_name}")
+        for dir_name in ["resources", "codebases", "history", "notes"]:
+            if dir_name in dirs_present:
+                color = self.DIR_COLORS.get(dir_name, self.DIR_COLORS["other"])
+                legend_parts.append(f"[{color}]●[/{color}] {dir_name}")
+        for dir_name in dirs_present:
+            if dir_name not in ["resources", "codebases", "history", "notes"]:
+                color = self.DIR_COLORS.get(dir_name, self.DIR_COLORS["other"])
+                legend_parts.append(f"[{color}]●[/{color}] {dir_name}")
         lines.append(" ".join(legend_parts))
 
-        if graph.edges:
-            lines.append("[dim]─── = link between files[/dim]")
-
-        content_widget.update("\n".join(lines))
-
-    def _node_shape(self, degree: int) -> str:
-        """Get node shape based on connection degree."""
-        if degree >= 5:
-            return "⬢"  # hexagon — hub node
-        elif degree >= 3:
-            return "◆"  # diamond — well-connected
-        elif degree >= 1:
-            return "●"  # circle — has links
-        else:
-            return "○"  # empty circle — isolated
-
-    def _braille_edge(self, length: int = 6) -> str:
-        """Generate a Braille-character edge line."""
-        chars = ["⠤", "⠤", "⠤", "⠶", "⠤", "⠤"]
-        return "".join(chars[:length])
-
-    def _render_panel_graph(self, lines, active_dirs, nodes_by_dir, adjacency, node_lookup, max_per_dir):
-        """Render compact graph for side panel — polished Obsidian-style."""
-        theme = ThemeManager.get_current_theme()
-
-        for i, dir_name in enumerate(active_dirs):
-            color = self.DIR_COLORS.get(dir_name, self.DIR_COLORS["other"])
-            nodes = sorted(nodes_by_dir[dir_name], key=lambda n: n.name)
-            count = len(nodes)
-            display_nodes = nodes[:max_per_dir]
-
-            # Cluster box with rounded corners
-            max_name_len = max((len(n.name) for n in display_nodes), default=8)
-            box_width = max(max_name_len + 6, len(dir_name) + 8)
-
-            lines.append(f"[{color}]╭{'─' * box_width}╮[/{color}]")
-            header = f" ● {dir_name}/ ({count})"
-            lines.append(f"[{color}]│[/{color}][bold {color}]{header:<{box_width}}[/bold {color}][{color}]│[/{color}]")
-            lines.append(f"[{color}]├{'─' * box_width}┤[/{color}]")
-
-            for node in display_nodes:
-                degree = len(adjacency.get(node.id, set()))
-                marker = self._node_shape(degree)
-                name = node.name[:box_width - 6]
-                deg_str = f" [{degree}]" if degree > 0 else ""
-                padding = max(0, box_width - len(name) - len(deg_str) - 4)
-                lines.append(
-                    f"[{color}]│[/{color}] {marker} {name}[dim]{deg_str}[/dim]{' ' * padding}[{color}]│[/{color}]"
-                )
-
-            if count > max_per_dir:
-                more_text = f"  ⠶ +{count - max_per_dir} more"
-                padding = max(0, box_width - len(more_text))
-                lines.append(
-                    f"[{color}]│[/{color}][dim]{more_text}{' ' * padding}[/dim][{color}]│[/{color}]"
-                )
-
-            lines.append(f"[{color}]╰{'─' * box_width}╯[/{color}]")
-
-            # Braille-style connections between clusters
-            if i < len(active_dirs) - 1:
-                connections = self._get_cross_dir_connections(
-                    dir_name, active_dirs[i + 1:], nodes_by_dir, adjacency
-                )
-                if connections:
-                    for src_name, tgt_name, tgt_dir in connections[:3]:
-                        tgt_color = self.DIR_COLORS.get(tgt_dir, self.DIR_COLORS["other"])
-                        lines.append(
-                            f"  [{color}]●[/{color}] {src_name} "
-                            f"[dim]⠤⠤⠶⠤⠤[/dim] "
-                            f"[{tgt_color}]●[/{tgt_color}] {tgt_name}"
-                        )
-                else:
-                    lines.append(f"[dim]  ⠇[/dim]")
-
-    def _render_fullscreen_graph(self, lines, active_dirs, nodes_by_dir, adjacency, node_lookup, max_per_dir):
-        """Render expanded graph for fullscreen — Obsidian-inspired with Braille edges."""
-        max_per_dir = 15
-        theme = ThemeManager.get_current_theme()
-
-        # === Cluster visualization ===
-        for i, dir_name in enumerate(active_dirs):
-            color = self.DIR_COLORS.get(dir_name, self.DIR_COLORS["other"])
-            nodes = sorted(nodes_by_dir[dir_name], key=lambda n: n.name)
-            count = len(nodes)
-            display_nodes = nodes[:max_per_dir]
-
-            max_name_len = max((len(n.name) for n in display_nodes), default=8)
-            box_width = max(max_name_len + 22, len(dir_name) + 12, 44)
-
-            # Double-line box for clusters
-            lines.append(f"[{color}]╔{'═' * box_width}╗[/{color}]")
-            header = f" ⬢ {dir_name}/ ({count} files)"
-            lines.append(f"[{color}]║[/{color}][bold {color}]{header:<{box_width}}[/bold {color}][{color}]║[/{color}]")
-            lines.append(f"[{color}]╠{'═' * box_width}╣[/{color}]")
-
-            for node in display_nodes:
-                degree = len(adjacency.get(node.id, set()))
-                marker = self._node_shape(degree)
-                size = format_size(node.size_bytes)
-                name_part = node.name[:box_width - 22]
-
-                # Degree bar visualization
-                bar = "█" * min(degree, 8) + "░" * max(0, 8 - degree) if degree > 0 else "░" * 8
-                detail = f"{name_part}  [dim]{size}[/dim] [{color}]{bar}[/{color}]"
-                visible_len = len(name_part) + 2 + len(size) + 1 + 8
-                padding = max(0, box_width - visible_len - 3)
-                lines.append(
-                    f"[{color}]║[/{color}] {marker} {detail}{' ' * padding}[{color}]║[/{color}]"
-                )
-
-            if count > max_per_dir:
-                more_text = f"  ⠶ +{count - max_per_dir} more files"
-                padding = max(0, box_width - len(more_text))
-                lines.append(
-                    f"[{color}]║[/{color}][dim]{more_text}{' ' * padding}[/dim][{color}]║[/{color}]"
-                )
-
-            lines.append(f"[{color}]╚{'═' * box_width}╝[/{color}]")
-
-            # Braille-style connections between clusters
-            if i < len(active_dirs) - 1:
-                connections = self._get_cross_dir_connections(
-                    dir_name, active_dirs[i + 1:], nodes_by_dir, adjacency
-                )
-                if connections:
-                    lines.append("")
-                    for src_name, tgt_name, tgt_dir in connections[:5]:
-                        tgt_color = self.DIR_COLORS.get(tgt_dir, self.DIR_COLORS["other"])
-                        lines.append(
-                            f"    [{color}]●[/{color}] {src_name} "
-                            f"[dim]⠤⠤⠤⠶⠤⠤⠤⠶⠤⠤⠤[/dim] "
-                            f"[{tgt_color}]●[/{tgt_color}] {tgt_name} "
-                            f"[dim]({tgt_dir}/)[/dim]"
-                        )
-                    lines.append("")
-                else:
-                    lines.append(f"[dim]    ⠇[/dim]")
-                    lines.append("")
-
-        # === Connection Matrix ===
-        if adjacency:
-            lines.append("")
-            lines.append(f"[bold]⬡ Connection Graph[/bold]")
-            lines.append(f"[dim]{'─' * 56}[/dim]")
-
-            # Sort by degree (most connected first)
-            sorted_nodes = sorted(
-                [(nid, len(conns)) for nid, conns in adjacency.items() if nid in node_lookup],
-                key=lambda x: x[1],
-                reverse=True,
+        if graph_data.edges:
+            lines.append(
+                "[dim]⬢ hub (5+)  ◆ connected (3+)  ● linked  ○ isolated  ─ edge[/dim]"
             )
 
-            edge_shown = 0
-            seen_edges: set[tuple[str, str]] = set()
-            for node_id, degree in sorted_nodes:
-                src_node = node_lookup[node_id]
-                src_color = self.DIR_COLORS.get(src_node.directory, self.DIR_COLORS["other"])
-
-                for target_id in sorted(adjacency[node_id]):
-                    edge_key = tuple(sorted([node_id, target_id]))
-                    if edge_key in seen_edges or target_id not in node_lookup:
-                        continue
-                    seen_edges.add(edge_key)
-                    tgt_node = node_lookup[target_id]
-                    tgt_color = self.DIR_COLORS.get(tgt_node.directory, self.DIR_COLORS["other"])
-
-                    src_shape = self._node_shape(degree)
-                    tgt_degree = len(adjacency.get(target_id, set()))
-                    tgt_shape = self._node_shape(tgt_degree)
-
-                    lines.append(
-                        f"  [{src_color}]{src_shape} {src_node.name}[/{src_color}] "
-                        f"[dim]⠤⠶⠤[/dim] "
-                        f"[{tgt_color}]{tgt_shape} {tgt_node.name}[/{tgt_color}]"
-                    )
-                    edge_shown += 1
-                    if edge_shown >= 25:
-                        lines.append(f"  [dim]⠶ ... and more connections[/dim]")
-                        break
-                if edge_shown >= 25:
-                    break
-
-            # Node info summary
-            lines.append("")
-            lines.append(f"[bold]Node Info[/bold]")
-            lines.append(f"[dim]{'─' * 56}[/dim]")
-            lines.append(f"  ⬢ = hub (5+ links)  ◆ = connected (3+)  ● = linked  ○ = isolated")
-            lines.append(f"  [dim]█ = connection strength  ⠤⠶⠤ = edge[/dim]")
-
-    def _get_cross_dir_connections(self, source_dir, target_dirs, nodes_by_dir, adjacency):
-        """Get connections between nodes in source_dir and target_dirs."""
-        connections = []
-        source_nodes = nodes_by_dir.get(source_dir, [])
-        for src_node in source_nodes:
-            if src_node.id not in adjacency:
-                continue
-            for target_id in adjacency[src_node.id]:
-                for tgt_dir in target_dirs:
-                    for tgt_node in nodes_by_dir.get(tgt_dir, []):
-                        if tgt_node.id == target_id:
-                            connections.append((src_node.name, tgt_node.name, tgt_dir))
-        return connections
+        content_widget.update("\n".join(lines))
 
 
 # === Modal Screens ===
