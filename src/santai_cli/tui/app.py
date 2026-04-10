@@ -21,6 +21,7 @@ from santai_cli.core.project import (
     get_file_graph,
     get_notes,
 )
+from santai_cli.tui.themes import ThemeManager, get_theme_css
 
 
 def format_size(size_bytes: int) -> str:
@@ -281,217 +282,13 @@ class SantaiApp(App):
     """Santai TUI application."""
 
     TITLE = "Santai"
-    CSS = """
-    Screen {
-        layout: horizontal;
-        background: #0C0A09;
-    }
-
-    Header {
-        background: rgba(255, 255, 255, 0.08);
-        color: #F5F5F7;
-        text-style: bold;
-    }
-
-    Header > HeaderTitle {
-        color: #F5F5F7;
-        text-style: bold;
-    }
-
-    Header > HeaderIcon {
-        color: #10B981;
-    }
-
-    Footer {
-        background: rgba(255, 255, 255, 0.08);
-        color: #F5F5F7;
-    }
-
-    Footer > .footer--key {
-        background: rgba(255, 255, 255, 0.12);
-        color: #F5F5F7;
-    }
-
-    Footer > .footer--description {
-        color: #AEAEB2;
-    }
-
-    #tree-container {
-        width: 1fr;
-        height: 100%;
-        border: solid rgba(255, 255, 255, 0.18);
-        padding: 1 2;
-        background: rgba(255, 255, 255, 0.08);
-        margin: 1;
-        
-    }
-
-    #tree-title {
-        text-style: bold;
-        color: #10B981;
-        margin-bottom: 1;
-        text-align: center;
-        width: 100%;
-    }
-
-    DirectoryTree {
-        background: transparent;
-        padding: 0 1;
-    }
-
-    DirectoryTree > .directory-tree--folder {
-        color: #F5F5F7;
-        text-style: bold;
-    }
-
-    DirectoryTree > .directory-tree--extension {
-        color: #AEAEB2;
-    }
-
-    DirectoryTree > .directory-tree--file {
-        color: #D6D3D1;
-    }
-
-    DirectoryTree:focus > .directory-tree--cursor {
-        background: #10B981;
-        color: #0C0A09;
-        text-style: bold;
-    }
-
-    DirectoryTree > .directory-tree--cursor {
-        background: rgba(16, 185, 129, 0.3);
-        color: #F5F5F7;
-    }
-
-    #middle-container {
-        width: 2fr;
-        height: 100%;
-        layout: vertical;
-    }
-
-    #stats-container {
-        height: 1fr;
-        border: solid rgba(255, 255, 255, 0.18);
-        padding: 1 2;
-        background: rgba(255, 255, 255, 0.08);
-        margin: 1;
-        
-    }
-
-    #notes-container {
-        height: 1fr;
-        border: solid rgba(255, 255, 255, 0.18);
-        padding: 1 2;
-        background: rgba(255, 255, 255, 0.08);
-        margin: 1;
-        
-    }
-
-    #right-container {
-        width: 1fr;
-        height: 100%;
-        layout: vertical;
-    }
-
-    #graph-container {
-        height: 100%;
-        border: solid rgba(255, 255, 255, 0.18);
-        padding: 1 2;
-        background: rgba(255, 255, 255, 0.08);
-        margin: 1;
-        
-        overflow-y: auto;
-    }
-
-    #stats-title, #types-title, #recent-title, #notes-title, #graph-title {
-        margin-bottom: 1;
-        color: #10B981;
-        text-style: bold;
-        border-bottom: solid #10B981;
-        padding-bottom: 1;
-    }
-
-    #notes-content, #graph-content {
-        color: #F5F5F7;
-        padding: 1;
-        height: auto;
-    }
-
-    DataTable {
-        height: auto;
-        max-height: 10;
-        margin-bottom: 1;
-        background: rgba(255, 255, 255, 0.12);
-        padding: 0 1;
-        
-    }
-
-    DataTable > .datatable--header {
-        background: #10B981;
-        color: #0C0A09;
-        text-style: bold;
-    }
-
-    DataTable > .datatable--cursor {
-        background: rgba(16, 185, 129, 0.4);
-        color: #F5F5F7;
-        text-style: bold;
-    }
-
-    DataTable > .datatable--even-row {
-        background: rgba(255, 255, 255, 0.12);
-    }
-
-    DataTable > .datatable--odd-row {
-        background: rgba(255, 255, 255, 0.06);
-    }
-
-    DataTable:focus > .datatable--cursor {
-        background: #10B981;
-        color: #0C0A09;
-    }
-
-    #dir-stats-table {
-        max-height: 8;
-    }
-
-    #types-table {
-        max-height: 6;
-    }
-
-    #recent-table {
-        max-height: 6;
-    }
-
-    StatsPanel {
-        background: transparent;
-    }
-
-    StatsPanel > Label {
-        color: #F5F5F7;
-    }
-
-    NotesPanel {
-        background: transparent;
-    }
-
-    NotesPanel > Label {
-        color: #F5F5F7;
-    }
-
-    GraphPanel {
-        background: transparent;
-    }
-
-    GraphPanel > Label {
-        color: #F5F5F7;
-    }
-    """
+    CSS = get_theme_css()
 
     BINDINGS = [
         Binding("q", "quit", "Quit"),
         Binding("r", "refresh", "Refresh"),
         Binding("g", "toggle_graph", "Graph"),
+        Binding("t", "cycle_theme", "Theme"),
     ]
 
     def __init__(self, project: SantaiProject) -> None:
@@ -535,3 +332,9 @@ class SantaiApp(App):
             self.notify("Graph panel shown")
         else:
             self.notify("Graph panel hidden")
+
+    def action_cycle_theme(self) -> None:
+        """Cycle to the next theme."""
+        theme_name = ThemeManager.cycle_theme()
+        self.theme = get_theme_css()
+        self.notify(f"Theme: {theme_name}")
