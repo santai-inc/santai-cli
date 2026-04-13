@@ -1388,9 +1388,9 @@ class GraphFilterScreen(ModalScreen):
         self._dir_counts: dict[str, int] = {}
         for n in nodes:
             self._dir_counts[n.directory] = self._dir_counts.get(n.directory, 0) + 1
-        self._render()
+        self._update_display()
 
-    def _render(self) -> None:
+    def _update_display(self) -> None:
         body = self.query_one("#filter-body", Static)
         dir_colors = GraphPanel.DIR_COLORS
 
@@ -1449,7 +1449,7 @@ class GraphFilterScreen(ModalScreen):
             self._selected.discard(dir_name)
         else:
             self._selected.add(dir_name)
-        self._render()
+        self._update_display()
 
     def action_toggle_1(self) -> None:
         self._toggle_dir("resources")
@@ -1465,11 +1465,11 @@ class GraphFilterScreen(ModalScreen):
 
     def action_select_all(self) -> None:
         self._selected = set(self.DIRS) | self._available_dirs
-        self._render()
+        self._update_display()
 
     def action_clear_all(self) -> None:
         self._selected.clear()
-        self._render()
+        self._update_display()
 
     def key_enter(self) -> None:
         """Apply the filter."""

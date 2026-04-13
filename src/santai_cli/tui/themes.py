@@ -632,7 +632,7 @@ def _generate_css(c: ThemeColors) -> str:
 
     /* === Modal Screens (centered overlay) === */
 
-    NoteDetailScreen, AddNoteScreen, EditNoteScreen, FilePreviewScreen, ThemeSelectScreen, ConfirmScreen, MoveFileScreen, GraphSearchScreen {{
+    NoteDetailScreen, AddNoteScreen, EditNoteScreen, EditFileScreen, FilePreviewScreen, ThemeSelectScreen, ConfirmScreen, MoveFileScreen, GraphSearchScreen, GraphFilterScreen {{
         align: center middle;
         background: {c.bg} 80%;
     }}
