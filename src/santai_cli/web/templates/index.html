@@ -41,6 +41,21 @@
             --text-muted: rgba(0, 0, 0, 0.35);
         }
 
+        /* Simple White Theme */
+        /* Simple White Theme */
+        [data-theme="simple"] {
+            --glass-bg: #ffffff;
+            --glass-border: rgba(0, 0, 0, 0.1);
+            --glass-blur: 0px;
+            --glass-saturation: 100%;
+            --glass-brightness: 1;
+            --glass-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
+            --fill-white: #ffffff;
+            --fill-hover: #f8f9fa;
+            --fill-active: #f1f3f5;
+            --fill-subtle: #f8f9fa;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -61,6 +76,85 @@
             min-height: 100vh;
             color: var(--text-dark);
             line-height: 1.5;
+        }
+
+        [data-theme="simple"] body {
+            background: #f5f5f7;
+        }
+
+        [data-theme="simple"] .glass,
+        [data-theme="simple"] .modal {
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
+        }
+
+        [data-theme="simple"] .preview-close,
+        [data-theme="simple"] .graph-legend,
+        [data-theme="simple"] .graph-filter-btn,
+        [data-theme="simple"] .graph-fullscreen-btn,
+        [data-theme="simple"] .graph-zoom-controls {
+            background: #ffffff;
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        [data-theme="simple"] .preview-close:hover,
+        [data-theme="simple"] .graph-filter-btn:hover,
+        [data-theme="simple"] .graph-fullscreen-btn:hover {
+            background: #f1f3f5;
+        }
+
+        [data-theme="simple"] .graph-zoom-btn:hover {
+            background: rgba(0, 0, 0, 0.05);
+        }
+
+        [data-theme="simple"] .graph-zoom-btn:first-child {
+            border-right: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        [data-theme="simple"] .graph-filter-btn.active {
+            background: var(--accent);
+            color: white;
+        }
+
+        [data-theme="simple"] .graph-panel.fullscreen .graph-legend,
+        [data-theme="simple"] .graph-panel.fullscreen .graph-filter-btn,
+        [data-theme="simple"] .graph-panel.fullscreen .graph-fullscreen-btn,
+        [data-theme="simple"] .graph-panel.fullscreen .graph-zoom-controls {
+            background: #ffffff;
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
+        }
+
+        [data-theme="simple"] .graph-panel.fullscreen .graph-filter-btn.active {
+            background: var(--accent);
+            color: white;
+        }
+
+        [data-theme="simple"] .graph-panel.fullscreen .graph-filter-btn:hover:not(.active) {
+            background: #f1f3f5;
+        }
+
+        [data-theme="simple"] body.preview-open .graph-panel.fullscreen .graph-legend,
+        [data-theme="simple"] body.preview-open .graph-panel.fullscreen .graph-fullscreen-btn,
+        [data-theme="simple"] body.preview-open .graph-panel.fullscreen .graph-filter-btn,
+        [data-theme="simple"] body.preview-open .graph-panel.fullscreen .graph-zoom-controls {
+            background: #ffffff;
+        }
+
+        [data-theme="simple"] body.preview-open .graph-panel.fullscreen .graph-filter-btn.active {
+            background: var(--accent);
+        }
+
+        [data-theme="simple"] .btn:not(.btn-primary):not(.btn-danger) {
+            background: #ffffff;
+            border: 1px solid rgba(0, 0, 0, 0.12);
+        }
+
+        [data-theme="simple"] .btn:not(.btn-primary):not(.btn-danger):hover {
+            background: #f8f9fa;
+            border-color: rgba(0, 0, 0, 0.18);
         }
 
         /* Glass Container */
@@ -106,6 +200,41 @@
             font-size: 18px;
             font-weight: 600;
             letter-spacing: 0.02em;
+        }
+
+        .theme-toggle {
+            margin-left: auto;
+            background: var(--fill-subtle);
+            border: none;
+            border-radius: 8px;
+            padding: 6px;
+            cursor: pointer;
+            color: var(--text-secondary);
+            transition: var(--transition-quick);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .theme-toggle:hover {
+            background: var(--fill-hover);
+            color: var(--text-primary);
+        }
+
+        .theme-toggle svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        /* Glass theme active: sparkle is "on" */
+        [data-theme="glass"] .theme-toggle {
+            background: var(--accent-light);
+            color: var(--accent);
+        }
+
+        [data-theme="glass"] .theme-toggle:hover {
+            background: var(--accent-light);
+            color: var(--accent-hover);
         }
 
         .sidebar-section {
@@ -724,7 +853,7 @@
         .modal-overlay {
             position: fixed;
             inset: 0;
-            background: rgba(0, 0, 0, 0.4);
+            background: rgba(0, 0, 0, 0.25);
             display: none;
             align-items: center;
             justify-content: center;
@@ -736,18 +865,21 @@
         }
 
         .modal {
-            background: rgba(255, 255, 255, 0.95);
-            border: 1px solid rgba(0, 0, 0, 0.08);
+            background: var(--glass-bg);
+            backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation)) brightness(var(--glass-brightness));
+            -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation)) brightness(var(--glass-brightness));
+            border: 1px solid var(--glass-border);
             border-radius: 20px;
             padding: 24px;
             min-width: 320px;
             max-width: 90vw;
-            box-shadow: 0 24px 64px rgba(0, 0, 0, 0.15);
+            box-shadow: var(--glass-shadow), 0 24px 64px rgba(0, 0, 0, 0.1);
         }
 
         .modal h2 {
             font-size: 18px;
-            font-weight: 500;
+            font-weight: 600;
+            color: var(--text-primary);
             margin-bottom: 16px;
         }
 
@@ -793,21 +925,22 @@
 
         .modal-input {
             width: 100%;
-            background: rgba(0, 0, 0, 0.04);
-            border: 1px solid rgba(0, 0, 0, 0.1);
+            background: var(--fill-white);
+            border: 1px solid var(--glass-border);
             border-radius: 12px;
             padding: 12px 16px;
             color: var(--text-primary);
             font-size: 14px;
-            margin-bottom: 16px;
+            margin-bottom: 20px;
             outline: none;
             transition: var(--transition-quick);
+            box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
         }
 
         .modal-input:focus {
             border-color: var(--accent);
-            background: rgba(255, 255, 255, 0.8);
-            box-shadow: 0 0 0 3px var(--accent-light);
+            background: var(--fill-active);
+            box-shadow: 0 0 0 3px var(--accent-light), inset 0 1px 2px rgba(0, 0, 0, 0.02);
         }
 
         .modal-actions {
@@ -1766,9 +1899,14 @@
     <div class="app">
         <!-- Sidebar - single glass container with fill-based sections -->
         <aside class="sidebar glass">
-            <div class="sidebar-header" onclick="showDashboard()" style="cursor: pointer;">
-                <img src="/static/logo.png" alt="Santai" onerror="this.style.display='none'">
-                <h1>Santai</h1>
+            <div class="sidebar-header">
+                <img src="/static/logo.png" alt="Santai" onerror="this.style.display='none'" onclick="showDashboard()" style="cursor: pointer;">
+                <h1 onclick="showDashboard()" style="cursor: pointer;">Santai</h1>
+                <button class="theme-toggle" onclick="toggleTheme(event)" title="Toggle theme">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                    </svg>
+                </button>
             </div>
 
             <!-- Tree View -->
@@ -1985,9 +2123,9 @@
         <div class="modal">
             <h2>Rename</h2>
             <input type="text" class="modal-input" id="rename-input" placeholder="New name">
-            <div class="modal-actions">
-                <button class="btn" onclick="closeModals()">Cancel</button>
+            <div class="modal-actions" style="justify-content: flex-start;">
                 <button class="btn btn-primary" onclick="confirmRename()">Rename</button>
+                <button class="btn" onclick="closeModals()">Cancel</button>
             </div>
         </div>
     </div>
@@ -1997,9 +2135,9 @@
         <div class="modal">
             <h2>New Folder</h2>
             <input type="text" class="modal-input" id="folder-input" placeholder="Folder name">
-            <div class="modal-actions">
-                <button class="btn" onclick="closeModals()">Cancel</button>
+            <div class="modal-actions" style="justify-content: flex-start;">
                 <button class="btn btn-primary" onclick="confirmNewFolder()">Create</button>
+                <button class="btn" onclick="closeModals()">Cancel</button>
             </div>
         </div>
     </div>
@@ -2035,6 +2173,26 @@
     <input type="file" id="file-input" multiple onchange="handleFileSelect(event)">
 
     <script>
+        // Theme Management - 2 themes: simple (light) and glass
+        function setTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            localStorage.setItem('santai-theme', theme);
+        }
+
+        function toggleTheme(event) {
+            event.stopPropagation();
+            const current = document.documentElement.getAttribute('data-theme') || 'simple';
+            setTheme(current === 'glass' ? 'simple' : 'glass');
+        }
+
+        function loadTheme() {
+            const saved = localStorage.getItem('santai-theme') || 'simple';
+            setTheme(saved);
+        }
+
+        // Load theme immediately to prevent flash
+        loadTheme();
+
         let currentPath = '';
         let selectedItem = null;
         let files = [];
