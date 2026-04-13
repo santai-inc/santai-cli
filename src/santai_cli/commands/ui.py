@@ -1,25 +1,35 @@
 """Launch the TUI dashboard."""
 
 from pathlib import Path
+from typing import Annotated
 
 import typer
 from rich.console import Console
 
 from santai_cli.core.project import get_project
 from santai_cli.tui.app import SantaiApp
+from santai_cli.tui.themes import ThemeManager
 
 console = Console()
 
 
-def ui() -> None:
+def ui(
+    theme: Annotated[
+        str,
+        typer.Option("--theme", "-t", help="Theme: claude, catppuccin, btop, light"),
+    ] = "btop",
+) -> None:
     """Launch the TUI dashboard.
 
     Displays a terminal-based user interface with:
     - Directory tree showing resources/, codebases/, history/
     - Dashboard with file statistics, types, and recent files
 
-    Press 'q' to quit, 'r' to refresh.
+    Press 'q' to quit, 'r' to refresh, 't' to see theme options.
     """
+    # Set theme
+    ThemeManager.set_theme(theme)
+
     # Get project
     project = get_project(Path.cwd())
     if project is None:

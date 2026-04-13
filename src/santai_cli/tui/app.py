@@ -5,14 +5,18 @@ from pathlib import Path
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Container, Horizontal, Vertical
+from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.message import Message
+from textual.screen import ModalScreen
 from textual.widgets import (
     DataTable,
     DirectoryTree,
     Footer,
     Header,
+    Input,
     Label,
     Static,
+    TextArea,
 )
 
 from santai_cli.core.project import (
@@ -21,6 +25,8 @@ from santai_cli.core.project import (
     get_file_graph,
     get_notes,
 )
+from santai_cli.tui.graph_render import search_nodes as graph_search_nodes
+from santai_cli.tui.themes import ThemeManager, get_theme_css
 
 
 def format_size(size_bytes: int) -> str:
@@ -66,7 +72,7 @@ class FilteredDirectoryTree(DirectoryTree):
 
 
 class StatsPanel(Static):
-    """Panel showing directory statistics."""
+    """Panel showing directory statistics (compact, placed under graph)."""
 
     def __init__(self, project: SantaiProject) -> None:
         super().__init__()
@@ -78,9 +84,6 @@ class StatsPanel(Static):
         yield Label("")
         yield Label("[bold]File Types[/bold]", id="types-title")
         yield DataTable(id="types-table")
-        yield Label("")
-        yield Label("[bold]Recent Files[/bold]", id="recent-title")
-        yield DataTable(id="recent-table")
 
     def on_mount(self) -> None:
         """Populate tables with data."""
@@ -115,29 +118,76 @@ class StatsPanel(Static):
         if not stats.file_types:
             types_table.add_row("[dim]No files[/dim]", "")
 
-        # Recent files table
-        recent_table = self.query_one("#recent-table", DataTable)
-        recent_table.clear(columns=True)
-        recent_table.add_columns("File", "Modified")
-        for file_info in stats.recent_files[:5]:
-            recent_table.add_row(
-                file_info.name,
-                format_time_ago(file_info.modified_at),
-            )
-        if not stats.recent_files:
-            recent_table.add_row("[dim]No files[/dim]", "")
 
-
-class NotesPanel(Static):
-    """Panel showing notes preview."""
+class RecentFilesPanel(Static):
+    """Panel showing recent files with clickable rows."""
 
     def __init__(self, project: SantaiProject) -> None:
         super().__init__()
         self.project = project
+        self._recent_files: list = []
 
     def compose(self) -> ComposeResult:
-        yield Label("[bold]Notes Preview[/bold]", id="notes-title")
-        yield Static(id="notes-content")
+        yield Label("[bold]Recent Files[/bold] [dim](click to open)[/dim]", id="recent-title")
+        yield DataTable(id="recent-table", cursor_type="row")
+
+    def on_mount(self) -> None:
+        """Populate recent files."""
+        self.refresh_recent()
+
+    def refresh_recent(self) -> None:
+        """Refresh recent files data."""
+        stats = get_directory_stats(self.project)
+        self._recent_files = stats.recent_files[:8]
+
+        recent_table = self.query_one("#recent-table", DataTable)
+        recent_table.clear(columns=True)
+        recent_table.add_columns("File", "Directory", "Modified")
+        for file_info in self._recent_files:
+            # Derive directory from file path relative to project root
+            try:
+                rel = file_info.path.relative_to(self.project.root)
+                directory = rel.parts[0] if rel.parts else "unknown"
+            except ValueError:
+                directory = "unknown"
+            recent_table.add_row(
+                file_info.name,
+                directory,
+                format_time_ago(file_info.modified_at),
+            )
+        if not self._recent_files:
+            recent_table.add_row("[dim]No files yet[/dim]", "", "")
+
+
+class ClickableNote(Static):
+    """A clickable note item in the notes panel."""
+
+    class Clicked(Message):
+        """Message sent when a note is clicked."""
+        def __init__(self, note: "NoteEntry") -> None:
+            super().__init__()
+            self.note = note
+
+    def __init__(self, note: "NoteEntry") -> None:
+        super().__init__()
+        self.note = note
+
+    def on_click(self) -> None:
+        """Handle click on this note."""
+        self.post_message(self.Clicked(self.note))
+
+
+class NotesPanel(Static):
+    """Panel showing notes preview with clickable note items."""
+
+    def __init__(self, project: SantaiProject) -> None:
+        super().__init__()
+        self.project = project
+        self._notes: list = []
+
+    def compose(self) -> ComposeResult:
+        yield Label("[bold]Notes[/bold] [dim](click to open)[/dim]", id="notes-title")
+        yield Vertical(id="notes-list")
 
     def on_mount(self) -> None:
         """Populate notes preview."""
@@ -145,388 +195,1536 @@ class NotesPanel(Static):
 
     def refresh_notes(self) -> None:
         """Refresh notes data."""
-        notes = get_notes(self.project)
-        content_widget = self.query_one("#notes-content", Static)
+        from santai_cli.core.project import NoteEntry
 
-        if not notes:
-            content_widget.update(
-                "[dim]No notes yet. Add .md or .txt files to notes/[/dim]"
+        theme = ThemeManager.get_current_theme()
+        self._notes = get_notes(self.project)
+        notes_list = self.query_one("#notes-list", Vertical)
+
+        # Remove old children
+        notes_list.remove_children()
+
+        if not self._notes:
+            notes_list.mount(
+                Static("[dim]No notes yet. Add .md or .txt files to notes/[/dim]")
             )
             return
 
-        # Build notes preview content
-        lines = []
-        for note in notes[:5]:  # Show up to 5 notes
-            lines.append(f"[bold #f97316]{note.title}[/bold #f97316]")
-            lines.append(f"[dim]{format_time_ago(note.modified_at)}[/dim]")
-            # Truncate preview for display
+        accent = theme.colors.success
+        muted = theme.colors.muted
+        for note in self._notes[:8]:  # Show up to 8 notes
             preview = (
-                note.preview[:100] + "..." if len(note.preview) > 100 else note.preview
+                note.preview[:80] + "..." if len(note.preview) > 80 else note.preview
             )
-            lines.append(f"[#d6d3d1]{preview}[/#d6d3d1]")
-            lines.append("")
-
-        content_widget.update("\n".join(lines))
+            content = (
+                f"[bold {accent}]📄 {note.title}[/bold {accent}]\n"
+                f"[dim]{format_time_ago(note.modified_at)}[/dim]  "
+                f"[{muted}]{preview}[/{muted}]"
+            )
+            widget = ClickableNote(note)
+            widget.update(content)
+            notes_list.mount(widget)
 
 
 class GraphPanel(Static):
-    """Panel showing file graph with backlinks."""
+    """Panel showing file graph — Obsidian-style force-directed visualization."""
 
-    # Directory color codes for rich markup
+    # Directory color codes — warm palette inspired by Obsidian graph
     DIR_COLORS = {
-        "resources": "#f97316",  # orange
-        "codebases": "#22c55e",  # green
-        "history": "#3b82f6",  # blue
-        "notes": "#a855f7",  # purple
-        "other": "#78716c",  # gray
+        "resources": "#4eba65",  # green
+        "codebases": "#06B6D4",  # cyan
+        "history": "#b1b9f9",  # lavender
+        "notes": "#d77757",  # terracotta
+        "other": "#6b6560",  # warm gray
     }
 
-    def __init__(self, project: SantaiProject) -> None:
+    def __init__(self, project: SantaiProject, fullscreen: bool = False) -> None:
         super().__init__()
         self.project = project
+        self.fullscreen = fullscreen
+        self._selected_id: str | None = None
+        self._highlight_ids: set[str] | None = None
+        self._search_query: str = ""
+        self._filter_dirs: set[str] | None = None  # None = show all
 
     def compose(self) -> ComposeResult:
-        yield Label("[bold]File Graph[/bold]", id="graph-title")
+        title = (
+            "[bold]File Graph[/bold] [dim](g=exit  /=search  f=filter)[/dim]"
+            if self.fullscreen
+            else "[bold]File Graph[/bold]"
+        )
+        yield Label(title, id="graph-title")
         yield Static(id="graph-content")
 
     def on_mount(self) -> None:
         """Populate graph view."""
         self.refresh_graph()
 
+    def set_search(self, query: str, selected_id: str | None = None, highlight_ids: set[str] | None = None) -> None:
+        """Set search state and re-render."""
+        self._search_query = query
+        self._selected_id = selected_id
+        self._highlight_ids = highlight_ids
+        self.refresh_graph()
+
+    def set_filter(self, filter_dirs: set[str] | None) -> None:
+        """Set directory filter and re-render. None = show all."""
+        self._filter_dirs = filter_dirs
+        self.refresh_graph()
+
+    def clear_filter(self) -> None:
+        """Clear directory filter."""
+        self._filter_dirs = None
+        self.refresh_graph()
+
+    def clear_search(self) -> None:
+        """Clear search highlighting."""
+        self._search_query = ""
+        self._selected_id = None
+        self._highlight_ids = None
+        self.refresh_graph()
+
     def refresh_graph(self) -> None:
-        """Refresh graph data."""
-        graph = get_file_graph(self.project)
+        """Refresh graph with Obsidian-style force-directed visualization."""
+        from santai_cli.tui.graph_render import (
+            build_graph_from_project_data,
+            render_graph,
+        )
+
+        graph_data = get_file_graph(self.project)
         content_widget = self.query_one("#graph-content", Static)
 
-        if not graph.nodes:
-            content_widget.update("[dim]No files found[/dim]")
+        if not graph_data.nodes:
+            content_widget.update(
+                "[dim]No files found. Add files to resources/, notes/, etc.[/dim]"
+            )
+            self._node_positions = {}
+            self._render_width = 0
+            self._render_height = 0
+            self._graph_line_offset = 0
+            return
+
+        nodes, edges = build_graph_from_project_data(graph_data)
+
+        # Apply directory filter
+        if self._filter_dirs is not None:
+            filtered_node_ids = {n.id for n in nodes if n.directory in self._filter_dirs}
+            nodes = [n for n in nodes if n.id in filtered_node_ids]
+            edges = [e for e in edges if e.source in filtered_node_ids and e.target in filtered_node_ids]
+
+        if not nodes:
+            content_widget.update(
+                "[dim]No files match the current filter.[/dim]"
+            )
+            self._node_positions = {}
+            self._render_width = 0
+            self._render_height = 0
+            self._graph_line_offset = 0
+            return
+
+        # Determine render dimensions based on mode
+        if self.fullscreen:
+            render_width = 100
+            render_height = 36
+        else:
+            render_width = 44
+            render_height = 18
+
+        self._render_width = render_width
+        self._render_height = render_height
+
+        # Render the force-directed graph
+        result = render_graph(
+            nodes=nodes,
+            edges=edges,
+            width=render_width,
+            height=render_height,
+            dir_colors=self.DIR_COLORS,
+            selected_id=self._selected_id,
+            highlight_ids=self._highlight_ids,
+            show_labels=True,
+            fullscreen=self.fullscreen,
+        )
+
+        # Store node positions for click detection
+        self._node_positions = result.node_positions
+        self._node_map = result.node_map
+
+        # Build output
+        lines = []
+
+        # Stats header with search/filter indicators
+        total_nodes = len(graph_data.nodes)
+        shown_nodes = len(nodes)
+        total_edges = len(graph_data.edges)
+        shown_edges = len(edges)
+
+        if self._filter_dirs is not None and shown_nodes != total_nodes:
+            stats_line = (
+                f"[bold]Nodes:[/bold] {shown_nodes}/{total_nodes}  "
+                f"[bold]Edges:[/bold] {shown_edges}/{total_edges}"
+            )
+            filter_names = ", ".join(sorted(self._filter_dirs))
+            stats_line += f"  [bold cyan]Filter:[/bold cyan] {filter_names}"
+        else:
+            stats_line = (
+                f"[bold]Nodes:[/bold] {total_nodes}  "
+                f"[bold]Edges:[/bold] {total_edges}"
+            )
+        if self._search_query:
+            match_count = len(self._highlight_ids) if self._highlight_ids else 0
+            stats_line += f"  [bold yellow]Search:[/bold yellow] \"{self._search_query}\" ({match_count} match{'es' if match_count != 1 else ''})"
+        lines.append(stats_line)
+        lines.append("")
+
+        # Track where the graph visualization starts (line offset for click mapping)
+        self._graph_line_offset = len(lines)
+
+        # The graph visualization
+        lines.append(result.markup)
+
+        # Legend
+        lines.append("")
+        dirs_present = {n.directory for n in graph_data.nodes}
+        legend_parts = []
+        for dir_name in ["resources", "codebases", "history", "notes"]:
+            if dir_name in dirs_present:
+                color = self.DIR_COLORS.get(dir_name, self.DIR_COLORS["other"])
+                legend_parts.append(f"[{color}]●[/{color}] {dir_name}")
+        for dir_name in dirs_present:
+            if dir_name not in ["resources", "codebases", "history", "notes"]:
+                color = self.DIR_COLORS.get(dir_name, self.DIR_COLORS["other"])
+                legend_parts.append(f"[{color}]●[/{color}] {dir_name}")
+        lines.append(" ".join(legend_parts))
+
+        if graph_data.edges:
+            lines.append(
+                "[dim]⬢ hub (5+)  ◆ connected (3+)  ● node  ◈ match  ◉ selected  c=clear[/dim]"
+            )
+
+        content_widget.update("\n".join(lines))
+
+    def on_click(self, event) -> None:
+        """Handle click on graph — find nearest node and open file."""
+        if not hasattr(self, '_node_positions') or not self._node_positions:
+            return
+
+        # Get click position relative to the graph content widget
+        content_widget = self.query_one("#graph-content", Static)
+        # Calculate offset: the content widget's position within the panel
+        try:
+            content_region = content_widget.region
+            # Click coordinates relative to the content widget
+            click_x = event.x - content_region.x
+            click_y = event.y - content_region.y
+        except Exception:
+            return
+
+        # Adjust for the graph line offset (stats header lines above the graph)
+        graph_y = click_y - self._graph_line_offset
+        graph_x = click_x
+
+        if graph_y < 0 or graph_y >= self._render_height:
+            return
+
+        # Find the nearest node within a reasonable click radius
+        best_node_id = None
+        best_dist = float('inf')
+        click_radius = 3.0  # max distance in character cells to register a click
+
+        for node_id, (nx, ny) in self._node_positions.items():
+            dx = graph_x - nx
+            dy = graph_y - ny
+            dist = (dx * dx + dy * dy) ** 0.5
+            if dist < best_dist and dist <= click_radius:
+                best_dist = dist
+                best_node_id = node_id
+
+        if best_node_id is None:
+            return
+
+        # node_id is the file path relative to project root (e.g., "notes/my-note.md")
+        file_path = self.project.root / best_node_id
+        if not file_path.is_file():
+            return
+
+        # Determine if it's a note
+        node = self._node_map.get(best_node_id)
+        is_note = node and node.directory == "notes" and file_path.suffix in (".md", ".txt")
+
+        if is_note:
+            from santai_cli.core.project import NoteEntry
+            try:
+                content = file_path.read_text(encoding="utf-8")
+                title = file_path.stem.replace("-", " ").replace("_", " ").title()
+                for line in content.split("\n"):
+                    line = line.strip()
+                    if line.startswith("# "):
+                        title = line[2:].strip()
+                        break
+                preview = content[:200].replace("\n", " ").strip()
+                stat = file_path.stat()
+                note_entry = NoteEntry(
+                    title=title,
+                    content=content,
+                    preview=preview,
+                    filename=file_path.name,
+                    modified_at=datetime.fromtimestamp(stat.st_mtime),
+                    size_bytes=stat.st_size,
+                )
+                self.app.push_screen(NoteDetailScreen(note_entry, project=self.project))
+            except (OSError, UnicodeDecodeError):
+                self.app.push_screen(FilePreviewScreen(file_path, project=self.project))
+        else:
+            self.app.push_screen(FilePreviewScreen(file_path, project=self.project))
+
+
+# === Modal Screens ===
+
+
+class ConfirmScreen(ModalScreen):
+    """Generic confirmation dialog."""
+
+    BINDINGS = [
+        Binding("escape", "dismiss", "Cancel"),
+        Binding("y", "confirm", "Yes"),
+        Binding("n", "dismiss", "No"),
+    ]
+
+    def __init__(self, message: str, on_confirm: callable) -> None:
+        super().__init__()
+        self._message = message
+        self._on_confirm = on_confirm
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="theme-modal"):
+            with Vertical(id="theme-modal-content"):
+                yield Label("[bold]Confirm[/bold]", id="theme-modal-title")
+                yield Static(id="confirm-body")
+
+    def on_mount(self) -> None:
+        body = self.query_one("#confirm-body", Static)
+        body.update(
+            f"{self._message}\n\n"
+            f"[bold]y[/bold] = Yes  |  [bold]n[/bold] / Esc = Cancel"
+        )
+
+    def action_confirm(self) -> None:
+        self._on_confirm()
+        self.dismiss()
+
+
+def _reload_all_panels(app: App) -> None:
+    """Reload all panels and directory tree in the app."""
+    for panel in app.query(StatsPanel):
+        panel.refresh_stats()
+    for panel in app.query(RecentFilesPanel):
+        panel.refresh_recent()
+    for panel in app.query(NotesPanel):
+        panel.refresh_notes()
+    for panel in app.query(GraphPanel):
+        panel.refresh_graph()
+    for tree in app.query(FilteredDirectoryTree):
+        tree.reload()
+
+
+class MoveFileScreen(ModalScreen):
+    """Modal to move a file to another santai directory."""
+
+    BINDINGS = [
+        Binding("escape", "dismiss", "Cancel"),
+        Binding("1", "move_1", "resources"),
+        Binding("2", "move_2", "codebases"),
+        Binding("3", "move_3", "history"),
+        Binding("4", "move_4", "notes"),
+    ]
+
+    DIRS = ["resources", "codebases", "history", "notes"]
+
+    def __init__(self, file_path: Path, project: SantaiProject) -> None:
+        super().__init__()
+        self._file_path = file_path
+        self._project = project
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="theme-modal"):
+            with Vertical(id="theme-modal-content"):
+                yield Label("[bold]Move File[/bold]", id="theme-modal-title")
+                yield Static(id="move-body")
+
+    def on_mount(self) -> None:
+        body = self.query_one("#move-body", Static)
+        # Determine current directory
+        try:
+            rel = self._file_path.relative_to(self._project.root)
+            current_dir = rel.parts[0] if rel.parts else "unknown"
+        except ValueError:
+            current_dir = "unknown"
+
+        lines = [
+            f"File: [bold]{self._file_path.name}[/bold]",
+            f"Current: [dim]{current_dir}/[/dim]",
+            "",
+            "Move to:",
+        ]
+        for i, d in enumerate(self.DIRS, 1):
+            marker = " [dim](current)[/dim]" if d == current_dir else ""
+            lines.append(f"  [{i}] {d}/{marker}")
+        lines.append("")
+        lines.append("[dim]Press 1-4 to move, Esc to cancel[/dim]")
+        body.update("\n".join(lines))
+
+    def _move_to(self, dest_dir: str) -> None:
+        dest_path = self._project.root / dest_dir / self._file_path.name
+        if dest_path.exists():
+            # Add suffix to avoid overwrite
+            stem = self._file_path.stem
+            suffix = self._file_path.suffix
+            counter = 1
+            while dest_path.exists():
+                dest_path = self._project.root / dest_dir / f"{stem}-{counter}{suffix}"
+                counter += 1
+        try:
+            dest_path.parent.mkdir(parents=True, exist_ok=True)
+            self._file_path.rename(dest_path)
+            self.app.notify(f"Moved to {dest_dir}/{dest_path.name}")
+            _reload_all_panels(self.app)
+        except OSError as e:
+            self.app.notify(f"Error: {e}", severity="error")
+        self.dismiss()
+
+    def action_move_1(self) -> None:
+        self._move_to("resources")
+
+    def action_move_2(self) -> None:
+        self._move_to("codebases")
+
+    def action_move_3(self) -> None:
+        self._move_to("history")
+
+    def action_move_4(self) -> None:
+        self._move_to("notes")
+
+
+class NoteDetailScreen(ModalScreen):
+    """Modal showing a single note's full content."""
+
+    BINDINGS = [
+        Binding("escape", "dismiss", "Close"),
+        Binding("e", "edit_note", "Edit"),
+        Binding("d", "delete_note", "Delete"),
+        Binding("m", "move_note", "Move"),
+    ]
+
+    def __init__(self, note, project: SantaiProject | None = None) -> None:
+        super().__init__()
+        self._note = note
+        self._project = project
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="notes-modal"):
+            with VerticalScroll(id="notes-modal-content"):
+                yield Label(
+                    f"[bold]📄 {self._note.title}[/bold]",
+                    id="notes-modal-title",
+                )
+                yield Static(id="notes-modal-body")
+
+    def on_mount(self) -> None:
+        """Populate note content."""
+        theme = ThemeManager.get_current_theme()
+        body = self.query_one("#notes-modal-body", Static)
+        accent = theme.colors.primary
+
+        lines = []
+        lines.append(f"[bold {accent}]{self._note.title}[/bold {accent}]")
+        lines.append(
+            f"[dim]{format_time_ago(self._note.modified_at)} · "
+            f"{format_size(self._note.size_bytes)} · "
+            f"{self._note.filename}[/dim]"
+        )
+        lines.append(f"[{accent}]{'─' * 50}[/{accent}]")
+        lines.append("")
+        # Show full content
+        content = self._note.content[:5000] if len(self._note.content) > 5000 else self._note.content
+        lines.append(content)
+        if len(self._note.content) > 5000:
+            lines.append("")
+            lines.append("[dim]... (truncated)[/dim]")
+        lines.append("")
+        lines.append("[dim]e = edit · d = delete · m = move · Esc = close[/dim]")
+
+        body.update("\n".join(lines))
+
+    def action_delete_note(self) -> None:
+        """Delete this note with confirmation."""
+        note_path = self._find_note_path()
+        if not note_path:
+            self.app.notify("Cannot find note file", severity="error")
+            return
+
+        def do_delete():
+            try:
+                note_path.unlink()
+                self.app.notify(f"Deleted: {self._note.filename}")
+                _reload_all_panels(self.app)
+            except OSError as e:
+                self.app.notify(f"Error: {e}", severity="error")
+            self.dismiss()
+
+        self.app.push_screen(
+            ConfirmScreen(
+                f"Delete [bold]{self._note.filename}[/bold]?\n\nThis cannot be undone.",
+                do_delete,
+            )
+        )
+
+    def action_edit_note(self) -> None:
+        """Open note in edit mode."""
+        note_path = self._find_note_path()
+        if not note_path:
+            self.app.notify("Cannot find note file", severity="error")
+            return
+        project = self._project or self._get_project()
+        if not project:
+            self.app.notify("Cannot determine project", severity="error")
+            return
+        edit_screen = EditNoteScreen(note_path, self._note, project)
+        self.dismiss()
+        self.app.call_later(lambda: self.app.push_screen(edit_screen))
+
+    def action_move_note(self) -> None:
+        """Move this note to another directory."""
+        note_path = self._find_note_path()
+        if not note_path:
+            self.app.notify("Cannot find note file", severity="error")
+            return
+        project = self._project or self._get_project()
+        if project:
+            move_screen = MoveFileScreen(note_path, project)
+            self.dismiss()
+            self.app.call_later(lambda: self.app.push_screen(move_screen))
+
+    def _find_note_path(self) -> Path | None:
+        """Find the actual file path for this note."""
+        project = self._project or self._get_project()
+        if not project:
+            return None
+        note_path = project.notes_path / self._note.filename
+        if note_path.exists():
+            return note_path
+        return None
+
+    def _get_project(self) -> SantaiProject | None:
+        """Get project from the app."""
+        if hasattr(self.app, "project"):
+            return self.app.project
+        return None
+
+
+class EditNoteScreen(ModalScreen):
+    """Modal for editing an existing note's content."""
+
+    BINDINGS = [
+        Binding("escape", "dismiss_edit", "Close"),
+    ]
+
+    def __init__(self, file_path: Path, note, project: SantaiProject) -> None:
+        super().__init__()
+        self._file_path = file_path
+        self._note = note
+        self._project = project
+        self._original_content: str = ""
+        self._has_changes: bool = False
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="edit-note-modal"):
+            with Vertical(id="edit-note-content"):
+                yield Label(
+                    f"[bold]✏️  Editing: {self._note.title}[/bold]",
+                    id="edit-note-title",
+                )
+                yield Static(
+                    f"[dim]{self._file_path.name}[/dim]",
+                    id="edit-note-path",
+                )
+                yield TextArea(id="edit-note-textarea")
+                yield Static(
+                    "[dim]Ctrl+S = save · Esc = close (unsaved changes will prompt)[/dim]",
+                    id="edit-note-help",
+                )
+
+    def on_mount(self) -> None:
+        """Load file content into the editor."""
+        textarea = self.query_one("#edit-note-textarea", TextArea)
+        try:
+            content = self._file_path.read_text(encoding="utf-8")
+            self._original_content = content
+            textarea.load_text(content)
+        except (OSError, UnicodeDecodeError) as e:
+            self.app.notify(f"Error reading file: {e}", severity="error")
+            self.dismiss()
+            return
+        textarea.focus()
+
+    def on_text_area_changed(self, event: TextArea.Changed) -> None:
+        """Track whether content has been modified."""
+        if event.text_area.id == "edit-note-textarea":
+            self._has_changes = event.text_area.text != self._original_content
+
+    def key_ctrl_s(self) -> None:
+        """Save the note."""
+        self._save()
+
+    def _save(self) -> None:
+        """Write content back to file."""
+        textarea = self.query_one("#edit-note-textarea", TextArea)
+        content = textarea.text
+
+        try:
+            self._file_path.write_text(content, encoding="utf-8")
+            self._original_content = content
+            self._has_changes = False
+            self.app.notify(f"Saved: {self._file_path.name}")
+            _reload_all_panels(self.app)
+        except OSError as e:
+            self.app.notify(f"Error saving: {e}", severity="error")
+
+    def action_dismiss_edit(self) -> None:
+        """Dismiss with unsaved changes check."""
+        if self._has_changes:
+            self.app.push_screen(
+                ConfirmScreen(
+                    "You have unsaved changes.\n\nDiscard changes?",
+                    lambda: self.dismiss(),
+                )
+            )
+        else:
+            self.dismiss()
+
+
+class AddNoteScreen(ModalScreen):
+    """Modal for creating a new note."""
+
+    BINDINGS = [
+        Binding("escape", "dismiss", "Close"),
+    ]
+
+    def __init__(self, project: SantaiProject) -> None:
+        super().__init__()
+        self.project = project
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="notes-modal"):
+            with Vertical(id="notes-modal-content"):
+                yield Label(
+                    "[bold]📝 Add Note (Esc to cancel)[/bold]",
+                    id="notes-modal-title",
+                )
+                yield Label("Title:")
+                yield Input(
+                    placeholder="my-note (will be saved as my-note.md)",
+                    id="note-title-input",
+                )
+                yield Label("Content:")
+                yield TextArea(id="note-content-input")
+                yield Static(
+                    "[dim]Tab to switch fields · Ctrl+S to save · Esc to cancel[/dim]",
+                    id="note-help",
+                )
+
+    def on_mount(self) -> None:
+        """Focus the title input."""
+        self.query_one("#note-title-input", Input).focus()
+
+    def key_ctrl_s(self) -> None:
+        """Save the note."""
+        self._save_note()
+
+    def _save_note(self) -> None:
+        """Save the note to the notes/ directory."""
+        title_input = self.query_one("#note-title-input", Input)
+        content_input = self.query_one("#note-content-input", TextArea)
+
+        title = title_input.value.strip()
+        content = content_input.text.strip()
+
+        if not title:
+            self.app.notify("Title is required", severity="error")
+            title_input.focus()
+            return
+
+        # Sanitize filename
+        filename = title.lower().replace(" ", "-")
+        # Remove non-alphanumeric chars except hyphens
+        filename = "".join(c for c in filename if c.isalnum() or c == "-")
+        if not filename:
+            filename = "untitled"
+        filename = filename + ".md"
+
+        # Ensure notes directory exists
+        notes_dir = self.project.notes_path
+        notes_dir.mkdir(parents=True, exist_ok=True)
+
+        file_path = notes_dir / filename
+
+        # Don't overwrite existing files
+        if file_path.exists():
+            counter = 1
+            while file_path.exists():
+                file_path = notes_dir / f"{filename[:-3]}-{counter}.md"
+                counter += 1
+
+        # Write the note with a markdown header
+        note_content = f"# {title}\n\n{content}\n"
+        file_path.write_text(note_content, encoding="utf-8")
+
+        self.app.notify(f"Saved: {file_path.name}")
+
+        # Refresh all panels including directory tree
+        _reload_all_panels(self.app)
+
+        self.dismiss()
+
+
+class EditFileScreen(ModalScreen):
+    """Modal for editing any text file's content."""
+
+    BINDINGS = [
+        Binding("escape", "dismiss_edit", "Close"),
+    ]
+
+    def __init__(self, file_path: Path, project: SantaiProject) -> None:
+        super().__init__()
+        self._file_path = file_path
+        self._project = project
+        self._original_content: str = ""
+        self._has_changes: bool = False
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="edit-note-modal"):
+            with Vertical(id="edit-note-content"):
+                yield Label(
+                    f"[bold]✏️  Editing: {self._file_path.name}[/bold]",
+                    id="edit-note-title",
+                )
+                yield Static(
+                    f"[dim]{self._file_path}[/dim]",
+                    id="edit-note-path",
+                )
+                yield TextArea(id="edit-file-textarea")
+                yield Static(
+                    "[dim]Ctrl+S = save · Esc = close (unsaved changes will prompt)[/dim]",
+                    id="edit-note-help",
+                )
+
+    def on_mount(self) -> None:
+        """Load file content into the editor."""
+        textarea = self.query_one("#edit-file-textarea", TextArea)
+        try:
+            content = self._file_path.read_text(encoding="utf-8")
+            self._original_content = content
+            textarea.load_text(content)
+        except (OSError, UnicodeDecodeError) as e:
+            self.app.notify(f"Error reading file: {e}", severity="error")
+            self.dismiss()
+            return
+        textarea.focus()
+
+    def on_text_area_changed(self, event: TextArea.Changed) -> None:
+        """Track whether content has been modified."""
+        if event.text_area.id == "edit-file-textarea":
+            self._has_changes = event.text_area.text != self._original_content
+
+    def key_ctrl_s(self) -> None:
+        """Save the file."""
+        self._save()
+
+    def _save(self) -> None:
+        """Write content back to file."""
+        textarea = self.query_one("#edit-file-textarea", TextArea)
+        content = textarea.text
+
+        try:
+            self._file_path.write_text(content, encoding="utf-8")
+            self._original_content = content
+            self._has_changes = False
+            self.app.notify(f"Saved: {self._file_path.name}")
+            _reload_all_panels(self.app)
+        except OSError as e:
+            self.app.notify(f"Error saving: {e}", severity="error")
+
+    def action_dismiss_edit(self) -> None:
+        """Dismiss with unsaved changes check."""
+        if self._has_changes:
+            self.app.push_screen(
+                ConfirmScreen(
+                    "You have unsaved changes.\n\nDiscard changes?",
+                    lambda: self.dismiss(),
+                )
+            )
+        else:
+            self.dismiss()
+
+
+class FilePreviewScreen(ModalScreen):
+    """File preview modal for viewing file contents."""
+
+    BINDINGS = [
+        Binding("escape", "dismiss", "Close"),
+        Binding("e", "edit_file", "Edit"),
+        Binding("d", "delete_file", "Delete"),
+        Binding("m", "move_file", "Move"),
+    ]
+
+    def __init__(self, file_path: Path, project: SantaiProject | None = None) -> None:
+        super().__init__()
+        self.file_path = file_path
+        self._project = project
+        self._is_text_file: bool = False
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="file-preview-modal"):
+            with VerticalScroll(id="file-preview-content"):
+                yield Label(
+                    f"[bold]{self.file_path.name}[/bold]",
+                    id="file-preview-title",
+                )
+                yield Static(id="file-preview-body")
+
+    def on_mount(self) -> None:
+        """Load file content."""
+        body = self.query_one("#file-preview-body", Static)
+        try:
+            content = self.file_path.read_text(encoding="utf-8")
+            self._is_text_file = True
+            if len(content) > 5000:
+                content = content[:5000] + "\n\n[dim]... (truncated)[/dim]"
+            content += "\n\n[dim]e = edit · d = delete · m = move · Esc = close[/dim]"
+            body.update(content)
+        except UnicodeDecodeError:
+            self._is_text_file = False
+            body.update(
+                f"[dim]Binary file: {format_size(self.file_path.stat().st_size)}[/dim]\n\n"
+                f"[dim]d = delete · m = move · Esc = close[/dim]"
+            )
+        except OSError as e:
+            body.update(f"[dim]Error reading file: {e}[/dim]")
+
+    def _get_project(self) -> SantaiProject | None:
+        if self._project:
+            return self._project
+        if hasattr(self.app, "project"):
+            return self.app.project
+        return None
+
+    def action_edit_file(self) -> None:
+        """Open file in edit mode."""
+        if not self._is_text_file:
+            self.app.notify("Cannot edit binary files", severity="warning")
+            return
+        if not self.file_path.is_file():
+            self.app.notify("File not found", severity="error")
+            return
+        project = self._get_project()
+        if not project:
+            self.app.notify("Cannot determine project", severity="error")
+            return
+        edit_screen = EditFileScreen(self.file_path, project)
+        self.dismiss()
+        self.app.call_later(lambda: self.app.push_screen(edit_screen))
+
+    def action_delete_file(self) -> None:
+        """Delete this file with confirmation."""
+        def do_delete():
+            try:
+                self.file_path.unlink()
+                self.app.notify(f"Deleted: {self.file_path.name}")
+                _reload_all_panels(self.app)
+            except OSError as e:
+                self.app.notify(f"Error: {e}", severity="error")
+            self.dismiss()
+
+        self.app.push_screen(
+            ConfirmScreen(
+                f"Delete [bold]{self.file_path.name}[/bold]?\n\nThis cannot be undone.",
+                do_delete,
+            )
+        )
+
+    def action_move_file(self) -> None:
+        """Move this file to another directory."""
+        project = self._get_project()
+        if project:
+            move_screen = MoveFileScreen(self.file_path, project)
+            self.dismiss()
+            self.app.call_later(lambda: self.app.push_screen(move_screen))
+        else:
+            self.app.notify("Cannot determine project", severity="error")
+
+class ThemeSelectScreen(ModalScreen):
+    """Theme selection modal with live switching."""
+
+    BINDINGS = [
+        Binding("escape", "dismiss", "Close"),
+        Binding("t", "dismiss", "Close"),
+        Binding("1", "select_theme_1", "Claude"),
+        Binding("2", "select_theme_2", "Catppuccin"),
+        Binding("3", "select_theme_3", "btop"),
+        Binding("4", "select_theme_4", "Light"),
+    ]
+
+    def compose(self) -> ComposeResult:
+        theme = ThemeManager.get_current_theme()
+        with Vertical(id="theme-modal"):
+            with Vertical(id="theme-modal-content"):
+                yield Label("[bold]Theme Selector (press Esc to close)[/bold]", id="theme-modal-title")
+                yield Static(id="theme-options")
+
+    def on_mount(self) -> None:
+        """Show theme options."""
+        self._refresh_options()
+
+    def _refresh_options(self) -> None:
+        """Refresh the theme options display with palette info."""
+        current = ThemeManager.get_current_theme()
+        current_palette = ThemeManager.get_current_palette()
+        options = self.query_one("#theme-options", Static)
+
+        lines = []
+        lines.append("")
+        themes_info = [
+            ("1", "claude", "Claude Code", "Palettes: Terracotta · Midnight · Forest"),
+            ("2", "catppuccin", "Catppuccin", "Palettes: Mocha · Macchiato · Frappé"),
+            ("3", "btop", "btop", "Palettes: Default · Green · Blue"),
+            ("4", "light", "Light", "Palettes: Paper · Sand · Ice"),
+        ]
+
+        for key, name, display, desc in themes_info:
+            marker = "▸" if current.name == name else " "
+            active = ""
+            if current.name == name:
+                active = f" [bold](active — {current_palette.display_name})[/bold]"
+            lines.append(f"  {marker} [{key}] {display}{active}")
+            lines.append(f"      [dim]{desc}[/dim]")
+            lines.append("")
+
+        lines.append("  [dim]Press 1/2/3/4 to switch theme[/dim]")
+        lines.append("  [dim]Press p to cycle palettes within theme[/dim]")
+        lines.append("  [dim]Esc to close[/dim]")
+
+        options.update("\n".join(lines))
+
+    def _apply_theme(self, name: str) -> None:
+        """Apply a theme and refresh the app."""
+        ThemeManager.set_theme(name)
+        theme = ThemeManager.get_current_theme()
+        new_css = get_theme_css(theme)
+
+        # Find and replace the SantaiApp.CSS source in the stylesheet
+        for key, css_source in self.app.stylesheet.source.items():
+            if "SantaiApp" in str(key):
+                self.app.stylesheet.source[key] = css_source._replace(content=new_css)
+                break
+        else:
+            # Fallback: replace all non-default sources
+            for key, css_source in self.app.stylesheet.source.items():
+                if not css_source.is_defaults:
+                    self.app.stylesheet.source[key] = css_source._replace(content=new_css)
+                    break
+
+        # Also update the class variable for consistency
+        SantaiApp.CSS = new_css
+
+        # Use Textual's built-in refresh_css which handles reparse + update + layout
+        self.app.refresh_css()
+
+        self._refresh_options()
+        palette = ThemeManager.get_current_palette()
+        self.app.notify(f"Theme: {theme.display_name} — {palette.display_name}")
+
+    def action_select_theme_1(self) -> None:
+        self._apply_theme("claude")
+
+    def action_select_theme_2(self) -> None:
+        self._apply_theme("catppuccin")
+
+    def action_select_theme_3(self) -> None:
+        self._apply_theme("btop")
+
+    def action_select_theme_4(self) -> None:
+        self._apply_theme("light")
+
+
+# === Graph Search ===
+
+
+class GraphSearchScreen(ModalScreen):
+    """Modal for searching graph nodes with live results."""
+
+    BINDINGS = [
+        Binding("escape", "dismiss", "Close"),
+    ]
+
+    def __init__(self, project: SantaiProject) -> None:
+        super().__init__()
+        self._project = project
+        self._results: list = []
+        self._selected_index: int = 0
+        self._all_nodes: list = []
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="graph-search-modal"):
+            with Vertical(id="graph-search-content"):
+                yield Label(
+                    "[bold]🔍 Graph Search[/bold] [dim](↑↓ select, Enter=open, Ctrl+H=highlight in graph, Esc=close)[/dim]",
+                    id="graph-search-title",
+                )
+                yield Input(
+                    placeholder="Search files...",
+                    id="graph-search-input",
+                )
+                yield Static(id="graph-search-results")
+
+    def on_mount(self) -> None:
+        """Focus the search input and load nodes."""
+        from santai_cli.tui.graph_render import build_graph_from_project_data
+
+        graph_data = get_file_graph(self._project)
+        nodes, _ = build_graph_from_project_data(graph_data)
+        self._all_nodes = nodes
+
+        self.query_one("#graph-search-input", Input).focus()
+        self._update_results("")
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        """Handle search input changes — live filtering."""
+        if event.input.id == "graph-search-input":
+            self._selected_index = 0
+            self._update_results(event.value)
+
+    def key_down(self) -> None:
+        """Move selection down."""
+        if self._results:
+            self._selected_index = min(self._selected_index + 1, len(self._results) - 1)
+            self._render_results()
+
+    def key_up(self) -> None:
+        """Move selection up."""
+        if self._results:
+            self._selected_index = max(self._selected_index - 1, 0)
+            self._render_results()
+
+    def key_enter(self) -> None:
+        """Open the selected file."""
+        if not self._results:
+            return
+
+        selected = self._results[self._selected_index]
+        file_path = self._project.root / selected.id
+
+        if not file_path.is_file():
+            self.app.notify(f"File not found: {selected.id}", severity="error")
+            return
+
+        self.dismiss()
+
+        # Open note detail for notes, file preview for others
+        is_note = selected.directory == "notes" and file_path.suffix in (".md", ".txt")
+        if is_note:
+            from santai_cli.core.project import NoteEntry
+            try:
+                content = file_path.read_text(encoding="utf-8")
+                title = file_path.stem.replace("-", " ").replace("_", " ").title()
+                for line in content.split("\n"):
+                    line = line.strip()
+                    if line.startswith("# "):
+                        title = line[2:].strip()
+                        break
+                preview = content[:200].replace("\n", " ").strip()
+                stat = file_path.stat()
+                note_entry = NoteEntry(
+                    title=title,
+                    content=content,
+                    preview=preview,
+                    filename=file_path.name,
+                    modified_at=datetime.fromtimestamp(stat.st_mtime),
+                    size_bytes=stat.st_size,
+                )
+                self.app.push_screen(NoteDetailScreen(note_entry, project=self._project))
+            except (OSError, UnicodeDecodeError):
+                self.app.push_screen(FilePreviewScreen(file_path, project=self._project))
+        else:
+            self.app.push_screen(FilePreviewScreen(file_path, project=self._project))
+
+    def key_ctrl_h(self) -> None:
+        """Highlight the selected result in the graph (without opening)."""
+        if not self._results:
+            return
+
+        selected = self._results[self._selected_index]
+        query = self.query_one("#graph-search-input", Input).value.strip()
+
+        # Build highlight set from all results
+        highlight_ids = {node.id for node in self._results}
+
+        # Apply search to all graph panels
+        for panel in self.app.query(GraphPanel):
+            panel.set_search(
+                query=query,
+                selected_id=selected.id,
+                highlight_ids=highlight_ids,
+            )
+
+        self.app.notify(f"Highlighted: {selected.label} ({selected.directory}/)")
+        self.dismiss()
+
+    def _update_results(self, query: str) -> None:
+        """Update search results based on query."""
+        query = query.strip()
+        if query:
+            self._results = graph_search_nodes(self._all_nodes, query, max_results=15)
+        else:
+            # Show all nodes sorted by label when no query
+            self._results = sorted(self._all_nodes, key=lambda n: n.label.lower())[:15]
+        self._render_results()
+
+    def _render_results(self) -> None:
+        """Render the results list with selection highlight."""
+        results_widget = self.query_one("#graph-search-results", Static)
+
+        dir_colors = GraphPanel.DIR_COLORS
+
+        if not self._results:
+            query = self.query_one("#graph-search-input", Input).value.strip()
+            if query:
+                results_widget.update("[dim]No matches found[/dim]")
+            else:
+                results_widget.update("[dim]No files in project[/dim]")
             return
 
         lines = []
+        for i, node in enumerate(self._results):
+            color = dir_colors.get(node.directory, dir_colors.get("other", "#6b6560"))
+            is_selected = i == self._selected_index
 
-        # Show stats
-        lines.append(
-            f"[bold]Nodes:[/bold] {len(graph.nodes)}  [bold]Links:[/bold] {len(graph.edges)}"
-        )
+            # Selection indicator
+            if is_selected:
+                prefix = "[bold white on #333333] ▸ [/bold white on #333333]"
+                name_style = f"bold {color}"
+                path_style = "white on #333333"
+                line_end = ""
+            else:
+                prefix = "   "
+                name_style = color
+                path_style = "dim"
+                line_end = ""
+
+            # Degree info
+            degree_str = f" ({node.degree} links)" if node.degree > 0 else ""
+
+            line = (
+                f"{prefix}"
+                f"[{name_style}]{node.label}[/{name_style}]"
+                f"[{path_style}]  {node.directory}/{degree_str}[/{path_style}]"
+                f"{line_end}"
+            )
+            lines.append(line)
+
+        # Footer info
+        total = len(self._all_nodes)
+        showing = len(self._results)
         lines.append("")
+        lines.append(f"[dim]{showing} of {total} files · Enter=open · Ctrl+H=highlight · Esc=cancel[/dim]")
 
-        if graph.edges:
-            # Group edges by source
-            edges_by_source: dict[str, list[tuple[str, str]]] = {}
-            for edge in graph.edges:
-                if edge.source not in edges_by_source:
-                    edges_by_source[edge.source] = []
-                edges_by_source[edge.source].append((edge.target, edge.link_text))
+        results_widget.update("\n".join(lines))
 
-            # Create node lookup for directory info
-            node_dirs = {node.id: node.directory for node in graph.nodes}
 
-            lines.append("[bold]Links:[/bold]")
-            lines.append("")
+# === Graph Filter ===
 
-            # Show links (limit to avoid overflow)
-            shown = 0
-            max_links = 15
-            for source, targets in sorted(edges_by_source.items()):
-                if shown >= max_links:
-                    remaining = sum(
-                        len(t) for s, t in list(edges_by_source.items())[shown:]
-                    )
-                    lines.append(f"[dim]... and {remaining} more links[/dim]")
-                    break
 
-                source_name = Path(source).name
-                source_dir = node_dirs.get(source, "other")
-                source_color = self.DIR_COLORS.get(source_dir, self.DIR_COLORS["other"])
+class GraphFilterScreen(ModalScreen):
+    """Modal for filtering graph nodes by directory type."""
 
-                for target, link_text in targets:
-                    if shown >= max_links:
-                        break
-                    target_name = Path(target).name
-                    target_dir = node_dirs.get(target, "other")
-                    target_color = self.DIR_COLORS.get(
-                        target_dir, self.DIR_COLORS["other"]
-                    )
+    BINDINGS = [
+        Binding("escape", "dismiss", "Close"),
+        Binding("1", "toggle_1", "resources"),
+        Binding("2", "toggle_2", "codebases"),
+        Binding("3", "toggle_3", "history"),
+        Binding("4", "toggle_4", "notes"),
+        Binding("a", "select_all", "All"),
+        Binding("x", "clear_all", "None"),
+    ]
 
-                    # Truncate link text
-                    display_text = (
-                        link_text[:20] + "..." if len(link_text) > 20 else link_text
-                    )
+    DIRS = ["resources", "codebases", "history", "notes"]
 
-                    lines.append(
-                        f"[{source_color}]{source_name}[/{source_color}] "
-                        f"[dim]──>[/dim] "
-                        f"[{target_color}]{target_name}[/{target_color}] "
-                        f"[dim]({display_text})[/dim]"
-                    )
-                    shown += 1
+    def __init__(self, project: SantaiProject, current_filter: set[str] | None = None) -> None:
+        super().__init__()
+        self._project = project
+        # If no filter is active, all dirs are selected
+        if current_filter is None:
+            self._selected: set[str] = set(self.DIRS)
         else:
-            lines.append("[dim]No links between files[/dim]")
-            lines.append("")
-            lines.append("[dim]Add links in markdown files:[/dim]")
-            lines.append("[dim]  [text](path/to/file.md)[/dim]")
-            lines.append("[dim]  [[wikilink]][/dim]")
+            self._selected = set(current_filter)
+        self._available_dirs: set[str] = set()
 
-        # Show legend
+    def compose(self) -> ComposeResult:
+        with Vertical(id="theme-modal"):
+            with Vertical(id="theme-modal-content"):
+                yield Label(
+                    "[bold]🔍 Graph Filter[/bold]",
+                    id="theme-modal-title",
+                )
+                yield Static(id="filter-body")
+
+    def on_mount(self) -> None:
+        """Detect available directories and render."""
+        from santai_cli.tui.graph_render import build_graph_from_project_data
+
+        graph_data = get_file_graph(self._project)
+        nodes, _ = build_graph_from_project_data(graph_data)
+        self._available_dirs = {n.directory for n in nodes}
+        # Count files per directory
+        self._dir_counts: dict[str, int] = {}
+        for n in nodes:
+            self._dir_counts[n.directory] = self._dir_counts.get(n.directory, 0) + 1
+        self._update_display()
+
+    def _update_display(self) -> None:
+        body = self.query_one("#filter-body", Static)
+        dir_colors = GraphPanel.DIR_COLORS
+
+        lines = []
         lines.append("")
-        lines.append("[bold]Legend:[/bold]")
-        for dir_name, color in self.DIR_COLORS.items():
-            if dir_name != "other":
-                lines.append(f"  [{color}]●[/{color}] {dir_name}")
+        lines.append("Toggle directories to show/hide in the graph:")
+        lines.append("")
 
-        content_widget.update("\n".join(lines))
+        for i, d in enumerate(self.DIRS, 1):
+            color = dir_colors.get(d, dir_colors.get("other", "#6b6560"))
+            count = self._dir_counts.get(d, 0)
+            is_on = d in self._selected
+            available = d in self._available_dirs
+
+            if not available:
+                checkbox = "[dim]  ○[/dim]"
+                label = f"[dim]{d}/ (empty)[/dim]"
+            elif is_on:
+                checkbox = f"[{color}]  ●[/{color}]"
+                label = f"[bold {color}]{d}/[/bold {color}] [dim]({count} files)[/dim]"
+            else:
+                checkbox = "  ○"
+                label = f"[dim]{d}/ ({count} files)[/dim]"
+
+            lines.append(f"  [{i}]{checkbox} {label}")
+
+        # Show any extra directories not in the standard list
+        extra_dirs = self._available_dirs - set(self.DIRS)
+        for d in sorted(extra_dirs):
+            color = dir_colors.get(d, dir_colors.get("other", "#6b6560"))
+            count = self._dir_counts.get(d, 0)
+            is_on = d in self._selected
+            if is_on:
+                checkbox = f"[{color}]  ●[/{color}]"
+                label = f"[bold {color}]{d}/[/bold {color}] [dim]({count} files)[/dim]"
+            else:
+                checkbox = "  ○"
+                label = f"[dim]{d}/ ({count} files)[/dim]"
+            lines.append(f"     {checkbox} {label}")
+
+        lines.append("")
+
+        selected_count = sum(
+            self._dir_counts.get(d, 0) for d in self._selected if d in self._available_dirs
+        )
+        total_count = sum(self._dir_counts.values())
+        lines.append(f"  Showing: [bold]{selected_count}[/bold] of {total_count} files")
+        lines.append("")
+        lines.append("  [dim]1-4 = toggle directory · a = all · x = none[/dim]")
+        lines.append("  [dim]Enter = apply · Esc = cancel[/dim]")
+
+        body.update("\n".join(lines))
+
+    def _toggle_dir(self, dir_name: str) -> None:
+        if dir_name in self._selected:
+            self._selected.discard(dir_name)
+        else:
+            self._selected.add(dir_name)
+        self._update_display()
+
+    def action_toggle_1(self) -> None:
+        self._toggle_dir("resources")
+
+    def action_toggle_2(self) -> None:
+        self._toggle_dir("codebases")
+
+    def action_toggle_3(self) -> None:
+        self._toggle_dir("history")
+
+    def action_toggle_4(self) -> None:
+        self._toggle_dir("notes")
+
+    def action_select_all(self) -> None:
+        self._selected = set(self.DIRS) | self._available_dirs
+        self._update_display()
+
+    def action_clear_all(self) -> None:
+        self._selected.clear()
+        self._update_display()
+
+    def key_enter(self) -> None:
+        """Apply the filter."""
+        all_dirs = set(self.DIRS) | self._available_dirs
+        if self._selected >= all_dirs or not self._selected:
+            # All selected or none selected = no filter
+            filter_dirs = None
+        else:
+            filter_dirs = set(self._selected)
+
+        for panel in self.app.query(GraphPanel):
+            panel.set_filter(filter_dirs)
+
+        if filter_dirs:
+            names = ", ".join(sorted(filter_dirs))
+            self.app.notify(f"Filter: {names}")
+        else:
+            self.app.notify("Filter cleared — showing all")
+
+        self.dismiss()
+
+
+# === Main App ===
 
 
 class SantaiApp(App):
     """Santai TUI application."""
 
     TITLE = "Santai"
-    CSS = """
-    Screen {
-        layout: horizontal;
-        background: #0c0a09;
-    }
-
-    Header {
-        background: #f97316;
-        color: #0c0a09;
-        text-style: bold;
-    }
-
-    Header > HeaderTitle {
-        color: #0c0a09;
-        text-style: bold;
-    }
-
-    Header > HeaderIcon {
-        color: #0c0a09;
-    }
-
-    Footer {
-        background: #f97316;
-        color: #0c0a09;
-    }
-
-    Footer > .footer--key {
-        background: #7c2d12;
-        color: #fed7aa;
-    }
-
-    Footer > .footer--description {
-        color: #0c0a09;
-    }
-
-    #tree-container {
-        width: 1fr;
-        height: 100%;
-        border: thick #f97316 50%;
-        padding: 1 2;
-        background: #1c1917;
-        margin: 1;
-    }
-
-    #tree-title {
-        text-style: bold;
-        color: #f97316;
-        margin-bottom: 1;
-        text-align: center;
-        width: 100%;
-    }
-
-    DirectoryTree {
-        background: transparent;
-        padding: 0 1;
-    }
-
-    DirectoryTree > .directory-tree--folder {
-        color: #ffffff;
-        text-style: bold;
-    }
-
-    DirectoryTree > .directory-tree--extension {
-        color: #a8a29e;
-    }
-
-    DirectoryTree > .directory-tree--file {
-        color: #d6d3d1;
-    }
-
-    DirectoryTree:focus > .directory-tree--cursor {
-        background: #f97316;
-        color: #0c0a09;
-        text-style: bold;
-    }
-
-    DirectoryTree > .directory-tree--cursor {
-        background: #ea580c 60%;
-        color: #0c0a09;
-    }
-
-    #middle-container {
-        width: 2fr;
-        height: 100%;
-        layout: vertical;
-    }
-
-    #stats-container {
-        height: 1fr;
-        border: thick #f97316 50%;
-        padding: 1 2;
-        background: #1c1917;
-        margin: 1;
-    }
-
-    #notes-container {
-        height: 1fr;
-        border: thick #f97316 50%;
-        padding: 1 2;
-        background: #1c1917;
-        margin: 1;
-    }
-
-    #right-container {
-        width: 1fr;
-        height: 100%;
-        layout: vertical;
-    }
-
-    #graph-container {
-        height: 100%;
-        border: thick #f97316 50%;
-        padding: 1 2;
-        background: #1c1917;
-        margin: 1;
-        overflow-y: auto;
-    }
-
-    #stats-title, #types-title, #recent-title, #notes-title, #graph-title {
-        margin-bottom: 1;
-        color: #f97316;
-        text-style: bold;
-        border-bottom: solid #f97316 50%;
-        padding-bottom: 1;
-    }
-
-    #notes-content, #graph-content {
-        color: #fafaf9;
-        padding: 1;
-        height: auto;
-    }
-
-    DataTable {
-        height: auto;
-        max-height: 10;
-        margin-bottom: 1;
-        background: #1c1917;
-        padding: 0 1;
-    }
-
-    DataTable > .datatable--header {
-        background: #f97316;
-        color: #0c0a09;
-        text-style: bold;
-    }
-
-    DataTable > .datatable--cursor {
-        background: #fb923c;
-        color: #0c0a09;
-        text-style: bold;
-    }
-
-    DataTable > .datatable--even-row {
-        background: #292524;
-    }
-
-    DataTable > .datatable--odd-row {
-        background: #1c1917;
-    }
-
-    DataTable:focus > .datatable--cursor {
-        background: #f97316;
-        color: #0c0a09;
-    }
-
-    #dir-stats-table {
-        max-height: 8;
-    }
-
-    #types-table {
-        max-height: 6;
-    }
-
-    #recent-table {
-        max-height: 6;
-    }
-
-    StatsPanel {
-        background: transparent;
-    }
-
-    StatsPanel > Label {
-        color: #fafaf9;
-    }
-
-    NotesPanel {
-        background: transparent;
-    }
-
-    NotesPanel > Label {
-        color: #fafaf9;
-    }
-
-    GraphPanel {
-        background: transparent;
-    }
-
-    GraphPanel > Label {
-        color: #fafaf9;
-    }
-    """
+    CSS = get_theme_css()
 
     BINDINGS = [
         Binding("q", "quit", "Quit"),
         Binding("r", "refresh", "Refresh"),
         Binding("g", "toggle_graph", "Graph"),
+        Binding("slash", "graph_search", "Search", show=True),
+        Binding("f", "graph_filter", "Filter", show=True),
+        Binding("t", "select_theme", "Theme"),
+        Binding("n", "add_note", "Add Note"),
+        Binding("p", "cycle_palette", "Palette"),
+        Binding("c", "clear_graph_search", "Clear Search", show=True),
+        Binding("escape", "back", "Back", show=True),
     ]
 
     def __init__(self, project: SantaiProject) -> None:
+        # Set CSS class var to current theme before super().__init__
+        SantaiApp.CSS = get_theme_css()
         super().__init__()
         self.project = project
         self.sub_title = project.name
+        self._graph_fullscreen = False
 
     def compose(self) -> ComposeResult:
         yield Header()
-        with Horizontal():
+        # Main dashboard layout - always present
+        with Horizontal(id="main-layout"):
             with Vertical(id="tree-container"):
                 yield Label(
                     f"[bold]Project: {self.project.name}[/bold]", id="tree-title"
                 )
                 yield FilteredDirectoryTree(self.project.root, id="tree")
             with Vertical(id="middle-container"):
-                with Vertical(id="stats-container"):
-                    yield StatsPanel(self.project)
+                with Vertical(id="recent-container"):
+                    yield RecentFilesPanel(self.project)
                 with Vertical(id="notes-container"):
                     yield NotesPanel(self.project)
             with Vertical(id="right-container"):
                 with Vertical(id="graph-container"):
                     yield GraphPanel(self.project)
+                with Vertical(id="stats-container"):
+                    yield StatsPanel(self.project)
+        # Fullscreen graph - hidden by default, scrollable
+        with VerticalScroll(id="graph-fullscreen"):
+            yield GraphPanel(self.project, fullscreen=True)
         yield Footer()
 
+    def on_mount(self) -> None:
+        """Set initial visibility."""
+        # Hide fullscreen graph on startup
+        self.query_one("#graph-fullscreen").display = False
+        # Ensure graph panel is visible
+        self.query_one("#graph-container").display = True
+
     def action_refresh(self) -> None:
-        """Refresh all panels."""
-        stats_panel = self.query_one(StatsPanel)
-        stats_panel.refresh_stats()
-        notes_panel = self.query_one(NotesPanel)
-        notes_panel.refresh_notes()
-        graph_panel = self.query_one(GraphPanel)
-        graph_panel.refresh_graph()
+        """Refresh all panels including directory tree."""
+        for panel in self.query(StatsPanel):
+            panel.refresh_stats()
+        for panel in self.query(RecentFilesPanel):
+            panel.refresh_recent()
+        for panel in self.query(NotesPanel):
+            panel.refresh_notes()
+        for panel in self.query(GraphPanel):
+            panel.refresh_graph()
+        # Reload directory tree to reflect file changes
+        for tree in self.query(FilteredDirectoryTree):
+            tree.reload()
         self.notify("Refreshed all panels")
 
     def action_toggle_graph(self) -> None:
-        """Toggle graph panel visibility."""
-        graph_container = self.query_one("#right-container")
-        graph_container.display = not graph_container.display
-        if graph_container.display:
-            self.notify("Graph panel shown")
+        """Toggle between panel view and fullscreen graph."""
+        self._graph_fullscreen = not self._graph_fullscreen
+
+        main_layout = self.query_one("#main-layout")
+        graph_fs = self.query_one("#graph-fullscreen")
+
+        if self._graph_fullscreen:
+            main_layout.display = False
+            graph_fs.display = True
+            # Refresh the fullscreen graph panel
+            for panel in graph_fs.query(GraphPanel):
+                panel.refresh_graph()
+            self.notify("Graph fullscreen — press g to exit")
         else:
-            self.notify("Graph panel hidden")
+            graph_fs.display = False
+            main_layout.display = True
+            self.notify("Dashboard view")
+
+    def action_select_theme(self) -> None:
+        """Open theme selector modal."""
+        self.push_screen(ThemeSelectScreen())
+
+    def action_cycle_palette(self) -> None:
+        """Cycle to next palette within the current theme (p key)."""
+        palette = ThemeManager.cycle_palette()
+        new_css = get_theme_css()
+
+        # Replace CSS in stylesheet
+        for key, css_source in self.stylesheet.source.items():
+            if "SantaiApp" in str(key):
+                self.stylesheet.source[key] = css_source._replace(content=new_css)
+                break
+        else:
+            for key, css_source in self.stylesheet.source.items():
+                if not css_source.is_defaults:
+                    self.stylesheet.source[key] = css_source._replace(content=new_css)
+                    break
+
+        SantaiApp.CSS = new_css
+        self.refresh_css()
+        theme = ThemeManager.get_current_theme()
+        self.notify(f"{theme.display_name}: {palette.display_name} ({ThemeManager.get_palette_info()})")
+
+    def action_graph_search(self) -> None:
+        """Open graph search modal (only in fullscreen graph mode)."""
+        if self._graph_fullscreen:
+            self.push_screen(GraphSearchScreen(self.project))
+        else:
+            # Auto-enter fullscreen graph mode, then open search
+            self._graph_fullscreen = True
+            main_layout = self.query_one("#main-layout")
+            graph_fs = self.query_one("#graph-fullscreen")
+            main_layout.display = False
+            graph_fs.display = True
+            for panel in graph_fs.query(GraphPanel):
+                panel.refresh_graph()
+            self.push_screen(GraphSearchScreen(self.project))
+
+    def action_graph_filter(self) -> None:
+        """Open graph filter modal."""
+        # Get current filter from the active graph panel
+        current_filter = None
+        for panel in self.query(GraphPanel):
+            if panel._filter_dirs is not None:
+                current_filter = panel._filter_dirs
+                break
+        # Auto-enter fullscreen if not already
+        if not self._graph_fullscreen:
+            self._graph_fullscreen = True
+            main_layout = self.query_one("#main-layout")
+            graph_fs = self.query_one("#graph-fullscreen")
+            main_layout.display = False
+            graph_fs.display = True
+            for panel in graph_fs.query(GraphPanel):
+                panel.refresh_graph()
+        self.push_screen(GraphFilterScreen(self.project, current_filter=current_filter))
+
+    def action_clear_graph_search(self) -> None:
+        """Clear graph search highlighting and filters on all graph panels."""
+        cleared = False
+        for panel in self.query(GraphPanel):
+            if panel._search_query or panel._highlight_ids or panel._selected_id:
+                panel.clear_search()
+                cleared = True
+            if panel._filter_dirs is not None:
+                panel.clear_filter()
+                cleared = True
+        if cleared:
+            self.notify("Search & filter cleared")
+
+    def action_add_note(self) -> None:
+        """Open add note modal."""
+        self.push_screen(AddNoteScreen(self.project))
+
+    def on_clickable_note_clicked(self, event: ClickableNote.Clicked) -> None:
+        """Handle click on a note — open note detail modal."""
+        self.push_screen(NoteDetailScreen(event.note, project=self.project))
+
+    def action_back(self) -> None:
+        """Go back — exit fullscreen graph or do nothing on dashboard."""
+        if self._graph_fullscreen:
+            self.action_toggle_graph()
+
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        """Handle row selection in data tables — open appropriate screen for recent files."""
+        # Check if this is the recent files table
+        table = event.data_table
+        if table.id == "recent-table":
+            # Find the RecentFilesPanel that owns this table
+            for panel in self.query(RecentFilesPanel):
+                row_index = event.cursor_row
+                if 0 <= row_index < len(panel._recent_files):
+                    file_info = panel._recent_files[row_index]
+                    if file_info.path.is_file():
+                        self._open_file(file_info.path)
+
+    def _open_file(self, file_path: Path) -> None:
+        """Open a file in the appropriate screen — NoteDetailScreen for notes, FilePreviewScreen for others."""
+        # Check if this file is in the notes directory
+        try:
+            rel = file_path.relative_to(self.project.root)
+            is_note = rel.parts[0] == "notes" if rel.parts else False
+        except ValueError:
+            is_note = False
+
+        if is_note and file_path.suffix in (".md", ".txt"):
+            from santai_cli.core.project import NoteEntry
+            try:
+                content = file_path.read_text(encoding="utf-8")
+                title = file_path.stem.replace("-", " ").replace("_", " ").title()
+                for line in content.split("\n"):
+                    line = line.strip()
+                    if line.startswith("# "):
+                        title = line[2:].strip()
+                        break
+                preview = content[:200].replace("\n", " ").strip()
+                stat = file_path.stat()
+                note = NoteEntry(
+                    title=title,
+                    content=content,
+                    preview=preview,
+                    filename=file_path.name,
+                    modified_at=datetime.fromtimestamp(stat.st_mtime),
+                    size_bytes=stat.st_size,
+                )
+                self.push_screen(NoteDetailScreen(note, project=self.project))
+            except (OSError, UnicodeDecodeError):
+                self.push_screen(FilePreviewScreen(file_path, project=self.project))
+        else:
+            self.push_screen(FilePreviewScreen(file_path, project=self.project))
+
+    def on_directory_tree_file_selected(
+        self, event: DirectoryTree.FileSelected
+    ) -> None:
+        """Handle file selection in directory tree — open with appropriate screen."""
+        file_path = event.path
+        if not file_path.is_file():
+            return
+        self._open_file(file_path)
