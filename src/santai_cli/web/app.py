@@ -1,12 +1,15 @@
 """FastAPI web application for Santai."""
 
+import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, HTTPException, Query, Request, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
 
 from santai_cli.core.project import (
     SantaiProject,
@@ -16,8 +19,28 @@ from santai_cli.core.project import (
     get_notes,
 )
 
-# Templates directory
+# Templates and static directories
 TEMPLATES_DIR = Path(__file__).parent / "templates"
+STATIC_DIR = Path(__file__).parent / "static"
+
+
+class RenameRequest(BaseModel):
+    old_path: str
+    new_name: str
+
+
+class MkdirRequest(BaseModel):
+    path: str
+    name: str
+
+
+class FileContentRequest(BaseModel):
+    content: str
+
+
+class MoveRequest(BaseModel):
+    source_path: str
+    target_folder: str
 
 
 def format_size(size_bytes: int) -> str:
@@ -84,6 +107,7 @@ def get_file_tree(
 def create_app(project: SantaiProject) -> FastAPI:
     """Create and configure the FastAPI application."""
     app = FastAPI(title=f"Santai - {project.name}")
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
     templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
     # Add custom filters to Jinja2
@@ -152,7 +176,7 @@ def create_app(project: SantaiProject) -> FastAPI:
             "recent_files": [
                 {
                     "name": f.name,
-                    "path": str(f.path),
+                    "path": str(f.path.relative_to(project.root)) if f.path.is_relative_to(project.root) else str(f.path),
                     "size": f.size_bytes,
                     "modified": f.modified_at.isoformat(),
                     "modified_ago": format_time_ago(f.modified_at),
@@ -217,5 +241,282 @@ def create_app(project: SantaiProject) -> FastAPI:
                 for edge in graph.edges
             ],
         }
+
+    # File browser helpers
+    root_dir = project.root.resolve()
+
+    def safe_path(path: str) -> Path:
+        """Validate and resolve path, ensuring it stays within root_dir."""
+        if not path:
+            return root_dir
+        resolved = (root_dir / path).resolve()
+        try:
+            resolved.relative_to(root_dir)
+        except ValueError:
+            raise HTTPException(status_code=403, detail="Access denied: path outside root directory")
+        return resolved
+
+    def get_file_info(path: Path) -> dict[str, Any]:
+        """Get file/directory information."""
+        stat = path.stat()
+        return {
+            "name": path.name,
+            "path": str(path.relative_to(root_dir)),
+            "is_dir": path.is_dir(),
+            "size": stat.st_size,
+            "size_formatted": format_size(stat.st_size) if not path.is_dir() else "",
+            "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+            "extension": path.suffix.lower() if path.suffix else "",
+        }
+
+    @app.get("/api/files")
+    async def list_files(path: str = Query(default="")) -> dict[str, Any]:
+        """List files and directories in the given path."""
+        target = safe_path(path)
+        if not target.exists():
+            raise HTTPException(status_code=404, detail="Path not found")
+        if not target.is_dir():
+            raise HTTPException(status_code=400, detail="Path is not a directory")
+
+        items = []
+        for item in sorted(target.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower())):
+            if item.name.startswith("."):
+                continue
+            try:
+                items.append(get_file_info(item))
+            except (OSError, PermissionError):
+                continue
+
+        breadcrumbs = [{"name": root_dir.name, "path": ""}]
+        if path:
+            parts = Path(path).parts
+            for i, part in enumerate(parts):
+                breadcrumbs.append({"name": part, "path": str(Path(*parts[:i+1]))})
+
+        return {"path": path, "items": items, "breadcrumbs": breadcrumbs}
+
+    @app.post("/api/files")
+    async def upload_file(file: UploadFile, path: str = Query(default="")) -> dict[str, str]:
+        """Upload a file to the given path."""
+        target_dir = safe_path(path)
+        if not target_dir.is_dir():
+            raise HTTPException(status_code=400, detail="Target path is not a directory")
+
+        file_path = target_dir / file.filename
+        if file_path.exists():
+            raise HTTPException(status_code=409, detail="File already exists")
+
+        safe_path(str(file_path.relative_to(root_dir)))
+        with open(file_path, "wb") as f:
+            content = await file.read()
+            f.write(content)
+
+        return {"message": "File uploaded successfully", "path": str(file_path.relative_to(root_dir))}
+
+    @app.delete("/api/files")
+    async def delete_file(path: str = Query(...)) -> dict[str, str]:
+        """Delete a file or directory."""
+        target = safe_path(path)
+        if not target.exists():
+            raise HTTPException(status_code=404, detail="Path not found")
+        if target == root_dir:
+            raise HTTPException(status_code=403, detail="Cannot delete root directory")
+
+        if target.is_dir():
+            shutil.rmtree(target)
+        else:
+            target.unlink()
+
+        return {"message": "Deleted successfully"}
+
+    @app.post("/api/files/rename")
+    async def rename_file(req: RenameRequest) -> dict[str, str]:
+        """Rename a file or directory."""
+        target = safe_path(req.old_path)
+        if not target.exists():
+            raise HTTPException(status_code=404, detail="Path not found")
+
+        new_path = target.parent / req.new_name
+        safe_path(str(new_path.relative_to(root_dir)))
+        if new_path.exists():
+            raise HTTPException(status_code=409, detail="A file with that name already exists")
+
+        target.rename(new_path)
+        return {"message": "Renamed successfully", "path": str(new_path.relative_to(root_dir))}
+
+    @app.post("/api/files/mkdir")
+    async def make_directory(req: MkdirRequest) -> dict[str, str]:
+        """Create a new directory."""
+        parent = safe_path(req.path)
+        if not parent.is_dir():
+            raise HTTPException(status_code=400, detail="Parent path is not a directory")
+
+        new_dir = parent / req.name
+        safe_path(str(new_dir.relative_to(root_dir)))
+        if new_dir.exists():
+            raise HTTPException(status_code=409, detail="Directory already exists")
+
+        new_dir.mkdir()
+        return {"message": "Directory created", "path": str(new_dir.relative_to(root_dir))}
+
+    @app.post("/api/files/move")
+    async def move_file(req: MoveRequest) -> dict[str, str]:
+        """Move a file or directory to a new location."""
+        # Protected top-level paths that cannot be moved
+        protected_paths = {'codebases', 'history', 'notes', 'resources',
+                          'AGENTS.md', 'CLAUDE.md', 'README.md', 'rumdl.toml'}
+
+        if req.source_path in protected_paths:
+            raise HTTPException(status_code=403, detail="Cannot move protected files or folders")
+
+        source = safe_path(req.source_path)
+        target_dir = safe_path(req.target_folder)
+
+        if not source.exists():
+            raise HTTPException(status_code=404, detail="Source not found")
+        if not target_dir.is_dir():
+            raise HTTPException(status_code=400, detail="Target must be a directory")
+
+        new_path = target_dir / source.name
+        if new_path.exists():
+            raise HTTPException(status_code=409, detail="A file with that name already exists in the target folder")
+
+        # Prevent moving a folder into itself
+        if source.is_dir():
+            try:
+                target_dir.relative_to(source)
+                raise HTTPException(status_code=400, detail="Cannot move a folder into itself")
+            except ValueError:
+                pass  # Not a subdirectory, OK to proceed
+
+        shutil.move(str(source), str(new_path))
+        return {"message": "Moved successfully", "path": str(new_path.relative_to(root_dir))}
+
+    @app.get("/api/files/tree")
+    async def api_files_tree(path: str = Query(default=""), depth: int = Query(default=10)) -> dict[str, Any]:
+        """Get recursive tree structure of files and directories."""
+        target = safe_path(path)
+        if not target.exists():
+            raise HTTPException(status_code=404, detail="Path not found")
+        if not target.is_dir():
+            raise HTTPException(status_code=400, detail="Path is not a directory")
+
+        def build_tree(dir_path: Path, current_depth: int) -> list[dict[str, Any]]:
+            if current_depth <= 0:
+                return []
+            items = []
+            try:
+                for item in sorted(dir_path.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower())):
+                    if item.name.startswith("."):
+                        continue
+                    node = {
+                        "name": item.name,
+                        "path": str(item.relative_to(root_dir)),
+                        "is_dir": item.is_dir(),
+                    }
+                    if item.is_dir():
+                        node["children"] = build_tree(item, current_depth - 1)
+                    items.append(node)
+            except (OSError, PermissionError):
+                pass
+            return items
+
+        return {
+            "name": target.name if path else root_dir.name,
+            "path": path,
+            "is_dir": True,
+            "children": build_tree(target, depth),
+        }
+
+    @app.get("/api/files/content")
+    async def get_file_content(path: str = Query(...)) -> dict[str, Any]:
+        """Get file content for preview."""
+        target = safe_path(path)
+        if not target.exists():
+            raise HTTPException(status_code=404, detail="File not found")
+        if target.is_dir():
+            raise HTTPException(status_code=400, detail="Cannot read directory contents")
+
+        size = target.stat().st_size
+        if size > 1024 * 1024:
+            return {
+                "name": target.name,
+                "path": path,
+                "size": size,
+                "size_formatted": format_size(size),
+                "preview": False,
+                "message": "File too large to preview",
+            }
+
+        text_extensions = {'.txt', '.md', '.py', '.js', '.ts', '.html', '.css', '.json', '.yaml', '.yml',
+                          '.xml', '.csv', '.log', '.sh', '.bash', '.zsh', '.env', '.gitignore', '.toml',
+                          '.ini', '.cfg', '.conf', '.jsx', '.tsx', '.vue', '.svelte', '.rs', '.go', '.rb',
+                          '.php', '.java', '.c', '.cpp', '.h', '.hpp', '.sql', '.graphql', '.prisma'}
+
+        ext = target.suffix.lower()
+        is_text = ext in text_extensions or ext == ''
+
+        if is_text:
+            try:
+                content = target.read_text(encoding='utf-8')
+                return {
+                    "name": target.name,
+                    "path": path,
+                    "size": size,
+                    "size_formatted": format_size(size),
+                    "preview": True,
+                    "type": "text",
+                    "content": content,
+                    "extension": ext,
+                }
+            except UnicodeDecodeError:
+                is_text = False
+
+        image_extensions = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.ico', '.bmp'}
+        if ext in image_extensions:
+            return {
+                "name": target.name,
+                "path": path,
+                "size": size,
+                "size_formatted": format_size(size),
+                "preview": True,
+                "type": "image",
+                "url": f"/api/files/download?path={path}",
+            }
+
+        return {
+            "name": target.name,
+            "path": path,
+            "size": size,
+            "size_formatted": format_size(size),
+            "preview": False,
+            "message": "Binary file - cannot preview",
+        }
+
+    @app.post("/api/files/save")
+    async def save_file_content(req: FileContentRequest, path: str = Query(...)) -> dict[str, str]:
+        """Save file content."""
+        target = safe_path(path)
+        if not target.exists():
+            raise HTTPException(status_code=404, detail="File not found")
+        if target.is_dir():
+            raise HTTPException(status_code=400, detail="Cannot write to a directory")
+
+        try:
+            target.write_text(req.content, encoding='utf-8')
+            return {"message": "File saved successfully"}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
+
+    @app.get("/api/files/download")
+    async def download_file(path: str = Query(...)) -> FileResponse:
+        """Download a file."""
+        target = safe_path(path)
+        if not target.exists():
+            raise HTTPException(status_code=404, detail="File not found")
+        if target.is_dir():
+            raise HTTPException(status_code=400, detail="Cannot download a directory")
+
+        return FileResponse(target, filename=target.name)
 
     return app
