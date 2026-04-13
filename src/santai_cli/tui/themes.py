@@ -527,12 +527,16 @@ def _generate_css(c: ThemeColors) -> str:
         layout: vertical;
     }}
 
-    #stats-container, #notes-container, #graph-container {{
+    #stats-container, #notes-container, #graph-container, #recent-container {{
         height: 1fr;
         border: solid {c.muted};
         padding: 1 2;
         background: {c.surface};
         margin: 1;
+    }}
+
+    #graph-container {{
+        height: 2fr;
     }}
 
     #stats-title, #types-title, #recent-title, #notes-title, #graph-title {{
@@ -590,12 +594,12 @@ def _generate_css(c: ThemeColors) -> str:
         color: {c.bg};
     }}
 
-    StatsPanel, NotesPanel, GraphPanel {{
+    StatsPanel, NotesPanel, GraphPanel, RecentFilesPanel {{
         background: transparent;
         height: auto;
     }}
 
-    StatsPanel > Label, NotesPanel > Label, GraphPanel > Label {{
+    StatsPanel > Label, NotesPanel > Label, GraphPanel > Label, RecentFilesPanel > Label {{
         color: {c.fg};
     }}
 

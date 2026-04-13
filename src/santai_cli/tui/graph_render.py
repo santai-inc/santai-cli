@@ -401,6 +401,15 @@ def search_nodes(
     return [node for _, node in scored[:max_results]]
 
 
+@dataclass
+class RenderedGraph:
+    """Result of rendering a graph, including markup and node positions."""
+
+    markup: str
+    node_positions: dict[str, tuple[float, float]]  # node_id -> (x, y)
+    node_map: dict[str, GraphNode]  # node_id -> GraphNode
+
+
 def render_graph(
     nodes: list[GraphNode],
     edges: list[GraphEdge],
@@ -411,10 +420,17 @@ def render_graph(
     highlight_ids: set[str] | None = None,
     show_labels: bool = True,
     fullscreen: bool = False,
-) -> str:
-    """Render the graph to a Rich markup string using Braille sub-pixel edges."""
+) -> RenderedGraph:
+    """Render the graph to a Rich markup string using Braille sub-pixel edges.
+
+    Returns a RenderedGraph with the markup string and node position data.
+    """
     if not nodes:
-        return "[dim]No files found. Add files to resources/, notes/, etc.[/dim]"
+        return RenderedGraph(
+            markup="[dim]No files found. Add files to resources/, notes/, etc.[/dim]",
+            node_positions={},
+            node_map={},
+        )
 
     # Run layout
     layout_nodes = force_directed_layout(nodes, edges, width, height)
@@ -429,17 +445,37 @@ def render_graph(
     # Create braille canvas
     canvas = BrailleCanvas(width, height)
 
-    # Draw edges
-    edge_color = "dim #444444"
+    # Determine which nodes are highlighted (search results or neighbors of selected)
+    hl = highlight_ids or set()
+
+    # Build set of nodes whose edges should be highlighted
+    highlighted_edge_nodes = set()
+    if selected_id:
+        highlighted_edge_nodes.add(selected_id)
+    if hl:
+        highlighted_edge_nodes.update(hl)
+
+    # Draw edges — highlight edges connected to selected/highlighted nodes
+    default_edge_color = "dim #444444"
+    highlight_edge_color = "bold #FFD700"  # gold for highlighted edges
+    dimmed_edge_color = "dim #2a2a2a"
+
     for edge in edges:
         if edge.source not in node_map or edge.target not in node_map:
             continue
         src = node_map[edge.source]
         tgt = node_map[edge.target]
-        canvas.draw_line(src.x, src.y, tgt.x, tgt.y, edge_color)
 
-    # Determine which nodes are highlighted (search results or neighbors of selected)
-    hl = highlight_ids or set()
+        if highlighted_edge_nodes:
+            # If either endpoint is highlighted, use highlight color
+            src_hl = edge.source in highlighted_edge_nodes
+            tgt_hl = edge.target in highlighted_edge_nodes
+            if src_hl or tgt_hl:
+                canvas.draw_line(src.x, src.y, tgt.x, tgt.y, highlight_edge_color)
+            else:
+                canvas.draw_line(src.x, src.y, tgt.x, tgt.y, dimmed_edge_color)
+        else:
+            canvas.draw_line(src.x, src.y, tgt.x, tgt.y, default_edge_color)
 
     # Draw nodes
     for node in layout_nodes:
@@ -461,37 +497,35 @@ def render_graph(
             char = "⬢"
         elif degree >= 3:
             char = "◆"
-        elif degree >= 1:
-            char = "●"
         else:
-            char = "○"
+            # All nodes with any connections (degree >= 1) AND isolated nodes
+            # use filled circle to ensure colored visibility
+            char = "●"
 
         canvas.set_node(node.x, node.y, char, color)
 
-    # Add labels
+    # Add labels — always show file names for all nodes
     if show_labels:
         for node in layout_nodes:
             degree = len(adjacency.get(node.id, set()))
             is_highlighted = node.id in hl or node.id == selected_id
-            threshold = 1 if fullscreen else 2
 
-            # Always show labels for selected/highlighted nodes
-            if degree >= threshold or is_highlighted:
-                color = dir_colors.get(node.directory, dir_colors.get("other", "#6b6560"))
-                label = node.label
-                if len(label) > 12:
-                    label = label[:11] + "…"
+            color = dir_colors.get(node.directory, dir_colors.get("other", "#6b6560"))
+            label = node.label
+            max_len = 14 if fullscreen else 10
+            if len(label) > max_len:
+                label = label[:max_len - 1] + "…"
 
-                if is_highlighted:
-                    color = "bold " + color
-                elif degree < 2:
-                    color = f"dim {color}"
+            if is_highlighted:
+                color = "bold " + color
+            elif degree < 1:
+                color = f"dim {color}"
 
-                # Dim labels when highlight is active but this node isn't highlighted
-                if hl and not is_highlighted:
-                    color = "dim #3a3a3a"
+            # Dim labels when highlight is active but this node isn't highlighted
+            if hl and not is_highlighted:
+                color = "dim #3a3a3a"
 
-                canvas.add_label(node.x, node.y, label, color)
+            canvas.add_label(node.x, node.y, label, color)
 
     # Render canvas to Rich markup
     grid = canvas.render()
@@ -525,7 +559,15 @@ def render_graph(
     while lines and not lines[-1].strip():
         lines.pop()
 
-    return "\n".join(lines)
+    # Build node position and map data
+    node_positions = {n.id: (n.x, n.y) for n in layout_nodes}
+    node_map_out = {n.id: n for n in layout_nodes}
+
+    return RenderedGraph(
+        markup="\n".join(lines),
+        node_positions=node_positions,
+        node_map=node_map_out,
+    )
 
 
 def build_graph_from_project_data(graph_data) -> tuple[list[GraphNode], list[GraphEdge]]:
