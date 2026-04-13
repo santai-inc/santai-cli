@@ -1096,6 +1096,219 @@
             top: 1px;
         }
 
+        /* Preview Fullscreen Button */
+        .preview-fullscreen-btn {
+            background: linear-gradient(135deg,
+                rgba(100, 200, 255, 0.35) 0%,
+                rgba(100, 255, 200, 0.3) 100%
+            );
+            backdrop-filter: blur(8px);
+            border: none;
+            border-radius: 8px;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: var(--transition-quick);
+            flex-shrink: 0;
+        }
+
+        .preview-fullscreen-btn:hover {
+            background: linear-gradient(135deg,
+                rgba(100, 200, 255, 0.45) 0%,
+                rgba(100, 255, 200, 0.4) 100%
+            );
+        }
+
+        .preview-fullscreen-btn svg {
+            width: 16px;
+            height: 16px;
+            stroke-width: 2;
+        }
+
+        [data-theme="simple"] .preview-fullscreen-btn {
+            background: #ffffff;
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        [data-theme="simple"] .preview-fullscreen-btn:hover {
+            background: #f1f3f5;
+        }
+
+        /* Preview Panel Fullscreen Mode */
+        .preview-panel.fullscreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100%;
+            z-index: 1001;
+            border-radius: 0;
+            margin: 0;
+            padding: 0;
+            background: var(--glass-bg);
+            backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation)) brightness(var(--glass-brightness));
+        }
+
+        .preview-panel.fullscreen .preview-header {
+            padding: 20px 24px;
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(20px);
+        }
+
+        .preview-panel.fullscreen .preview-content {
+            padding: 24px 48px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .preview-panel.fullscreen .preview-content .preview-markdown,
+        .preview-panel.fullscreen .preview-content .preview-code,
+        .preview-panel.fullscreen .preview-content .preview-image {
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .preview-panel.fullscreen .preview-actions {
+            padding: 16px 24px;
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(20px);
+            justify-content: center;
+        }
+
+        .preview-panel.fullscreen .preview-actions .btn {
+            flex: none;
+            min-width: 120px;
+        }
+
+        [data-theme="simple"] .preview-panel.fullscreen {
+            background: #ffffff;
+            backdrop-filter: none;
+        }
+
+        [data-theme="simple"] .preview-panel.fullscreen .preview-header,
+        [data-theme="simple"] .preview-panel.fullscreen .preview-actions {
+            background: #ffffff;
+            backdrop-filter: none;
+        }
+
+        /* Markdown Rendered Content */
+        .preview-markdown {
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+            font-size: 15px;
+            line-height: 1.7;
+            color: var(--text-primary);
+        }
+
+        .preview-markdown h1, .preview-markdown h2, .preview-markdown h3,
+        .preview-markdown h4, .preview-markdown h5, .preview-markdown h6 {
+            margin-top: 1.5em;
+            margin-bottom: 0.5em;
+            font-weight: 600;
+            line-height: 1.3;
+        }
+
+        .preview-markdown h1 { font-size: 1.8em; border-bottom: 1px solid rgba(0, 0, 0, 0.1); padding-bottom: 0.3em; }
+        .preview-markdown h2 { font-size: 1.5em; border-bottom: 1px solid rgba(0, 0, 0, 0.08); padding-bottom: 0.3em; }
+        .preview-markdown h3 { font-size: 1.25em; }
+        .preview-markdown h4 { font-size: 1.1em; }
+        .preview-markdown h5 { font-size: 1em; }
+        .preview-markdown h6 { font-size: 0.9em; color: var(--text-secondary); }
+
+        .preview-markdown p {
+            margin: 0 0 1em 0;
+        }
+
+        .preview-markdown a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        .preview-markdown a:hover {
+            text-decoration: underline;
+        }
+
+        .preview-markdown code {
+            font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+            font-size: 0.9em;
+            background: rgba(0, 0, 0, 0.06);
+            padding: 0.2em 0.4em;
+            border-radius: 4px;
+        }
+
+        .preview-markdown pre {
+            background: rgba(0, 0, 0, 0.04);
+            border-radius: 8px;
+            padding: 16px;
+            overflow-x: auto;
+            margin: 1em 0;
+        }
+
+        .preview-markdown pre code {
+            background: none;
+            padding: 0;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .preview-markdown blockquote {
+            border-left: 4px solid var(--accent);
+            margin: 1em 0;
+            padding: 0.5em 1em;
+            color: var(--text-secondary);
+            background: rgba(0, 0, 0, 0.02);
+            border-radius: 0 8px 8px 0;
+        }
+
+        .preview-markdown ul, .preview-markdown ol {
+            margin: 1em 0;
+            padding-left: 2em;
+        }
+
+        .preview-markdown li {
+            margin: 0.25em 0;
+        }
+
+        .preview-markdown hr {
+            border: none;
+            border-top: 1px solid rgba(0, 0, 0, 0.1);
+            margin: 2em 0;
+        }
+
+        .preview-markdown img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            margin: 1em 0;
+        }
+
+        .preview-markdown table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1em 0;
+        }
+
+        .preview-markdown th, .preview-markdown td {
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            padding: 8px 12px;
+            text-align: left;
+        }
+
+        .preview-markdown th {
+            background: rgba(0, 0, 0, 0.04);
+            font-weight: 600;
+        }
+
+        .preview-markdown tr:nth-child(even) {
+            background: rgba(0, 0, 0, 0.02);
+        }
+
         /* Drop Zone */
         .drop-zone {
             position: fixed;
@@ -2064,6 +2277,14 @@
                     <h2 id="preview-filename">filename.txt</h2>
                     <span id="preview-size">0 KB</span>
                 </div>
+                <button class="preview-fullscreen-btn" onclick="togglePreviewFullscreen()" title="Toggle fullscreen">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" id="preview-fullscreen-expand">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+                    </svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" id="preview-fullscreen-collapse" style="display: none;">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
+                    </svg>
+                </button>
                 <button class="preview-close" onclick="closePreview()">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -2172,6 +2393,9 @@
     <!-- Hidden file input -->
     <input type="file" id="file-input" multiple onchange="handleFileSelect(event)">
 
+    <!-- Marked.js for Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
     <script>
         // Theme Management - 2 themes: simple (light) and glass
         function setTheme(theme) {
@@ -2228,11 +2452,65 @@
                         </div>
                     `;
                 } else if (data.type === 'text') {
-                    const escaped = data.content
-                        .replace(/&/g, '&amp;')
-                        .replace(/</g, '&lt;')
-                        .replace(/>/g, '&gt;');
-                    content.innerHTML = `<pre class="preview-code">${escaped}</pre>`;
+                    // Check if it's a markdown file
+                    const ext = data.name.split('.').pop().toLowerCase();
+                    if (['md', 'markdown'].includes(ext) && typeof marked !== 'undefined') {
+                        // Configure marked for security
+                        marked.setOptions({
+                            breaks: true,
+                            gfm: true
+                        });
+                        // Render markdown
+                        const rendered = marked.parse(data.content);
+                        content.innerHTML = `<div class="preview-markdown">${rendered}</div>`;
+
+                        // Handle link clicks in markdown
+                        content.querySelectorAll('.preview-markdown a').forEach(async link => {
+                            const href = link.getAttribute('href');
+                            // Check if it's a relative link (local file)
+                            if (href && !href.startsWith('http://') && !href.startsWith('https://') && !href.startsWith('mailto:') && !href.startsWith('#')) {
+                                // Resolve the path relative to current file's directory
+                                const currentDir = path.split('/').slice(0, -1).join('/');
+                                const newPath = currentDir ? `${currentDir}/${href}` : href;
+
+                                // Check if file exists
+                                try {
+                                    const checkRes = await fetch(`/api/files/content?path=${encodeURIComponent(newPath)}`);
+                                    if (!checkRes.ok) {
+                                        // File doesn't exist - disable link
+                                        link.style.color = 'var(--text-muted)';
+                                        link.style.textDecoration = 'line-through';
+                                        link.style.cursor = 'not-allowed';
+                                        link.title = 'File not found';
+                                        link.addEventListener('click', (e) => e.preventDefault());
+                                        return;
+                                    }
+                                } catch {
+                                    // Error checking - disable link
+                                    link.style.color = 'var(--text-muted)';
+                                    link.style.cursor = 'not-allowed';
+                                    link.addEventListener('click', (e) => e.preventDefault());
+                                    return;
+                                }
+
+                                // File exists - open in new tab
+                                link.addEventListener('click', (e) => {
+                                    e.preventDefault();
+                                    window.open(`/?preview=${encodeURIComponent(newPath)}`, '_blank');
+                                });
+                            } else if (href && (href.startsWith('http://') || href.startsWith('https://'))) {
+                                // External link - open in new window
+                                link.setAttribute('target', '_blank');
+                                link.setAttribute('rel', 'noopener noreferrer');
+                            }
+                        });
+                    } else {
+                        const escaped = data.content
+                            .replace(/&/g, '&amp;')
+                            .replace(/</g, '&lt;')
+                            .replace(/>/g, '&gt;');
+                        content.innerHTML = `<pre class="preview-code">${escaped}</pre>`;
+                    }
                 } else if (data.type === 'image') {
                     content.innerHTML = `<img class="preview-image" src="${data.url}" alt="${data.name}">`;
                 }
@@ -2249,9 +2527,26 @@
         }
 
         function closePreview() {
-            document.getElementById('preview-panel').classList.remove('show');
+            const panel = document.getElementById('preview-panel');
+            panel.classList.remove('show');
+            panel.classList.remove('fullscreen');
             document.body.classList.remove('preview-open');
             previewPath = null;
+            // Reset fullscreen icons
+            document.getElementById('preview-fullscreen-expand').style.display = 'block';
+            document.getElementById('preview-fullscreen-collapse').style.display = 'none';
+        }
+
+        function togglePreviewFullscreen() {
+            const panel = document.getElementById('preview-panel');
+            const expandIcon = document.getElementById('preview-fullscreen-expand');
+            const collapseIcon = document.getElementById('preview-fullscreen-collapse');
+
+            panel.classList.toggle('fullscreen');
+            const isFullscreen = panel.classList.contains('fullscreen');
+
+            expandIcon.style.display = isFullscreen ? 'none' : 'block';
+            collapseIcon.style.display = isFullscreen ? 'block' : 'none';
         }
 
         function downloadPreviewFile() {
@@ -2674,12 +2969,19 @@
             }
         }
 
-        // Open item (navigate or preview)
+        // Open item (navigate or fullscreen preview)
         function openItem(path, isDir) {
             if (isDir) {
                 loadFiles(path);
             } else {
+                // Open file preview in fullscreen mode
                 openFilePreview(path);
+                setTimeout(() => {
+                    const panel = document.getElementById('preview-panel');
+                    if (panel && !panel.classList.contains('fullscreen')) {
+                        togglePreviewFullscreen();
+                    }
+                }, 50);
             }
         }
 
@@ -3297,12 +3599,22 @@
             }
         }
 
-        // Handle tree item double click (navigate to file browser for folders)
+        // Handle tree item double click (navigate to file browser for folders, fullscreen preview for files)
         function handleTreeDblClick(event, path, isDir) {
             if (isDir) {
                 expandedPaths.add(path);
                 showFileBrowser(path);
                 renderTree();
+            } else {
+                // For files, open preview in fullscreen mode
+                openFilePreview(path);
+                // Small delay to ensure panel is shown before toggling fullscreen
+                setTimeout(() => {
+                    const panel = document.getElementById('preview-panel');
+                    if (panel && !panel.classList.contains('fullscreen')) {
+                        togglePreviewFullscreen();
+                    }
+                }, 50);
             }
         }
 
@@ -3370,7 +3682,7 @@
 
                 const filteredFiles = data.recent_files.filter(f => f.name !== '.gitkeep');
                 container.innerHTML = `<ul class="file-list">${filteredFiles.slice(0, 10).map(f => `
-                    <li class="file-list-item" onclick="openFilePreview('${f.path}')">
+                    <li class="file-list-item" onclick="openFilePreview('${f.path}')" ondblclick="openItem('${f.path}', false)">
                         <div class="file-icon">${getFileIcon(f.name)}</div>
                         <div class="file-info">
                             <div class="name">${f.name}</div>
@@ -3399,7 +3711,7 @@
                         return;
                     }
                     container.innerHTML = `<ul class="file-list">${filteredFiles.slice(0, 10).map(f => `
-                        <li class="file-list-item" onclick="openFilePreview('${f.path}')">
+                        <li class="file-list-item" onclick="openFilePreview('${f.path}')" ondblclick="openItem('${f.path}', false)">
                             <div class="file-icon">${getFileIcon(f.name)}</div>
                             <div class="file-info">
                                 <div class="name">${f.name}</div>
@@ -3824,9 +4136,30 @@
                 loadNotesPreview();
                 initGraph();
                 startAutoRefresh();
+
+                // Check for preview URL parameter
+                handlePreviewUrlParam();
             } else {
                 // D3 not ready yet, retry
                 setTimeout(tryInitDashboard, 100);
+            }
+        }
+
+        // Handle ?preview=path URL parameter to open file preview directly
+        function handlePreviewUrlParam() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const previewPath = urlParams.get('preview');
+            if (previewPath) {
+                // Open the file in fullscreen preview
+                openFilePreview(previewPath);
+                setTimeout(() => {
+                    const panel = document.getElementById('preview-panel');
+                    if (panel && !panel.classList.contains('fullscreen')) {
+                        togglePreviewFullscreen();
+                    }
+                }, 100);
+                // Clean up URL without reloading
+                window.history.replaceState({}, '', window.location.pathname);
             }
         }
 
@@ -4054,8 +4387,15 @@
         // Close fullscreen on Escape key
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
-                const panel = document.querySelector('.graph-panel');
-                if (panel && panel.classList.contains('fullscreen')) {
+                // Check preview panel first (higher z-index)
+                const previewPanel = document.getElementById('preview-panel');
+                if (previewPanel && previewPanel.classList.contains('fullscreen')) {
+                    togglePreviewFullscreen();
+                    return;
+                }
+                // Then check graph panel
+                const graphPanel = document.querySelector('.graph-panel');
+                if (graphPanel && graphPanel.classList.contains('fullscreen')) {
                     toggleGraphFullscreen();
                 }
             }
