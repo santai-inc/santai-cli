@@ -5,7 +5,45 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Santai</title>
     <link rel="icon" type="image/png" href="/static/logo.png">
+    <script>
+        // Immediately setup for preview-only mode if opening file in new window
+        (function() {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('fullscreen') === 'true') {
+                document.documentElement.classList.add('preview-only-mode');
+                // Apply theme immediately
+                const theme = params.get('theme');
+                if (theme) {
+                    document.documentElement.setAttribute('data-theme', theme);
+                }
+            }
+        })();
+    </script>
     <style>
+        /* Hide main content when in preview-only mode */
+        html.preview-only-mode .container,
+        html.preview-only-mode .sidebar {
+            display: none !important;
+        }
+        /* Ensure body has gradient background for glass effect in preview-only mode */
+        html.preview-only-mode body {
+            background:
+                linear-gradient(135deg,
+                    rgba(255, 150, 100, 0.4) 0%,
+                    rgba(255, 100, 150, 0.3) 25%,
+                    rgba(150, 100, 255, 0.3) 50%,
+                    rgba(100, 200, 255, 0.4) 75%,
+                    rgba(100, 255, 200, 0.3) 100%
+                ),
+                linear-gradient(45deg, #f8f9fa 0%, #e9ecef 100%);
+        }
+        html.preview-only-mode[data-theme="simple"] body {
+            background: #f5f5f7;
+        }
+        /* Just ensure preview panel is visible - let .fullscreen class handle the rest */
+        html.preview-only-mode .preview-panel {
+            display: flex !important;
+        }
         :root {
             /* Liquid Glass Core - Light mode for Apple-style vibrancy */
             --glass-bg: rgba(255, 255, 255, 0.45);
@@ -960,6 +998,7 @@
 
         .preview-panel.show {
             display: flex;
+            z-index: 1001;
         }
 
         .preview-header {
@@ -983,11 +1022,39 @@
             overflow: hidden;
             text-overflow: ellipsis;
             margin-bottom: 2px;
+            display: inline;
         }
 
         .preview-title span {
             font-size: 12px;
             color: var(--text-muted);
+            display: block;
+        }
+
+        .preview-open-new-window {
+            background: none;
+            border: none;
+            padding: 2px;
+            margin-left: 0;
+            cursor: pointer;
+            opacity: 0.5;
+            transition: opacity 0.15s ease;
+            vertical-align: baseline;
+            display: inline-flex;
+            align-items: center;
+            position: relative;
+            top: 1px;
+        }
+
+        .preview-open-new-window:hover {
+            opacity: 1;
+        }
+
+        .preview-open-new-window svg {
+            width: 14px;
+            height: 14px;
+            stroke: var(--text-primary);
+            stroke-width: 2;
         }
 
         .preview-close {
@@ -2275,6 +2342,11 @@
             <div class="preview-header">
                 <div class="preview-title">
                     <h2 id="preview-filename">filename.txt</h2>
+                    <button class="preview-open-new-window" onclick="openPreviewInNewTab()" title="Open in new window">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                        </svg>
+                    </button>
                     <span id="preview-size">0 KB</span>
                 </div>
                 <button class="preview-fullscreen-btn" onclick="togglePreviewFullscreen()" title="Toggle fullscreen">
@@ -2319,6 +2391,12 @@
 
     <!-- Context Menu -->
     <div class="context-menu" id="context-menu">
+        <button class="context-menu-item" id="context-open-new-tab" onclick="openSelectedInNewTab()">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+            </svg>
+            Open in New Tab
+        </button>
         <button class="context-menu-item" onclick="downloadSelected()">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
@@ -2527,6 +2605,12 @@
         }
 
         function closePreview() {
+            // If in preview-only mode (opened via "open in new window"), go to home page
+            if (document.documentElement.classList.contains('preview-only-mode')) {
+                window.location.href = '/';
+                return;
+            }
+
             const panel = document.getElementById('preview-panel');
             panel.classList.remove('show');
             panel.classList.remove('fullscreen');
@@ -2539,6 +2623,14 @@
 
         function togglePreviewFullscreen() {
             const panel = document.getElementById('preview-panel');
+            const isCurrentlyFullscreen = panel.classList.contains('fullscreen');
+
+            // In preview-only mode, exiting fullscreen should go to home page
+            if (document.documentElement.classList.contains('preview-only-mode') && isCurrentlyFullscreen) {
+                window.location.href = '/';
+                return;
+            }
+
             const expandIcon = document.getElementById('preview-fullscreen-expand');
             const collapseIcon = document.getElementById('preview-fullscreen-collapse');
 
@@ -2547,6 +2639,20 @@
 
             expandIcon.style.display = isFullscreen ? 'none' : 'block';
             collapseIcon.style.display = isFullscreen ? 'block' : 'none';
+        }
+
+        function openPreviewInNewTab() {
+            if (previewPath) {
+                const url = new URL(window.location.href);
+                url.searchParams.set('preview', previewPath);
+                url.searchParams.set('fullscreen', 'true');
+                // Pass current theme
+                const currentTheme = document.documentElement.getAttribute('data-theme');
+                if (currentTheme) {
+                    url.searchParams.set('theme', currentTheme);
+                }
+                window.open(url.toString(), '_blank');
+            }
         }
 
         function downloadPreviewFile() {
@@ -2991,6 +3097,15 @@
             selectItem(el, event);
 
             const menu = document.getElementById('context-menu');
+            const openNewTabBtn = document.getElementById('context-open-new-tab');
+
+            // Show "Open in New Tab" only for files, not folders
+            if (selectedItem && !selectedItem.isDir) {
+                openNewTabBtn.style.display = 'flex';
+            } else {
+                openNewTabBtn.style.display = 'none';
+            }
+
             menu.style.left = event.clientX + 'px';
             menu.style.top = event.clientY + 'px';
             menu.classList.add('show');
@@ -3000,6 +3115,14 @@
         document.addEventListener('click', () => {
             document.getElementById('context-menu').classList.remove('show');
         });
+
+        // Open in new tab
+        function openSelectedInNewTab() {
+            if (!selectedItem || selectedItem.isDir) return;
+            const url = new URL(window.location.href);
+            url.searchParams.set('preview', selectedItem.path);
+            window.open(url.toString(), '_blank');
+        }
 
         // Download
         function downloadSelected() {
@@ -4148,16 +4271,31 @@
         // Handle ?preview=path URL parameter to open file preview directly
         function handlePreviewUrlParam() {
             const urlParams = new URLSearchParams(window.location.search);
-            const previewPath = urlParams.get('preview');
-            if (previewPath) {
-                // Open the file in fullscreen preview
-                openFilePreview(previewPath);
-                setTimeout(() => {
-                    const panel = document.getElementById('preview-panel');
-                    if (panel && !panel.classList.contains('fullscreen')) {
-                        togglePreviewFullscreen();
-                    }
-                }, 100);
+            const previewFilePath = urlParams.get('preview');
+            const isFullscreenMode = urlParams.get('fullscreen') === 'true';
+
+            if (previewFilePath) {
+                const panel = document.getElementById('preview-panel');
+
+                // If fullscreen mode, add fullscreen class immediately before loading
+                if (isFullscreenMode && panel) {
+                    panel.classList.add('fullscreen');
+                    document.getElementById('preview-fullscreen-expand').style.display = 'none';
+                    document.getElementById('preview-fullscreen-collapse').style.display = 'block';
+                }
+
+                // Open the file preview
+                openFilePreview(previewFilePath);
+
+                // For non-fullscreen mode, still toggle after delay
+                if (!isFullscreenMode) {
+                    setTimeout(() => {
+                        if (panel && !panel.classList.contains('fullscreen')) {
+                            togglePreviewFullscreen();
+                        }
+                    }, 100);
+                }
+
                 // Clean up URL without reloading
                 window.history.replaceState({}, '', window.location.pathname);
             }
@@ -4384,22 +4522,30 @@
             }, 50);
         }
 
-        // Close fullscreen on Escape key
+        // Close on Escape key
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
-                // Check preview panel first (higher z-index)
-                const previewPanel = document.getElementById('preview-panel');
-                if (previewPanel && previewPanel.classList.contains('fullscreen')) {
-                    togglePreviewFullscreen();
+                e.preventDefault();
+                e.stopPropagation();
+
+                // In preview-only mode, go to home page
+                if (document.documentElement.classList.contains('preview-only-mode')) {
+                    window.location.href = '/';
                     return;
                 }
-                // Then check graph panel
+                // Check preview panel first (higher z-index) - close it entirely
+                const previewPanel = document.getElementById('preview-panel');
+                if (previewPanel && previewPanel.classList.contains('show')) {
+                    closePreview();
+                    return;
+                }
+                // Then check graph panel fullscreen
                 const graphPanel = document.querySelector('.graph-panel');
                 if (graphPanel && graphPanel.classList.contains('fullscreen')) {
                     toggleGraphFullscreen();
                 }
             }
-        });
+        }, true); // Use capture phase to handle first
 
         // Start initialization
         if (document.readyState === 'loading') {
