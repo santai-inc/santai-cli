@@ -5,7 +5,45 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Santai</title>
     <link rel="icon" type="image/png" href="/static/logo.png">
+    <script>
+        // Immediately setup for preview-only mode if opening file in new window
+        (function() {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('fullscreen') === 'true') {
+                document.documentElement.classList.add('preview-only-mode');
+                // Apply theme immediately
+                const theme = params.get('theme');
+                if (theme) {
+                    document.documentElement.setAttribute('data-theme', theme);
+                }
+            }
+        })();
+    </script>
     <style>
+        /* Hide main content when in preview-only mode */
+        html.preview-only-mode .container,
+        html.preview-only-mode .sidebar {
+            display: none !important;
+        }
+        /* Ensure body has gradient background for glass effect in preview-only mode */
+        html.preview-only-mode body {
+            background:
+                linear-gradient(135deg,
+                    rgba(255, 150, 100, 0.4) 0%,
+                    rgba(255, 100, 150, 0.3) 25%,
+                    rgba(150, 100, 255, 0.3) 50%,
+                    rgba(100, 200, 255, 0.4) 75%,
+                    rgba(100, 255, 200, 0.3) 100%
+                ),
+                linear-gradient(45deg, #f8f9fa 0%, #e9ecef 100%);
+        }
+        html.preview-only-mode[data-theme="simple"] body {
+            background: #f5f5f7;
+        }
+        /* Just ensure preview panel is visible - let .fullscreen class handle the rest */
+        html.preview-only-mode .preview-panel {
+            display: flex !important;
+        }
         :root {
             /* Liquid Glass Core - Light mode for Apple-style vibrancy */
             --glass-bg: rgba(255, 255, 255, 0.45);
@@ -960,6 +998,7 @@
 
         .preview-panel.show {
             display: flex;
+            z-index: 1001;
         }
 
         .preview-header {
@@ -983,11 +1022,39 @@
             overflow: hidden;
             text-overflow: ellipsis;
             margin-bottom: 2px;
+            display: inline;
         }
 
         .preview-title span {
             font-size: 12px;
             color: var(--text-muted);
+            display: block;
+        }
+
+        .preview-open-new-window {
+            background: none;
+            border: none;
+            padding: 2px;
+            margin-left: 0;
+            cursor: pointer;
+            opacity: 0.5;
+            transition: opacity 0.15s ease;
+            vertical-align: baseline;
+            display: inline-flex;
+            align-items: center;
+            position: relative;
+            top: 1px;
+        }
+
+        .preview-open-new-window:hover {
+            opacity: 1;
+        }
+
+        .preview-open-new-window svg {
+            width: 14px;
+            height: 14px;
+            stroke: var(--text-primary);
+            stroke-width: 2;
         }
 
         .preview-close {
@@ -1094,6 +1161,219 @@
             flex-shrink: 0;
             position: relative;
             top: 1px;
+        }
+
+        /* Preview Fullscreen Button */
+        .preview-fullscreen-btn {
+            background: linear-gradient(135deg,
+                rgba(100, 200, 255, 0.35) 0%,
+                rgba(100, 255, 200, 0.3) 100%
+            );
+            backdrop-filter: blur(8px);
+            border: none;
+            border-radius: 8px;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: var(--transition-quick);
+            flex-shrink: 0;
+        }
+
+        .preview-fullscreen-btn:hover {
+            background: linear-gradient(135deg,
+                rgba(100, 200, 255, 0.45) 0%,
+                rgba(100, 255, 200, 0.4) 100%
+            );
+        }
+
+        .preview-fullscreen-btn svg {
+            width: 16px;
+            height: 16px;
+            stroke-width: 2;
+        }
+
+        [data-theme="simple"] .preview-fullscreen-btn {
+            background: #ffffff;
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        [data-theme="simple"] .preview-fullscreen-btn:hover {
+            background: #f1f3f5;
+        }
+
+        /* Preview Panel Fullscreen Mode */
+        .preview-panel.fullscreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100%;
+            z-index: 1001;
+            border-radius: 0;
+            margin: 0;
+            padding: 0;
+            background: var(--glass-bg);
+            backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation)) brightness(var(--glass-brightness));
+        }
+
+        .preview-panel.fullscreen .preview-header {
+            padding: 20px 24px;
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(20px);
+        }
+
+        .preview-panel.fullscreen .preview-content {
+            padding: 24px 48px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .preview-panel.fullscreen .preview-content .preview-markdown,
+        .preview-panel.fullscreen .preview-content .preview-code,
+        .preview-panel.fullscreen .preview-content .preview-image {
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .preview-panel.fullscreen .preview-actions {
+            padding: 16px 24px;
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(20px);
+            justify-content: center;
+        }
+
+        .preview-panel.fullscreen .preview-actions .btn {
+            flex: none;
+            min-width: 120px;
+        }
+
+        [data-theme="simple"] .preview-panel.fullscreen {
+            background: #ffffff;
+            backdrop-filter: none;
+        }
+
+        [data-theme="simple"] .preview-panel.fullscreen .preview-header,
+        [data-theme="simple"] .preview-panel.fullscreen .preview-actions {
+            background: #ffffff;
+            backdrop-filter: none;
+        }
+
+        /* Markdown Rendered Content */
+        .preview-markdown {
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+            font-size: 15px;
+            line-height: 1.7;
+            color: var(--text-primary);
+        }
+
+        .preview-markdown h1, .preview-markdown h2, .preview-markdown h3,
+        .preview-markdown h4, .preview-markdown h5, .preview-markdown h6 {
+            margin-top: 1.5em;
+            margin-bottom: 0.5em;
+            font-weight: 600;
+            line-height: 1.3;
+        }
+
+        .preview-markdown h1 { font-size: 1.8em; border-bottom: 1px solid rgba(0, 0, 0, 0.1); padding-bottom: 0.3em; }
+        .preview-markdown h2 { font-size: 1.5em; border-bottom: 1px solid rgba(0, 0, 0, 0.08); padding-bottom: 0.3em; }
+        .preview-markdown h3 { font-size: 1.25em; }
+        .preview-markdown h4 { font-size: 1.1em; }
+        .preview-markdown h5 { font-size: 1em; }
+        .preview-markdown h6 { font-size: 0.9em; color: var(--text-secondary); }
+
+        .preview-markdown p {
+            margin: 0 0 1em 0;
+        }
+
+        .preview-markdown a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        .preview-markdown a:hover {
+            text-decoration: underline;
+        }
+
+        .preview-markdown code {
+            font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+            font-size: 0.9em;
+            background: rgba(0, 0, 0, 0.06);
+            padding: 0.2em 0.4em;
+            border-radius: 4px;
+        }
+
+        .preview-markdown pre {
+            background: rgba(0, 0, 0, 0.04);
+            border-radius: 8px;
+            padding: 16px;
+            overflow-x: auto;
+            margin: 1em 0;
+        }
+
+        .preview-markdown pre code {
+            background: none;
+            padding: 0;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .preview-markdown blockquote {
+            border-left: 4px solid var(--accent);
+            margin: 1em 0;
+            padding: 0.5em 1em;
+            color: var(--text-secondary);
+            background: rgba(0, 0, 0, 0.02);
+            border-radius: 0 8px 8px 0;
+        }
+
+        .preview-markdown ul, .preview-markdown ol {
+            margin: 1em 0;
+            padding-left: 2em;
+        }
+
+        .preview-markdown li {
+            margin: 0.25em 0;
+        }
+
+        .preview-markdown hr {
+            border: none;
+            border-top: 1px solid rgba(0, 0, 0, 0.1);
+            margin: 2em 0;
+        }
+
+        .preview-markdown img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            margin: 1em 0;
+        }
+
+        .preview-markdown table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1em 0;
+        }
+
+        .preview-markdown th, .preview-markdown td {
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            padding: 8px 12px;
+            text-align: left;
+        }
+
+        .preview-markdown th {
+            background: rgba(0, 0, 0, 0.04);
+            font-weight: 600;
+        }
+
+        .preview-markdown tr:nth-child(even) {
+            background: rgba(0, 0, 0, 0.02);
         }
 
         /* Drop Zone */
@@ -2062,8 +2342,21 @@
             <div class="preview-header">
                 <div class="preview-title">
                     <h2 id="preview-filename">filename.txt</h2>
+                    <button class="preview-open-new-window" onclick="openPreviewInNewTab()" title="Open in new window">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                        </svg>
+                    </button>
                     <span id="preview-size">0 KB</span>
                 </div>
+                <button class="preview-fullscreen-btn" onclick="togglePreviewFullscreen()" title="Toggle fullscreen">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" id="preview-fullscreen-expand">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+                    </svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" id="preview-fullscreen-collapse" style="display: none;">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
+                    </svg>
+                </button>
                 <button class="preview-close" onclick="closePreview()">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -2098,6 +2391,12 @@
 
     <!-- Context Menu -->
     <div class="context-menu" id="context-menu">
+        <button class="context-menu-item" id="context-open-new-tab" onclick="openSelectedInNewTab()">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+            </svg>
+            Open in New Tab
+        </button>
         <button class="context-menu-item" onclick="downloadSelected()">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
@@ -2172,6 +2471,9 @@
     <!-- Hidden file input -->
     <input type="file" id="file-input" multiple onchange="handleFileSelect(event)">
 
+    <!-- Marked.js for Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
     <script>
         // Theme Management - 2 themes: simple (light) and glass
         function setTheme(theme) {
@@ -2228,11 +2530,65 @@
                         </div>
                     `;
                 } else if (data.type === 'text') {
-                    const escaped = data.content
-                        .replace(/&/g, '&amp;')
-                        .replace(/</g, '&lt;')
-                        .replace(/>/g, '&gt;');
-                    content.innerHTML = `<pre class="preview-code">${escaped}</pre>`;
+                    // Check if it's a markdown file
+                    const ext = data.name.split('.').pop().toLowerCase();
+                    if (['md', 'markdown'].includes(ext) && typeof marked !== 'undefined') {
+                        // Configure marked for security
+                        marked.setOptions({
+                            breaks: true,
+                            gfm: true
+                        });
+                        // Render markdown
+                        const rendered = marked.parse(data.content);
+                        content.innerHTML = `<div class="preview-markdown">${rendered}</div>`;
+
+                        // Handle link clicks in markdown
+                        content.querySelectorAll('.preview-markdown a').forEach(async link => {
+                            const href = link.getAttribute('href');
+                            // Check if it's a relative link (local file)
+                            if (href && !href.startsWith('http://') && !href.startsWith('https://') && !href.startsWith('mailto:') && !href.startsWith('#')) {
+                                // Resolve the path relative to current file's directory
+                                const currentDir = path.split('/').slice(0, -1).join('/');
+                                const newPath = currentDir ? `${currentDir}/${href}` : href;
+
+                                // Check if file exists
+                                try {
+                                    const checkRes = await fetch(`/api/files/content?path=${encodeURIComponent(newPath)}`);
+                                    if (!checkRes.ok) {
+                                        // File doesn't exist - disable link
+                                        link.style.color = 'var(--text-muted)';
+                                        link.style.textDecoration = 'line-through';
+                                        link.style.cursor = 'not-allowed';
+                                        link.title = 'File not found';
+                                        link.addEventListener('click', (e) => e.preventDefault());
+                                        return;
+                                    }
+                                } catch {
+                                    // Error checking - disable link
+                                    link.style.color = 'var(--text-muted)';
+                                    link.style.cursor = 'not-allowed';
+                                    link.addEventListener('click', (e) => e.preventDefault());
+                                    return;
+                                }
+
+                                // File exists - open in new tab
+                                link.addEventListener('click', (e) => {
+                                    e.preventDefault();
+                                    window.open(`/?preview=${encodeURIComponent(newPath)}`, '_blank');
+                                });
+                            } else if (href && (href.startsWith('http://') || href.startsWith('https://'))) {
+                                // External link - open in new window
+                                link.setAttribute('target', '_blank');
+                                link.setAttribute('rel', 'noopener noreferrer');
+                            }
+                        });
+                    } else {
+                        const escaped = data.content
+                            .replace(/&/g, '&amp;')
+                            .replace(/</g, '&lt;')
+                            .replace(/>/g, '&gt;');
+                        content.innerHTML = `<pre class="preview-code">${escaped}</pre>`;
+                    }
                 } else if (data.type === 'image') {
                     content.innerHTML = `<img class="preview-image" src="${data.url}" alt="${data.name}">`;
                 }
@@ -2249,9 +2605,54 @@
         }
 
         function closePreview() {
-            document.getElementById('preview-panel').classList.remove('show');
+            // If in preview-only mode (opened via "open in new window"), go to home page
+            if (document.documentElement.classList.contains('preview-only-mode')) {
+                window.location.href = '/';
+                return;
+            }
+
+            const panel = document.getElementById('preview-panel');
+            panel.classList.remove('show');
+            panel.classList.remove('fullscreen');
             document.body.classList.remove('preview-open');
             previewPath = null;
+            // Reset fullscreen icons
+            document.getElementById('preview-fullscreen-expand').style.display = 'block';
+            document.getElementById('preview-fullscreen-collapse').style.display = 'none';
+        }
+
+        function togglePreviewFullscreen() {
+            const panel = document.getElementById('preview-panel');
+            const isCurrentlyFullscreen = panel.classList.contains('fullscreen');
+
+            // In preview-only mode, exiting fullscreen should go to home page
+            if (document.documentElement.classList.contains('preview-only-mode') && isCurrentlyFullscreen) {
+                window.location.href = '/';
+                return;
+            }
+
+            const expandIcon = document.getElementById('preview-fullscreen-expand');
+            const collapseIcon = document.getElementById('preview-fullscreen-collapse');
+
+            panel.classList.toggle('fullscreen');
+            const isFullscreen = panel.classList.contains('fullscreen');
+
+            expandIcon.style.display = isFullscreen ? 'none' : 'block';
+            collapseIcon.style.display = isFullscreen ? 'block' : 'none';
+        }
+
+        function openPreviewInNewTab() {
+            if (previewPath) {
+                const url = new URL(window.location.href);
+                url.searchParams.set('preview', previewPath);
+                url.searchParams.set('fullscreen', 'true');
+                // Pass current theme
+                const currentTheme = document.documentElement.getAttribute('data-theme');
+                if (currentTheme) {
+                    url.searchParams.set('theme', currentTheme);
+                }
+                window.open(url.toString(), '_blank');
+            }
         }
 
         function downloadPreviewFile() {
@@ -2674,12 +3075,19 @@
             }
         }
 
-        // Open item (navigate or preview)
+        // Open item (navigate or fullscreen preview)
         function openItem(path, isDir) {
             if (isDir) {
                 loadFiles(path);
             } else {
+                // Open file preview in fullscreen mode
                 openFilePreview(path);
+                setTimeout(() => {
+                    const panel = document.getElementById('preview-panel');
+                    if (panel && !panel.classList.contains('fullscreen')) {
+                        togglePreviewFullscreen();
+                    }
+                }, 50);
             }
         }
 
@@ -2689,6 +3097,15 @@
             selectItem(el, event);
 
             const menu = document.getElementById('context-menu');
+            const openNewTabBtn = document.getElementById('context-open-new-tab');
+
+            // Show "Open in New Tab" only for files, not folders
+            if (selectedItem && !selectedItem.isDir) {
+                openNewTabBtn.style.display = 'flex';
+            } else {
+                openNewTabBtn.style.display = 'none';
+            }
+
             menu.style.left = event.clientX + 'px';
             menu.style.top = event.clientY + 'px';
             menu.classList.add('show');
@@ -2698,6 +3115,14 @@
         document.addEventListener('click', () => {
             document.getElementById('context-menu').classList.remove('show');
         });
+
+        // Open in new tab
+        function openSelectedInNewTab() {
+            if (!selectedItem || selectedItem.isDir) return;
+            const url = new URL(window.location.href);
+            url.searchParams.set('preview', selectedItem.path);
+            window.open(url.toString(), '_blank');
+        }
 
         // Download
         function downloadSelected() {
@@ -3297,12 +3722,22 @@
             }
         }
 
-        // Handle tree item double click (navigate to file browser for folders)
+        // Handle tree item double click (navigate to file browser for folders, fullscreen preview for files)
         function handleTreeDblClick(event, path, isDir) {
             if (isDir) {
                 expandedPaths.add(path);
                 showFileBrowser(path);
                 renderTree();
+            } else {
+                // For files, open preview in fullscreen mode
+                openFilePreview(path);
+                // Small delay to ensure panel is shown before toggling fullscreen
+                setTimeout(() => {
+                    const panel = document.getElementById('preview-panel');
+                    if (panel && !panel.classList.contains('fullscreen')) {
+                        togglePreviewFullscreen();
+                    }
+                }, 50);
             }
         }
 
@@ -3370,7 +3805,7 @@
 
                 const filteredFiles = data.recent_files.filter(f => f.name !== '.gitkeep');
                 container.innerHTML = `<ul class="file-list">${filteredFiles.slice(0, 10).map(f => `
-                    <li class="file-list-item" onclick="openFilePreview('${f.path}')">
+                    <li class="file-list-item" onclick="openFilePreview('${f.path}')" ondblclick="openItem('${f.path}', false)">
                         <div class="file-icon">${getFileIcon(f.name)}</div>
                         <div class="file-info">
                             <div class="name">${f.name}</div>
@@ -3399,7 +3834,7 @@
                         return;
                     }
                     container.innerHTML = `<ul class="file-list">${filteredFiles.slice(0, 10).map(f => `
-                        <li class="file-list-item" onclick="openFilePreview('${f.path}')">
+                        <li class="file-list-item" onclick="openFilePreview('${f.path}')" ondblclick="openItem('${f.path}', false)">
                             <div class="file-icon">${getFileIcon(f.name)}</div>
                             <div class="file-info">
                                 <div class="name">${f.name}</div>
@@ -3824,9 +4259,45 @@
                 loadNotesPreview();
                 initGraph();
                 startAutoRefresh();
+
+                // Check for preview URL parameter
+                handlePreviewUrlParam();
             } else {
                 // D3 not ready yet, retry
                 setTimeout(tryInitDashboard, 100);
+            }
+        }
+
+        // Handle ?preview=path URL parameter to open file preview directly
+        function handlePreviewUrlParam() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const previewFilePath = urlParams.get('preview');
+            const isFullscreenMode = urlParams.get('fullscreen') === 'true';
+
+            if (previewFilePath) {
+                const panel = document.getElementById('preview-panel');
+
+                // If fullscreen mode, add fullscreen class immediately before loading
+                if (isFullscreenMode && panel) {
+                    panel.classList.add('fullscreen');
+                    document.getElementById('preview-fullscreen-expand').style.display = 'none';
+                    document.getElementById('preview-fullscreen-collapse').style.display = 'block';
+                }
+
+                // Open the file preview
+                openFilePreview(previewFilePath);
+
+                // For non-fullscreen mode, still toggle after delay
+                if (!isFullscreenMode) {
+                    setTimeout(() => {
+                        if (panel && !panel.classList.contains('fullscreen')) {
+                            togglePreviewFullscreen();
+                        }
+                    }, 100);
+                }
+
+                // Clean up URL without reloading
+                window.history.replaceState({}, '', window.location.pathname);
             }
         }
 
@@ -4051,15 +4522,30 @@
             }, 50);
         }
 
-        // Close fullscreen on Escape key
+        // Close on Escape key
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
-                const panel = document.querySelector('.graph-panel');
-                if (panel && panel.classList.contains('fullscreen')) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                // In preview-only mode, go to home page
+                if (document.documentElement.classList.contains('preview-only-mode')) {
+                    window.location.href = '/';
+                    return;
+                }
+                // Check preview panel first (higher z-index) - close it entirely
+                const previewPanel = document.getElementById('preview-panel');
+                if (previewPanel && previewPanel.classList.contains('show')) {
+                    closePreview();
+                    return;
+                }
+                // Then check graph panel fullscreen
+                const graphPanel = document.querySelector('.graph-panel');
+                if (graphPanel && graphPanel.classList.contains('fullscreen')) {
                     toggleGraphFullscreen();
                 }
             }
-        });
+        }, true); // Use capture phase to handle first
 
         // Start initialization
         if (document.readyState === 'loading') {
