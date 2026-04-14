@@ -43,17 +43,19 @@ This directory contains pre-built, reusable agent definitions for common use cas
 
 ## Usage
 
-These agent definitions are designed to be read by AI assistants (Claude Code, OpenAI, etc.) and transformed into actual implementations.
+These agent definitions are designed to be used **directly** as subagents in Claude Code, OpenAI, and other AI tools.
 
 ### Quick Start
 
-Simply ask your AI assistant to read an agent file and generate what you need:
+Tell your AI assistant to use an agent definition:
 
 ```
-"Read agents/finance.md and create a Python implementation using the Anthropic SDK"
-"Read agents/research.md and create an MCP tool"
-"Read agents/security.md and create a CLI command"
+"Use agents/finance.md as a subagent to analyze this budget"
+"Spawn a subagent from agents/security.md to review this code"
+"Act as the agent defined in agents/research.md"
 ```
+
+The AI tool will read the markdown file and operate as that specialized agent.
 
 See [HOW_TO_USE.md](HOW_TO_USE.md) for detailed examples.
 
