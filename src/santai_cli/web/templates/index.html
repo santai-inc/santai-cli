@@ -127,6 +127,7 @@
         }
 
         [data-theme="simple"] .preview-close,
+        [data-theme="simple"] .preview-back-btn,
         [data-theme="simple"] .graph-legend,
         [data-theme="simple"] .graph-filter-btn,
         [data-theme="simple"] .graph-fullscreen-btn,
@@ -138,6 +139,7 @@
         }
 
         [data-theme="simple"] .preview-close:hover,
+        [data-theme="simple"] .preview-back-btn:hover,
         [data-theme="simple"] .graph-filter-btn:hover,
         [data-theme="simple"] .graph-fullscreen-btn:hover {
             background: #f1f3f5;
@@ -183,6 +185,18 @@
 
         [data-theme="simple"] body.preview-open .graph-panel.fullscreen .graph-filter-btn.active {
             background: var(--accent);
+        }
+
+        [data-theme="simple"] .graph-cluster-clear-btn {
+            background: transparent;
+            border: 1px solid rgba(0, 0, 0, 0.12);
+            color: var(--text-secondary);
+        }
+
+        [data-theme="simple"] .graph-cluster-clear-btn:hover {
+            background: #f1f3f5;
+            border-color: rgba(0, 0, 0, 0.18);
+            color: var(--text-primary);
         }
 
         [data-theme="simple"] .btn:not(.btn-primary):not(.btn-danger) {
@@ -1691,7 +1705,71 @@
         }
 
         body.preview-open .graph-panel.fullscreen .graph-legend {
-            display: none;
+            display: flex;
+            z-index: 10;
+        }
+
+        /* When legend is floated to body level for z-index escape */
+        .graph-legend.floating-legend {
+            position: fixed;
+            top: 112px;
+            right: 440px;
+            z-index: 1003;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            font-size: 12px;
+            min-width: 112px;
+            background: linear-gradient(135deg,
+                rgba(255, 150, 100, 0.35) 0%,
+                rgba(255, 100, 150, 0.3) 50%,
+                rgba(150, 100, 255, 0.3) 100%
+            );
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            padding: 10px 14px;
+            border-radius: 8px;
+        }
+
+        /* In glass/themed mode, match the default floating legend position */
+        [data-theme="glass"] .graph-legend.floating-legend {
+            right: 424px;
+        }
+
+        [data-theme="simple"] .graph-legend.floating-legend {
+            right: 420px;
+            background: #ffffff;
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        /* When legend is floating, the Clusters button inside it should use warm gradient */
+        .graph-legend.floating-legend .graph-filter-btn-clusters {
+            background: rgba(0, 0, 0, 0.04);
+        }
+
+        .graph-legend.floating-legend .graph-filter-btn-clusters:hover {
+            background: rgba(0, 0, 0, 0.08);
+        }
+
+        .graph-legend.floating-legend .graph-filter-btn-clusters.active {
+            background: linear-gradient(135deg,
+                rgba(255, 150, 100, 0.45) 0%,
+                rgba(255, 100, 150, 0.4) 50%,
+                rgba(150, 100, 255, 0.4) 100%
+            );
+        }
+
+        [data-theme="simple"] .graph-legend.floating-legend .graph-filter-btn-clusters {
+            background: #ffffff;
+        }
+
+        [data-theme="simple"] .graph-legend.floating-legend .graph-filter-btn-clusters.active {
+            background: var(--accent);
+            color: white;
         }
 
         .graph-legend-item {
@@ -1764,20 +1842,14 @@
         }
 
         .graph-filter-btn-clusters {
-            margin-top: 4px;
+            margin-top: 2px;
             align-self: stretch;
             text-align: center;
-            background: linear-gradient(135deg,
-                rgba(100, 200, 255, 0.35) 0%,
-                rgba(100, 255, 200, 0.3) 100%
-            );
+            background: rgba(0, 0, 0, 0.04);
         }
 
         .graph-filter-btn-clusters:hover {
-            background: linear-gradient(135deg,
-                rgba(100, 200, 255, 0.5) 0%,
-                rgba(100, 255, 200, 0.45) 100%
-            );
+            background: rgba(0, 0, 0, 0.08);
         }
 
         .graph-filter-btn-clusters.active {
@@ -1813,21 +1885,31 @@
         .graph-cluster-clear-btn {
             display: block;
             width: 100%;
-            margin-bottom: 4px;
-            padding: 3px 8px;
+            margin-top: 2px;
+            margin-bottom: 0;
+            padding: 2px 10px;
             font-size: 11px;
+            font-weight: 500;
             font-family: inherit;
-            background: rgba(0,0,0,0.06);
-            border: none;
-            border-radius: 4px;
+            background: transparent;
+            border: 1px solid rgba(0, 0, 0, 0.12);
+            border-radius: 6px;
             cursor: pointer;
-            color: var(--text-secondary, #666);
+            color: var(--text-secondary);
             text-align: center;
-            transition: background 0.15s;
+            transition: all 0.15s ease;
+            letter-spacing: 0.02em;
         }
 
         .graph-cluster-clear-btn:hover {
-            background: rgba(0,0,0,0.12);
+            background: rgba(0, 0, 0, 0.06);
+            border-color: rgba(0, 0, 0, 0.2);
+            color: var(--text-primary);
+        }
+
+        .graph-cluster-clear-btn:active {
+            background: rgba(0, 0, 0, 0.1);
+            transform: scale(0.97);
         }
 
         .cluster-file-list {
@@ -1987,9 +2069,39 @@
             border-radius: 0;
             margin: 0;
             padding: 20px;
-            background: var(--bg-secondary);
+            background:
+                linear-gradient(135deg,
+                    rgba(255, 150, 100, 0.4) 0%,
+                    rgba(255, 100, 150, 0.3) 25%,
+                    rgba(150, 100, 255, 0.3) 50%,
+                    rgba(100, 200, 255, 0.4) 75%,
+                    rgba(100, 255, 200, 0.3) 100%
+                ),
+                linear-gradient(45deg, #f8f9fa 0%, #e9ecef 100%);
             backdrop-filter: none;
             overflow: visible;
+        }
+
+        [data-theme="simple"] .graph-panel.fullscreen {
+            background: #f5f5f7;
+        }
+
+        /* Liquid glass theme: keep vivid gradient in the padding gaps, with a glassy white wash over it */
+        [data-theme="glass"] .graph-panel.fullscreen {
+            background:
+                linear-gradient(135deg,
+                    rgba(255, 255, 255, 0.35) 0%,
+                    rgba(255, 255, 255, 0.35) 100%
+                ),
+                linear-gradient(135deg,
+                    rgba(255, 150, 100, 0.4) 0%,
+                    rgba(255, 100, 150, 0.3) 25%,
+                    rgba(150, 100, 255, 0.3) 50%,
+                    rgba(100, 200, 255, 0.4) 75%,
+                    rgba(100, 255, 200, 0.3) 100%
+                ),
+                linear-gradient(45deg, #f8f9fa 0%, #e9ecef 100%);
+            backdrop-filter: none;
         }
 
         .graph-panel.fullscreen .graph-header {
@@ -2060,17 +2172,11 @@
         }
 
         .graph-panel.fullscreen .graph-filter-btn-clusters {
-            background: linear-gradient(135deg,
-                rgba(100, 200, 255, 0.35) 0%,
-                rgba(100, 255, 200, 0.3) 100%
-            );
+            background: rgba(0, 0, 0, 0.04);
         }
 
         .graph-panel.fullscreen .graph-filter-btn-clusters:hover {
-            background: linear-gradient(135deg,
-                rgba(100, 200, 255, 0.5) 0%,
-                rgba(100, 255, 200, 0.45) 100%
-            );
+            background: rgba(0, 0, 0, 0.08);
         }
 
         .graph-panel.fullscreen .graph-filter-btn-clusters.active {
@@ -2081,19 +2187,11 @@
         }
 
         body.preview-open .graph-panel.fullscreen .graph-filter-btn-clusters {
-            background: linear-gradient(135deg,
-                rgba(255, 150, 100, 0.35) 0%,
-                rgba(255, 100, 150, 0.3) 50%,
-                rgba(150, 100, 255, 0.3) 100%
-            );
+            background: rgba(0, 0, 0, 0.04);
         }
 
         body.preview-open .graph-panel.fullscreen .graph-filter-btn-clusters:hover {
-            background: linear-gradient(135deg,
-                rgba(255, 150, 100, 0.45) 0%,
-                rgba(255, 100, 150, 0.4) 50%,
-                rgba(150, 100, 255, 0.4) 100%
-            );
+            background: rgba(0, 0, 0, 0.08);
         }
 
         body.preview-open .graph-panel.fullscreen .graph-filter-btn-clusters.active {
@@ -2137,8 +2235,9 @@
             flex-direction: row;
             z-index: 10;
             background: linear-gradient(135deg,
-                rgba(100, 200, 255, 0.35) 0%,
-                rgba(100, 255, 200, 0.3) 100%
+                rgba(255, 150, 100, 0.35) 0%,
+                rgba(255, 100, 150, 0.3) 50%,
+                rgba(150, 100, 255, 0.3) 100%
             );
             backdrop-filter: blur(8px);
             border-radius: 6px;
@@ -4185,6 +4284,8 @@
             }
 
             svg.selectAll('*').remove();
+            // Reset SVG dimensions before measuring so it doesn't inflate the container
+            svg.attr('width', null).attr('height', null);
 
             const width = container.clientWidth;
             const height = container.clientHeight;
@@ -5258,19 +5359,41 @@
             }
         }
 
+        // Track the original parent so we can return the panel on exit
+        let _graphPanelOriginalParent = null;
+        let _graphPanelNextSibling = null;
+
         function toggleGraphFullscreen() {
             const panel = document.querySelector('.graph-panel');
             const expandIcon = document.getElementById('fullscreen-icon-expand');
             const collapseIcon = document.getElementById('fullscreen-icon-collapse');
 
-            panel.classList.toggle('fullscreen');
             const isFullscreen = panel.classList.contains('fullscreen');
 
-            expandIcon.style.display = isFullscreen ? 'none' : 'block';
-            collapseIcon.style.display = isFullscreen ? 'block' : 'none';
-
-            // Reset edit modes when exiting fullscreen
             if (!isFullscreen) {
+                // Entering fullscreen: move to <body> first, then add class — both in the same frame
+                _graphPanelOriginalParent = panel.parentNode;
+                _graphPanelNextSibling = panel.nextSibling;
+                document.body.appendChild(panel);
+                // Force a reflow so the browser registers the new DOM position before
+                // applying the fullscreen styles, preventing a double-layout flash
+                panel.getBoundingClientRect();
+                panel.classList.add('fullscreen');
+                expandIcon.style.display = 'none';
+                collapseIcon.style.display = 'block';
+            } else {
+                // Exiting fullscreen: remove class first, then restore DOM position — same frame
+                panel.classList.remove('fullscreen');
+                panel.getBoundingClientRect();
+                if (_graphPanelOriginalParent) {
+                    _graphPanelOriginalParent.insertBefore(panel, _graphPanelNextSibling);
+                    _graphPanelOriginalParent = null;
+                    _graphPanelNextSibling = null;
+                }
+                expandIcon.style.display = 'block';
+                collapseIcon.style.display = 'none';
+
+                // Reset edit modes when exiting fullscreen
                 linkMode = false;
                 deleteMode = false;
                 selectedSourceNode = null;
@@ -5279,12 +5402,17 @@
                 updateEditStatus();
             }
 
-            // Re-render graph to fit new size after transition
-            setTimeout(() => {
-                if (window.lastGraphData) {
-                    renderGraph(window.lastGraphData);
+            // Resize SVG to new container dimensions and re-fit zoom — no full re-render,
+            // so the graph content stays visible throughout the transition with no flash
+            requestAnimationFrame(() => {
+                const container = document.querySelector('.graph-container');
+                const svg = d3.select('#graph-svg');
+                if (container && svg) {
+                    svg.attr('width', null).attr('height', null);
+                    svg.attr('width', container.clientWidth).attr('height', container.clientHeight);
                 }
-            }, 50);
+                fitAllNodes(true);
+            });
         }
 
         // Close on Escape key
@@ -5319,6 +5447,57 @@
             // DOM already ready, just wait for D3
             setTimeout(tryInitDashboard, 50);
         }
+
+        // Float/unfloat graph legend so it appears above the preview panel
+        // when the graph is fullscreen and a file preview is open.
+        function updateFloatingLegend() {
+            // Clean up any orphaned floating legends left on body (e.g. after graph re-render)
+            document.querySelectorAll('body > .graph-legend.floating-legend').forEach(orphan => {
+                const container = document.querySelector('.graph-container');
+                // If there's already a legend inside the container, just remove the orphan
+                if (container && container.querySelector('.graph-legend')) {
+                    orphan.remove();
+                }
+            });
+
+            const legend = document.querySelector('.graph-legend');
+            if (!legend) return;
+            const graphFullscreen = document.querySelector('.graph-panel.fullscreen');
+            const previewOpen = document.body.classList.contains('preview-open');
+            if (graphFullscreen && previewOpen) {
+                // Move legend to body level so it escapes the graph panel stacking context
+                if (!legend.classList.contains('floating-legend')) {
+                    legend._originalParent = legend.parentNode;
+                    legend._originalNext = legend.nextSibling;
+                    document.body.appendChild(legend);
+                    legend.classList.add('floating-legend');
+                }
+            } else {
+                // Restore legend to its original position inside .graph-container
+                if (legend.classList.contains('floating-legend') && legend._originalParent) {
+                    legend.classList.remove('floating-legend');
+                    if (legend._originalNext) {
+                        legend._originalParent.insertBefore(legend, legend._originalNext);
+                    } else {
+                        legend._originalParent.appendChild(legend);
+                    }
+                }
+            }
+        }
+
+        // Observe body class changes for preview-open to trigger legend float
+        const _legendObserver = new MutationObserver(() => updateFloatingLegend());
+        _legendObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+
+        // Also hook into graph fullscreen toggle
+        const _origToggleGraphFullscreen = toggleGraphFullscreen;
+        toggleGraphFullscreen = function() {
+            _origToggleGraphFullscreen();
+            setTimeout(updateFloatingLegend, 60);
+            // Run again after the delayed renderGraph (300ms for exit) to clean up
+            // orphaned floating legends created by the re-render.
+            setTimeout(updateFloatingLegend, 400);
+        };
 
         // Scrollbar visibility on scroll (hide after 1s of no scrolling)
         function setupScrollFade(selector) {
