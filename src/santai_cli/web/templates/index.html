@@ -4800,6 +4800,10 @@
             if (window.lastGraphData) {
                 renderGraph(window.lastGraphData);
             }
+            // If all filters were manually deselected (back to show-all), zoom out to fit
+            if (activeDirectoryFilters.size === 0) {
+                setTimeout(() => fitAllNodes(true), 50);
+            }
         }
 
         function clearDirectoryFilter() {
@@ -4826,9 +4830,11 @@
             if (window.lastGraphData) {
                 renderGraph(window.lastGraphData);
             }
+            // If switching back to all, zoom out to fit the whole graph
+            if (filter === 'all') {
+                setTimeout(() => fitAllNodes(true), 50);
+            }
         }
-
-        // ── Cluster naming ────────────────────────────────────────────────────────
 
         // Names are keyed by the lex-first node ID in the cluster — stable across re-renders
         const clusterNames = JSON.parse(localStorage.getItem('santai-cluster-names') || '{}');
@@ -4936,6 +4942,7 @@
             const clearBtn = document.getElementById('cluster-clear-btn');
             if (clearBtn) clearBtn.style.display = activeClusterFilter.size > 0 ? '' : 'none';
             if (activeClusterFilter.size > 0) zoomToSelectedClusters();
+            else fitAllNodes(true);
         }
 
         function clearClusterFilter() {
