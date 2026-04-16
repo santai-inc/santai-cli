@@ -10,7 +10,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from santai_cli.commands import chat, copy, history, init, ui, web
+from santai_cli.commands import chat, copy, history, init, merge, ui, web
 
 
 class _VerboseHelpGroup(typer.core.TyperGroup):
@@ -55,6 +55,7 @@ def _main() -> None:
 app.command(name="init")(init.init)
 app.command(name="copy")(copy.copy)
 app.command(name="chat")(chat.chat)
+app.command(name="merge")(merge.merge)
 app.command(name="history")(history.history)
 app.command(name="ui")(ui.ui)
 app.command(name="web")(web.web)
