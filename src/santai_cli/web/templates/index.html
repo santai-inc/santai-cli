@@ -3518,7 +3518,7 @@
                 return;
             }
 
-            const protectedFilePaths = ['codebases', 'history', 'notes', 'resources', 'AGENTS.md', 'CLAUDE.md', 'README.md', 'rumdl.toml'];
+            const protectedFilePaths = ['codebases', 'history', 'notes', 'resources', 'wiki', 'AGENTS.md', 'CLAUDE.md', 'README.md', 'rumdl.toml'];
             let html = '<div class="file-grid">';
             for (const item of items) {
                 const isProtected = protectedFilePaths.includes(item.path);
@@ -3678,7 +3678,7 @@
         }
 
         // Move item (drag and drop)
-        const protectedPaths = ['codebases', 'history', 'notes', 'resources', 'AGENTS.md', 'CLAUDE.md', 'README.md', 'rumdl.toml'];
+        const protectedPaths = ['codebases', 'history', 'notes', 'resources', 'wiki', 'AGENTS.md', 'CLAUDE.md', 'README.md', 'rumdl.toml'];
         let draggedItem = null;
 
         function isProtectedPath(path) {
@@ -4065,7 +4065,7 @@
             let html = '<li>';
 
             // Check if this is a protected path
-            const protectedPaths = ['codebases', 'history', 'notes', 'resources', 'AGENTS.md', 'CLAUDE.md', 'README.md', 'rumdl.toml'];
+            const protectedPaths = ['codebases', 'history', 'notes', 'resources', 'wiki', 'AGENTS.md', 'CLAUDE.md', 'README.md', 'rumdl.toml'];
             const isProtected = protectedPaths.includes(node.path);
 
             // Tree item

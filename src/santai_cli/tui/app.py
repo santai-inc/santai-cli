@@ -105,6 +105,7 @@ class StatsPanel(Static):
         dir_table.add_row("codebases", str(stats.codebases_count))
         dir_table.add_row("history", str(stats.history_count))
         dir_table.add_row("notes", str(stats.notes_count))
+        dir_table.add_row("wiki", str(stats.wiki_count))
         dir_table.add_row(
             "[bold]Total[/bold]",
             f"[bold]{
@@ -112,6 +113,7 @@ class StatsPanel(Static):
                 + stats.codebases_count
                 + stats.history_count
                 + stats.notes_count
+                + stats.wiki_count
             }[/bold]",
         )
         dir_table.add_row("Size", format_size(stats.total_size_bytes))
@@ -246,6 +248,7 @@ class GraphPanel(Static):
         "codebases": "#06B6D4",  # cyan
         "history": "#b1b9f9",  # lavender
         "notes": "#d77757",  # terracotta
+        "wiki": "#f5c542",  # gold
         "other": "#6b6560",  # warm gray
     }
 
@@ -411,12 +414,12 @@ class GraphPanel(Static):
         lines.append("")
         dirs_present = {n.directory for n in graph_data.nodes}
         legend_parts = []
-        for dir_name in ["resources", "codebases", "history", "notes"]:
+        for dir_name in ["resources", "codebases", "history", "notes", "wiki"]:
             if dir_name in dirs_present:
                 color = self.DIR_COLORS.get(dir_name, self.DIR_COLORS["other"])
                 legend_parts.append(f"[{color}]●[/{color}] {dir_name}")
         for dir_name in dirs_present:
-            if dir_name not in ["resources", "codebases", "history", "notes"]:
+            if dir_name not in ["resources", "codebases", "history", "notes", "wiki"]:
                 color = self.DIR_COLORS.get(dir_name, self.DIR_COLORS["other"])
                 legend_parts.append(f"[{color}]●[/{color}] {dir_name}")
         lines.append(" ".join(legend_parts))
@@ -563,9 +566,10 @@ class MoveFileScreen(ModalScreen):
         Binding("2", "move_2", "codebases"),
         Binding("3", "move_3", "history"),
         Binding("4", "move_4", "notes"),
+        Binding("5", "move_5", "wiki"),
     ]
 
-    DIRS = ["resources", "codebases", "history", "notes"]
+    DIRS = ["resources", "codebases", "history", "notes", "wiki"]
 
     def __init__(self, file_path: Path, project: SantaiProject) -> None:
         super().__init__()
@@ -596,7 +600,7 @@ class MoveFileScreen(ModalScreen):
             marker = " [dim](current)[/dim]" if d == current_dir else ""
             lines.append(f"  [{i}] {d}/{marker}")
         lines.append("")
-        lines.append("[dim]Press 1-4 to move, Esc to cancel[/dim]")
+        lines.append("[dim]Press 1-5 to move, Esc to cancel[/dim]")
         body.update("\n".join(lines))
 
     def _move_to(self, dest_dir: str) -> None:
@@ -629,6 +633,9 @@ class MoveFileScreen(ModalScreen):
 
     def action_move_4(self) -> None:
         self._move_to("notes")
+
+    def action_move_5(self) -> None:
+        self._move_to("wiki")
 
 
 class NoteDetailScreen(ModalScreen):
@@ -1402,11 +1409,12 @@ class GraphFilterScreen(ModalScreen):
         Binding("2", "toggle_2", "codebases"),
         Binding("3", "toggle_3", "history"),
         Binding("4", "toggle_4", "notes"),
+        Binding("5", "toggle_5", "wiki"),
         Binding("a", "select_all", "All"),
         Binding("x", "clear_all", "None"),
     ]
 
-    DIRS = ["resources", "codebases", "history", "notes"]
+    DIRS = ["resources", "codebases", "history", "notes", "wiki"]
 
     def __init__(
         self, project: SantaiProject, current_filter: set[str] | None = None
@@ -1492,7 +1500,7 @@ class GraphFilterScreen(ModalScreen):
         total_count = sum(self._dir_counts.values())
         lines.append(f"  Showing: [bold]{selected_count}[/bold] of {total_count} files")
         lines.append("")
-        lines.append("  [dim]1-4 = toggle directory · a = all · x = none[/dim]")
+        lines.append("  [dim]1-5 = toggle directory · a = all · x = none[/dim]")
         lines.append("  [dim]Enter = apply · Esc = cancel[/dim]")
 
         body.update("\n".join(lines))
@@ -1515,6 +1523,9 @@ class GraphFilterScreen(ModalScreen):
 
     def action_toggle_4(self) -> None:
         self._toggle_dir("notes")
+
+    def action_toggle_5(self) -> None:
+        self._toggle_dir("wiki")
 
     def action_select_all(self) -> None:
         self._selected = set(self.DIRS) | self._available_dirs

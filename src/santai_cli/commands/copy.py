@@ -84,7 +84,7 @@ def copy(
         console.print(f"[red]Error: '{source}' is not a valid Santai project.[/red]")
         console.print(
             "[yellow]A Santai project must have resources/, codebases/, history/, "
-            "and notes/ directories.[/yellow]"
+            "notes/, and wiki/ directories.[/yellow]"
         )
         raise typer.Exit(1)
 
