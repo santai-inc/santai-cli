@@ -114,11 +114,7 @@ def is_santai_project(path: Path) -> bool:
     if not path.is_dir():
         return False
 
-    for dir_name in SANTAI_DIRS:
-        if not (path / dir_name).is_dir():
-            return False
-
-    return True
+    return all((path / dir_name).is_dir() for dir_name in SANTAI_DIRS)
 
 
 def get_project(path: Path | None = None) -> SantaiProject | None:
@@ -304,7 +300,8 @@ def get_notes(project: SantaiProject) -> list[NoteEntry]:
             stat = file_path.stat()
             content = file_path.read_text(encoding="utf-8")
 
-            # Generate title from filename (remove extension, replace hyphens/underscores)
+            # Generate title from filename
+            # (remove extension, replace hyphens/underscores)
             title = file_path.stem.replace("-", " ").replace("_", " ").title()
 
             entries.append(
