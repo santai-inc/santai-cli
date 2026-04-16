@@ -2716,6 +2716,8 @@
             // File previews use the new-window button; cluster previews use pencil
             document.getElementById('preview-open-new-window-btn').style.display = '';
             document.getElementById('preview-cluster-rename-btn').style.display = 'none';
+            // Show file action buttons for file previews
+            document.querySelector('.preview-actions').style.display = '';
 
             // Show panel with loading state
             panel.classList.add('show');
@@ -5048,6 +5050,8 @@
             document.getElementById('preview-open-new-window-btn').style.display = 'none';
             document.getElementById('preview-cluster-rename-btn').style.display =
                 isIsolated ? 'none' : '';
+            // Hide file action buttons in cluster list view
+            document.querySelector('.preview-actions').style.display = 'none';
             // Store active cluster id for rename function
             window.activeClusterId = isIsolated ? null : clusterId;
 
