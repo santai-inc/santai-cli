@@ -1057,6 +1057,38 @@
             stroke-width: 2;
         }
 
+        .preview-back-btn {
+            background: linear-gradient(135deg,
+                rgba(100, 200, 255, 0.35) 0%,
+                rgba(100, 255, 200, 0.3) 100%
+            );
+            backdrop-filter: blur(8px);
+            border: none;
+            border-radius: 8px;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: var(--transition-quick);
+            flex-shrink: 0;
+            margin-right: 4px;
+        }
+
+        .preview-back-btn:hover {
+            background: linear-gradient(135deg,
+                rgba(100, 200, 255, 0.45) 0%,
+                rgba(100, 255, 200, 0.4) 100%
+            );
+        }
+
+        .preview-back-btn svg {
+            width: 18px;
+            height: 18px;
+            stroke-width: 2;
+        }
+
         .preview-close {
             background: linear-gradient(135deg,
                 rgba(100, 200, 255, 0.35) 0%,
@@ -1488,6 +1520,7 @@
 
         .dashboard-panel.graph-panel {
             grid-column: 1 / -1;
+            overflow: visible;
         }
 
         .panel-content {
@@ -1643,9 +1676,10 @@
             top: 12px;
             right: 0;
             display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
+            flex-direction: column;
+            gap: 4px;
             font-size: 11px;
+            min-width: 112px;
             background: linear-gradient(135deg,
                 rgba(100, 200, 255, 0.35) 0%,
                 rgba(100, 255, 200, 0.3) 100%
@@ -1656,13 +1690,8 @@
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
         }
 
-        /* Fullscreen + preview open: legend shifts to warm color area */
         body.preview-open .graph-panel.fullscreen .graph-legend {
-            background: linear-gradient(135deg,
-                rgba(255, 150, 100, 0.35) 0%,
-                rgba(255, 100, 150, 0.3) 50%,
-                rgba(150, 100, 255, 0.3) 100%
-            );
+            display: none;
         }
 
         .graph-legend-item {
@@ -1732,6 +1761,117 @@
             );
             color: var(--text-primary);
             border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+
+        .graph-filter-btn-clusters {
+            margin-top: 4px;
+            align-self: stretch;
+            text-align: center;
+            background: linear-gradient(135deg,
+                rgba(100, 200, 255, 0.35) 0%,
+                rgba(100, 255, 200, 0.3) 100%
+            );
+        }
+
+        .graph-filter-btn-clusters:hover {
+            background: linear-gradient(135deg,
+                rgba(100, 200, 255, 0.5) 0%,
+                rgba(100, 255, 200, 0.45) 100%
+            );
+        }
+
+        .graph-filter-btn-clusters.active {
+            background: linear-gradient(135deg,
+                rgba(100, 200, 255, 0.65) 0%,
+                rgba(100, 255, 200, 0.6) 100%
+            );
+        }
+
+        .graph-cluster-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 2px 4px;
+            border-radius: 4px;
+            transition: var(--transition-quick);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .graph-cluster-legend-item:hover {
+            background: rgba(0, 0, 0, 0.05);
+        }
+
+        .graph-cluster-legend-item.active {
+            background: rgba(62, 180, 137, 0.15);
+            color: var(--text-primary);
+        }
+
+        .graph-cluster-clear-btn {
+            display: block;
+            width: 100%;
+            margin-bottom: 4px;
+            padding: 3px 8px;
+            font-size: 11px;
+            font-family: inherit;
+            background: rgba(0,0,0,0.06);
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            color: var(--text-secondary, #666);
+            text-align: center;
+            transition: background 0.15s;
+        }
+
+        .graph-cluster-clear-btn:hover {
+            background: rgba(0,0,0,0.12);
+        }
+
+        .cluster-file-list {
+            list-style: none;
+            padding: 8px 0;
+            margin: 0;
+        }
+
+        .cluster-file-list li {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 7px 20px;
+            cursor: pointer;
+            transition: background 0.15s;
+            font-size: 13px;
+            color: var(--text-primary);
+            border-radius: 6px;
+            margin: 1px 8px;
+        }
+
+        .cluster-file-list li:hover {
+            background: rgba(0, 0, 0, 0.05);
+        }
+
+        .cluster-file-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .cluster-file-dir {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-left: auto;
+        }
+
+        .cluster-preview-header {
+            padding: 12px 20px 8px;
+            font-size: 12px;
+            color: var(--text-muted);
+            border-bottom: 1px solid rgba(0,0,0,0.06);
+            margin-bottom: 4px;
         }
 
         .graph-legend-color {
@@ -1849,6 +1989,7 @@
             padding: 20px;
             background: var(--bg-secondary);
             backdrop-filter: none;
+            overflow: visible;
         }
 
         .graph-panel.fullscreen .graph-header {
@@ -1918,6 +2059,51 @@
             border: 1px solid rgba(255, 255, 255, 0.5);
         }
 
+        .graph-panel.fullscreen .graph-filter-btn-clusters {
+            background: linear-gradient(135deg,
+                rgba(100, 200, 255, 0.35) 0%,
+                rgba(100, 255, 200, 0.3) 100%
+            );
+        }
+
+        .graph-panel.fullscreen .graph-filter-btn-clusters:hover {
+            background: linear-gradient(135deg,
+                rgba(100, 200, 255, 0.5) 0%,
+                rgba(100, 255, 200, 0.45) 100%
+            );
+        }
+
+        .graph-panel.fullscreen .graph-filter-btn-clusters.active {
+            background: linear-gradient(135deg,
+                rgba(100, 200, 255, 0.65) 0%,
+                rgba(100, 255, 200, 0.6) 100%
+            );
+        }
+
+        body.preview-open .graph-panel.fullscreen .graph-filter-btn-clusters {
+            background: linear-gradient(135deg,
+                rgba(255, 150, 100, 0.35) 0%,
+                rgba(255, 100, 150, 0.3) 50%,
+                rgba(150, 100, 255, 0.3) 100%
+            );
+        }
+
+        body.preview-open .graph-panel.fullscreen .graph-filter-btn-clusters:hover {
+            background: linear-gradient(135deg,
+                rgba(255, 150, 100, 0.45) 0%,
+                rgba(255, 100, 150, 0.4) 50%,
+                rgba(150, 100, 255, 0.4) 100%
+            );
+        }
+
+        body.preview-open .graph-panel.fullscreen .graph-filter-btn-clusters.active {
+            background: linear-gradient(135deg,
+                rgba(255, 150, 100, 0.6) 0%,
+                rgba(255, 100, 150, 0.55) 50%,
+                rgba(150, 100, 255, 0.55) 100%
+            );
+        }
+
         /* Graph link editing controls - only visible in fullscreen */
         .graph-edit-controls {
             display: none;
@@ -1945,8 +2131,8 @@
         /* Graph zoom controls */
         .graph-zoom-controls {
             position: absolute;
-            top: 58px;
-            right: 0;
+            top: 50px;
+            left: 12px;
             display: flex;
             flex-direction: row;
             z-index: 10;
@@ -2000,8 +2186,9 @@
         }
 
         .graph-panel.fullscreen .graph-zoom-controls {
-            top: 70px;
-            right: 16px;
+            top: 62px;
+            left: 16px;
+            right: auto;
         }
 
         .graph-panel.fullscreen .graph-zoom-btn {
@@ -2263,22 +2450,28 @@
                     <div class="graph-container">
                         <svg id="graph-svg"></svg>
                         <div class="graph-legend">
-                            <div class="graph-legend-item" data-directory="resources" onclick="toggleDirectoryFilter('resources')">
-                                <span class="graph-legend-color" style="background: #60a5fa;"></span>
-                                <span>resources</span>
+                            <div id="graph-dir-legend">
+                                <div class="graph-legend-item" data-directory="resources" onclick="toggleDirectoryFilter('resources')">
+                                    <span class="graph-legend-color" style="background: #60a5fa;"></span>
+                                    <span>resources</span>
+                                </div>
+                                <div class="graph-legend-item" data-directory="codebases" onclick="toggleDirectoryFilter('codebases')">
+                                    <span class="graph-legend-color" style="background: #a855f7;"></span>
+                                    <span>codebases</span>
+                                </div>
+                                <div class="graph-legend-item" data-directory="history" onclick="toggleDirectoryFilter('history')">
+                                    <span class="graph-legend-color" style="background: #f87171;"></span>
+                                    <span>history</span>
+                                </div>
+                                <div class="graph-legend-item" data-directory="notes" onclick="toggleDirectoryFilter('notes')">
+                                    <span class="graph-legend-color" style="background: #fbbf24;"></span>
+                                    <span>notes</span>
+                                </div>
+                                <button class="graph-cluster-clear-btn" id="dir-clear-btn" style="display:none;" onclick="clearDirectoryFilter()">Clear</button>
                             </div>
-                            <div class="graph-legend-item" data-directory="codebases" onclick="toggleDirectoryFilter('codebases')">
-                                <span class="graph-legend-color" style="background: #a855f7;"></span>
-                                <span>codebases</span>
-                            </div>
-                            <div class="graph-legend-item" data-directory="history" onclick="toggleDirectoryFilter('history')">
-                                <span class="graph-legend-color" style="background: #f87171;"></span>
-                                <span>history</span>
-                            </div>
-                            <div class="graph-legend-item" data-directory="notes" onclick="toggleDirectoryFilter('notes')">
-                                <span class="graph-legend-color" style="background: #fbbf24;"></span>
-                                <span>notes</span>
-                            </div>
+                            <div id="graph-cluster-legend" style="display:none;"></div>
+                            <button class="graph-cluster-clear-btn" id="cluster-clear-btn" style="display:none;" onclick="clearClusterFilter()">Clear</button>
+                            <button class="graph-filter-btn graph-filter-btn-clusters" id="cluster-mode-btn" onclick="toggleClusterMode()" style="display:none;">Clusters</button>
                         </div>
                         <div class="graph-filter-controls">
                             <button class="graph-filter-btn active" data-filter="all" onclick="setConnectionFilter('all')">All</button>
@@ -2340,11 +2533,21 @@
         <!-- File Preview Panel -->
         <aside class="preview-panel glass" id="preview-panel">
             <div class="preview-header">
+                <button class="preview-back-btn" id="preview-back-btn" onclick="goBackToCluster()" style="display:none;" title="Back to cluster">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                    </svg>
+                </button>
                 <div class="preview-title">
                     <h2 id="preview-filename">filename.txt</h2>
-                    <button class="preview-open-new-window" onclick="openPreviewInNewTab()" title="Open in new window">
+                    <button class="preview-open-new-window" id="preview-open-new-window-btn" onclick="openPreviewInNewTab()" title="Open in new window">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                        </svg>
+                    </button>
+                    <button class="preview-open-new-window" id="preview-cluster-rename-btn" onclick="startClusterRename()" title="Rename cluster" style="display:none;">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                         </svg>
                     </button>
                     <span id="preview-size">0 KB</span>
@@ -2499,12 +2702,22 @@
         let selectedItem = null;
         let files = [];
         let previewPath = null;
+        let previewReturnClusterId = null; // set when a file is opened from a cluster list
 
         // File Preview Functions
         async function openFilePreview(path) {
             previewPath = path;
             const panel = document.getElementById('preview-panel');
             const content = document.getElementById('preview-content');
+
+            // Show or hide the back-to-cluster button
+            document.getElementById('preview-back-btn').style.display =
+                previewReturnClusterId !== null ? 'flex' : 'none';
+            // File previews use the new-window button; cluster previews use pencil
+            document.getElementById('preview-open-new-window-btn').style.display = '';
+            document.getElementById('preview-cluster-rename-btn').style.display = 'none';
+            // Show file action buttons for file previews
+            document.querySelector('.preview-actions').style.display = '';
 
             // Show panel with loading state
             panel.classList.add('show');
@@ -2616,6 +2829,11 @@
             panel.classList.remove('fullscreen');
             document.body.classList.remove('preview-open');
             previewPath = null;
+            previewReturnClusterId = null;
+            window.activeClusterId = null;
+            document.getElementById('preview-back-btn').style.display = 'none';
+            document.getElementById('preview-open-new-window-btn').style.display = '';
+            document.getElementById('preview-cluster-rename-btn').style.display = 'none';
             // Reset fullscreen icons
             document.getElementById('preview-fullscreen-expand').style.display = 'block';
             document.getElementById('preview-fullscreen-collapse').style.display = 'none';
@@ -3957,6 +4175,15 @@
             const tooltip = document.getElementById('graph-tooltip');
             const statsEl = document.getElementById('graph-stats');
 
+            // Save previous node positions so re-renders don't explode from scratch
+            const prevPositions = new Map();
+            if (window.currentSimulation) {
+                window.currentSimulation.nodes().forEach(n => {
+                    prevPositions.set(n.id, { x: n.x, y: n.y });
+                });
+                window.currentSimulation.stop();
+            }
+
             svg.selectAll('*').remove();
 
             const width = container.clientWidth;
@@ -4007,6 +4234,36 @@
                 linkMap.get(sourceId).add(targetId);
                 linkMap.get(targetId).add(sourceId);
             });
+
+            // Always keep a full node map available for cluster preview lookups
+            window.lastFullNodeMap = new Map(data.nodes.map(n => [n.id, n]));
+
+            // Always compute connected components — needed for separation force and
+            // cluster button visibility, regardless of whether color mode is on.
+            {
+                const result = computeClusters(data.nodes, linkMap);
+                clusterMap = result.nodeToCluster;
+                clusterColors = result.colors;
+                clusterNodes = result.nodesByCluster;
+                rebuildClusterDisplayNames();
+            }
+
+            // Show the Clusters button only when there are ≥2 multi-node clusters
+            {
+                let linkedClusterCount = 0;
+                clusterNodes.forEach(nodeIds => { if (nodeIds.length > 1) linkedClusterCount++; });
+                const clusterBtn = document.getElementById('cluster-mode-btn');
+                if (linkedClusterCount < 2) {
+                    clusterBtn.style.display = 'none';
+                    if (colorByCluster) {
+                        colorByCluster = false;
+                        clusterBtn.classList.remove('active');
+                    }
+                } else {
+                    clusterBtn.style.display = '';
+                }
+                updateClusterLegend();
+            }
 
             // Apply directory filter - identify primary nodes
             let primaryNodeIds = new Set();
@@ -4062,7 +4319,10 @@
                 };
             });
 
-            const nodes = filteredNodes.map(n => ({...n}));
+            const nodes = filteredNodes.map(n => {
+                const prev = prevPositions.get(n.id);
+                return prev ? { ...n, x: prev.x, y: prev.y } : { ...n };
+            });
 
             statsEl.textContent = `${nodes.length} files, ${links.length} links`;
 
@@ -4084,14 +4344,76 @@
 
             // Add double-click to reset zoom
             svg.on('dblclick.zoom', () => {
-                svg.transition().duration(300).call(zoom.transform, d3.zoomIdentity);
+                fitAllNodes(true);
             });
 
+            // Pre-compute degree so forces can scale with connectivity
+            nodes.forEach(n => {
+                n.degree = linkMap.has(n.id) ? linkMap.get(n.id).size : 0;
+            });
+
+            // Use a lower starting alpha when we have previous positions — nodes are
+            // already close to equilibrium so a gentle nudge is all that's needed.
+            // Custom force: push overlapping clusters apart by treating each cluster
+            // as a circle (centroid + radius). Prevents clusters from drifting into
+            // each other when they have no linking edges between them.
+            function clusterSeparationForce(alpha) {
+                // Build centroid + radius per cluster from current node positions
+                const info = new Map();
+                for (const n of nodes) {
+                    const cid = clusterMap.get(n.id);
+                    if (cid === undefined) continue;
+                    if (!info.has(cid)) info.set(cid, { x: 0, y: 0, count: 0, r: 0, nodes: [] });
+                    const c = info.get(cid);
+                    c.x += n.x; c.y += n.y; c.count++; c.nodes.push(n);
+                }
+                info.forEach(c => { c.x /= c.count; c.y /= c.count; });
+                info.forEach(c => {
+                    for (const n of c.nodes) {
+                        const d = Math.sqrt((n.x - c.x) ** 2 + (n.y - c.y) ** 2);
+                        if (d > c.r) c.r = d;
+                    }
+                    c.r += 50; // padding gap between clusters
+                });
+
+                const ids = [...info.keys()];
+                for (let i = 0; i < ids.length; i++) {
+                    for (let j = i + 1; j < ids.length; j++) {
+                        const a = info.get(ids[i]);
+                        const b = info.get(ids[j]);
+                        const dx = b.x - a.x;
+                        const dy = b.y - a.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy) || 0.01;
+                        const minDist = a.r + b.r;
+                        if (dist < minDist) {
+                            // Move each cluster's centroid by half the overlap — translate
+                            // every node in the cluster by the same amount (rigid body move).
+                            const overlap = (minDist - dist) / dist;
+                            const fx = dx * overlap * alpha * 1.5;
+                            const fy = dy * overlap * alpha * 1.5;
+                            for (const n of a.nodes) { n.x -= fx * 0.5; n.y -= fy * 0.5; }
+                            for (const n of b.nodes) { n.x += fx * 0.5; n.y += fy * 0.5; }
+                        }
+                    }
+                }
+            }
+
+            const hasHistory = prevPositions.size > 0;
             const simulation = d3.forceSimulation(nodes)
-                .force('link', d3.forceLink(links).id(d => d.id).distance(80))
-                .force('charge', d3.forceManyBody().strength(-25))
-                .force('center', d3.forceCenter(width / 2, height / 2))
-                .force('collision', d3.forceCollide().radius(12));
+                .alpha(hasHistory ? 0.15 : 0.4)
+                .alphaDecay(0.04)
+                .force('link', d3.forceLink(links).id(d => d.id)
+                    .distance(d => 80 + (d.source.degree + d.target.degree) * 6)
+                    .strength(0.5))
+                .force('charge', d3.forceManyBody()
+                    .strength(d => -80 - d.degree * 25)
+                    .distanceMax(500))
+                .force('x', d3.forceX(width / 2).strength(d => d.degree === 0 ? 0.10 : 0.02))
+                .force('y', d3.forceY(height / 2).strength(d => d.degree === 0 ? 0.10 : 0.02))
+                .force('collision', d3.forceCollide().radius(d => Math.max(18, 9 + d.name.length * 2)))
+                .force('clusterSeparation', clusterSeparationForce);
+
+            window.currentSimulation = simulation;
 
             // Soft shadow for polished look
             const defs = g.append('defs');
@@ -4176,13 +4498,19 @@
                         handleNodeClickForLinking(event, d);
                     } else if (!deleteMode) {
                         event.stopPropagation();
-                        openFilePreview(d.id);
+                        if (colorByCluster) {
+                            openClusterPreview(clusterMap.get(d.id));
+                        } else {
+                            openFilePreview(d.id);
+                        }
                     }
                 });
 
             node.append('circle')
                 .attr('r', 9)
-                .attr('fill', d => dirColors[d.directory] || dirColors.other)
+                .attr('fill', d => colorByCluster
+                    ? (clusterColors[clusterMap.get(d.id)] || '#94a3b8')
+                    : (dirColors[d.directory] || dirColors.other))
                 .attr('opacity', d => d.isSecondary ? 0.35 : 1)
                 .attr('filter', 'url(#node-glow)');
 
@@ -4191,6 +4519,10 @@
                 .attr('dy', 4)
                 .attr('opacity', d => d.isSecondary ? 0.4 : 1)
                 .text(d => d.name.length > 20 ? d.name.slice(0, 17) + '...' : d.name);
+
+            // Store selections for cluster filter to mutate without re-render
+            window.graphNodeSelection = node;
+            window.graphLinkSelection = link;
 
             simulation.on('tick', () => {
                 link
@@ -4201,6 +4533,32 @@
 
                 node.attr('transform', d => `translate(${d.x},${d.y})`);
             });
+
+            // Pre-tick to get stable positions before first paint, avoiding jarring zoom jump
+            simulation.stop();
+            const preTicks = hasHistory ? 20 : 150;
+            for (let i = 0; i < preTicks; i++) simulation.tick();
+            link.attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+                .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+            node.attr('transform', d => `translate(${d.x},${d.y})`);
+
+            // Set initial zoom based on mode
+            const isFullscreen = document.querySelector('.graph-panel')?.classList.contains('fullscreen');
+            if (isFullscreen) {
+                fitAllNodes(false);
+            } else {
+                // Moderate zoom centered on the simulation's gravity center
+                svg.call(zoom.transform,
+                    d3.zoomIdentity
+                        .translate(width / 2, height / 2)
+                        .scale(0.75)
+                        .translate(-width / 2, -height / 2)
+                );
+            }
+            simulation.restart();
+
+            // Restore cluster filter dimming after re-render
+            if (activeClusterFilter.size > 0) applyClusterFilter();
 
             function dragstarted(event) {
                 if (!event.active) simulation.alphaTarget(0.3).restart();
@@ -4310,6 +4668,12 @@
         // Graph filter state
         let activeDirectoryFilters = new Set(); // Empty means show all
         let connectionFilter = 'all'; // 'all', 'linked', 'unlinked'
+        let colorByCluster = false;
+        let activeClusterFilter = new Set(); // set of clusterIds; empty = show all
+        let clusterMap = new Map();    // nodeId -> clusterId (index)
+        let clusterColors = {};        // clusterId -> hex color
+        let clusterNodes = new Map();  // clusterId -> [nodeIds]
+        let clusterDisplayNames = new Map(); // clusterId -> deduped display name
 
         function toggleDirectoryFilter(directory) {
             const item = document.querySelector(`.graph-legend-item[data-directory="${directory}"]`);
@@ -4329,21 +4693,413 @@
                     el.classList.remove('dimmed');
                 }
             });
+            const dirClearBtn = document.getElementById('dir-clear-btn');
+            if (dirClearBtn) dirClearBtn.style.display = activeDirectoryFilters.size > 0 ? '' : 'none';
             // Re-render graph with filters
             if (window.lastGraphData) {
                 renderGraph(window.lastGraphData);
             }
         }
 
+        function clearDirectoryFilter() {
+            activeDirectoryFilters.clear();
+            document.querySelectorAll('.graph-legend-item').forEach(el => el.classList.remove('active', 'dimmed'));
+            const dirClearBtn = document.getElementById('dir-clear-btn');
+            if (dirClearBtn) dirClearBtn.style.display = 'none';
+            if (window.lastGraphData) renderGraph(window.lastGraphData);
+        }
+
         function setConnectionFilter(filter) {
             connectionFilter = filter;
-            document.querySelectorAll('.graph-filter-btn').forEach(btn => {
+            // Only toggle the connection filter buttons (not the Clusters button)
+            document.querySelectorAll('.graph-filter-btn[data-filter]').forEach(btn => {
                 btn.classList.toggle('active', btn.dataset.filter === filter);
             });
+            // Clusters mode is meaningless on Unlinked — turn it off
+            if (filter === 'unlinked' && colorByCluster) {
+                colorByCluster = false;
+                activeClusterFilter = new Set();
+                document.getElementById('cluster-mode-btn').classList.remove('active');
+                updateClusterLegend();
+            }
             if (window.lastGraphData) {
                 renderGraph(window.lastGraphData);
             }
         }
+
+        // ── Cluster naming ────────────────────────────────────────────────────────
+
+        // Names are keyed by the lex-first node ID in the cluster — stable across re-renders
+        const clusterNames = JSON.parse(localStorage.getItem('santai-cluster-names') || '{}');
+
+        function getClusterKey(clusterId) {
+            const nodeIds = clusterNodes.get(clusterId) || [];
+            return nodeIds.slice().sort()[0] || String(clusterId);
+        }
+
+        // Raw suggestion for a single cluster (may duplicate across clusters)
+        function suggestClusterName(clusterId) {
+            const nodeIds = clusterNodes.get(clusterId) || [];
+            if (!nodeIds.length) return `Cluster ${clusterId + 1}`;
+            const nodeMap = window.lastFullNodeMap || new Map();
+            const nodes = nodeIds.map(id => nodeMap.get(id)).filter(Boolean);
+            const dirs = new Set(nodes.map(n => n.directory));
+            if (dirs.size === 1) return [...dirs][0];
+            const names = nodes.slice(0, 2)
+                .map(n => n.name.replace(/\.[^.]+$/, ''))
+                .filter(Boolean);
+            return names.join(' · ').slice(0, 22) || `Cluster ${clusterId + 1}`;
+        }
+
+        // Build deduped display names for all multi-node clusters at once
+        function rebuildClusterDisplayNames() {
+            clusterDisplayNames = new Map();
+            const seen = new Map(); // base name -> count of auto-names used
+            const ids = [];
+            clusterNodes.forEach((nodeIds, cid) => { if (nodeIds.length > 1) ids.push(cid); });
+            ids.sort((a, b) => a - b);
+            for (const cid of ids) {
+                const saved = clusterNames[getClusterKey(cid)];
+                if (saved) { clusterDisplayNames.set(cid, saved); continue; }
+                const base = suggestClusterName(cid);
+                if (!seen.has(base)) {
+                    seen.set(base, 1);
+                    clusterDisplayNames.set(cid, base);
+                } else {
+                    const n = seen.get(base) + 1;
+                    seen.set(base, n);
+                    clusterDisplayNames.set(cid, `${base} ${n}`);
+                }
+            }
+        }
+
+        function getClusterDisplayName(clusterId) {
+            return clusterDisplayNames.get(clusterId) || suggestClusterName(clusterId);
+        }
+
+        function updateClusterLegend() {
+            const dirEl = document.getElementById('graph-dir-legend');
+            const clusterEl = document.getElementById('graph-cluster-legend');
+            if (!dirEl || !clusterEl) return;
+
+            if (!colorByCluster) {
+                dirEl.style.display = '';
+                clusterEl.style.display = 'none';
+                clusterEl.innerHTML = '';
+                const clusterClearBtn = document.getElementById('cluster-clear-btn');
+                if (clusterClearBtn) clusterClearBtn.style.display = 'none';
+                // Restore dir clear button visibility
+                const dirClearBtn = document.getElementById('dir-clear-btn');
+                if (dirClearBtn) dirClearBtn.style.display = activeDirectoryFilters.size > 0 ? '' : 'none';
+                return;
+            }
+
+            dirEl.style.display = 'none';
+            clusterEl.innerHTML = '';
+
+            const entries = [];
+            clusterNodes.forEach((nodeIds, cid) => {
+                if (nodeIds.length > 1) {
+                    entries.push({ cid, color: clusterColors[cid] || '#94a3b8', name: getClusterDisplayName(cid) });
+                }
+            });
+            entries.sort((a, b) => a.cid - b.cid);
+
+            entries.forEach(({ cid, color, name }) => {
+                const item = document.createElement('div');
+                item.className = 'graph-cluster-legend-item' + (activeClusterFilter.has(cid) ? ' active' : '');
+                item.dataset.clusterId = cid;
+                item.title = name;
+                item.onclick = () => toggleClusterFilter(cid);
+                item.innerHTML = `
+                    <span class="graph-legend-color" style="background:${color};flex-shrink:0;"></span>
+                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name}</span>`;
+                clusterEl.appendChild(item);
+            });
+
+            clusterEl.style.display = entries.length ? '' : 'none';
+        }
+
+        // ── Cluster filtering ─────────────────────────────────────────────────────
+
+        function toggleClusterFilter(cid) {
+            if (activeClusterFilter.has(cid)) {
+                activeClusterFilter.delete(cid);
+            } else {
+                activeClusterFilter.add(cid);
+            }
+            applyClusterFilter();
+            document.querySelectorAll('.graph-cluster-legend-item').forEach(el => {
+                el.classList.toggle('active', activeClusterFilter.has(Number(el.dataset.clusterId)));
+            });
+            const clearBtn = document.getElementById('cluster-clear-btn');
+            if (clearBtn) clearBtn.style.display = activeClusterFilter.size > 0 ? '' : 'none';
+            if (activeClusterFilter.size > 0) zoomToSelectedClusters();
+        }
+
+        function clearClusterFilter() {
+            activeClusterFilter.clear();
+            applyClusterFilter();
+            document.querySelectorAll('.graph-cluster-legend-item').forEach(el => el.classList.remove('active'));
+            const clearBtn = document.getElementById('cluster-clear-btn');
+            if (clearBtn) clearBtn.style.display = 'none';
+            fitAllNodes(true);
+        }
+
+        function applyClusterFilter() {
+            const nodeSel = window.graphNodeSelection;
+            const linkSel = window.graphLinkSelection;
+            if (!nodeSel) return;
+            const none = activeClusterFilter.size === 0;
+            nodeSel.attr('opacity', d => {
+                if (none) return d.isSecondary ? 0.35 : 1;
+                return activeClusterFilter.has(clusterMap.get(d.id)) ? 1 : 0.12;
+            });
+            nodeSel.select('text').attr('opacity', d => {
+                if (none) return d.isSecondary ? 0.4 : 1;
+                return activeClusterFilter.has(clusterMap.get(d.id)) ? 1 : 0.08;
+            });
+            if (linkSel) {
+                linkSel.attr('opacity', d => {
+                    if (none) return d.isSecondary ? 0.35 : 1;
+                    const sid = typeof d.source === 'string' ? d.source : d.source.id;
+                    const tid = typeof d.target === 'string' ? d.target : d.target.id;
+                    return activeClusterFilter.has(clusterMap.get(sid)) &&
+                           activeClusterFilter.has(clusterMap.get(tid)) ? 1 : 0.05;
+                });
+            }
+        }
+
+        function fitAllNodes(animated = false) {
+            if (!window.currentSimulation || !window.graphSvg || !window.graphZoom) return;
+            const allNodes = window.currentSimulation.nodes() || [];
+            if (!allNodes.length) return;
+            const xs = allNodes.map(n => n.x);
+            const ys = allNodes.map(n => n.y);
+            const minX = Math.min(...xs), maxX = Math.max(...xs);
+            const minY = Math.min(...ys), maxY = Math.max(...ys);
+            const container = document.querySelector('.graph-container');
+            const cw = container.clientWidth, ch = container.clientHeight;
+            const pad = 60;
+            const scaleX = (cw - pad * 2) / Math.max(maxX - minX, 40);
+            const scaleY = (ch - pad * 2) / Math.max(maxY - minY, 40);
+            const scale = Math.min(scaleX, scaleY, 2);
+            const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+            const t = window.graphSvg.transition().duration(animated ? 450 : 0);
+            t.call(window.graphZoom.transform, d3.zoomIdentity.translate(cw / 2, ch / 2).scale(scale).translate(-cx, -cy));
+        }
+
+        function zoomToSelectedClusters() {
+            if (!window.currentSimulation || !window.graphSvg || !window.graphZoom) return;
+            const clusterNodeList = (window.currentSimulation.nodes() || [])
+                .filter(n => activeClusterFilter.has(clusterMap.get(n.id)));
+            if (!clusterNodeList.length) return;
+            const xs = clusterNodeList.map(n => n.x);
+            const ys = clusterNodeList.map(n => n.y);
+            const minX = Math.min(...xs), maxX = Math.max(...xs);
+            const minY = Math.min(...ys), maxY = Math.max(...ys);
+            const container = document.querySelector('.graph-container');
+            const cw = container.clientWidth, ch = container.clientHeight;
+            const pad = 90;
+            const scaleX = (cw - pad * 2) / Math.max(maxX - minX, 40);
+            const scaleY = (ch - pad * 2) / Math.max(maxY - minY, 40);
+            const scale = Math.min(scaleX, scaleY, 3);
+            const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+            window.graphSvg.transition().duration(450).call(
+                window.graphZoom.transform,
+                d3.zoomIdentity.translate(cw / 2, ch / 2).scale(scale).translate(-cx, -cy)
+            );
+        }
+
+        function saveClusterName(clusterId, name) {
+            const key = getClusterKey(clusterId);
+            if (name.trim()) {
+                clusterNames[key] = name.trim();
+            } else {
+                delete clusterNames[key];
+            }
+            localStorage.setItem('santai-cluster-names', JSON.stringify(clusterNames));
+        }
+
+        function startClusterRename() {
+            const id = window.activeClusterId;
+            if (id === null || id === undefined) return;
+            const h2 = document.getElementById('preview-filename');
+            const saved = clusterNames[getClusterKey(id)];
+            const current = saved || '';
+            const suggested = suggestClusterName(id);
+            const nodeCount = (clusterNodes.get(id) || []).length;
+
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = current;
+            input.placeholder = suggested;
+            input.style.cssText = 'font-size:inherit;font-weight:inherit;border:none;border-bottom:1.5px solid var(--accent);background:transparent;outline:none;width:100%;color:inherit;';
+
+            h2.replaceWith(input);
+            input.focus();
+            input.select();
+
+            const commit = () => {
+                saveClusterName(id, input.value);
+                rebuildClusterDisplayNames();
+                const newH2 = document.createElement('h2');
+                newH2.id = 'preview-filename';
+                newH2.textContent = getClusterDisplayName(id);
+                input.replaceWith(newH2);
+                updateClusterLegend();
+            };
+
+            input.addEventListener('keydown', e => {
+                if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+                if (e.key === 'Escape') { input.value = current; input.blur(); }
+            });
+            input.addEventListener('blur', commit);
+        }
+
+        // ── Cluster mode ──────────────────────────────────────────────────────────
+
+        const CLUSTER_PALETTE = [
+            '#f97316', '#06b6d4', '#84cc16', '#ec4899', '#f59e0b',
+            '#8b5cf6', '#14b8a6', '#22c55e', '#fb923c', '#f472b6',
+            '#facc15', '#2dd4bf', '#a78bfa', '#e879f9', '#4ade80',
+        ];
+
+        function computeClusters(allNodes, linkMap) {
+            const visited = new Set();
+            const clusters = [];
+
+            for (const node of allNodes) {
+                if (visited.has(node.id)) continue;
+                const cluster = [];
+                const queue = [node.id];
+                while (queue.length > 0) {
+                    const nid = queue.shift();
+                    if (visited.has(nid)) continue;
+                    visited.add(nid);
+                    cluster.push(nid);
+                    const neighbors = linkMap.get(nid);
+                    if (neighbors) {
+                        for (const nb of neighbors) {
+                            if (!visited.has(nb)) queue.push(nb);
+                        }
+                    }
+                }
+                clusters.push(cluster);
+            }
+
+            // Largest clusters first so they get the most prominent palette entries
+            clusters.sort((a, b) => b.length - a.length);
+
+            const nodeToCluster = new Map();
+            const colors = {};
+            const nodesByCluster = new Map();
+            let paletteIdx = 0;
+
+            clusters.forEach((cluster, i) => {
+                // Isolated nodes (size 1) all share a neutral color so the palette
+                // is reserved for actual clusters
+                const color = cluster.length > 1
+                    ? CLUSTER_PALETTE[paletteIdx++ % CLUSTER_PALETTE.length]
+                    : '#64748b';
+                colors[i] = color;
+                nodesByCluster.set(i, cluster);
+                for (const nid of cluster) nodeToCluster.set(nid, i);
+            });
+
+            return { nodeToCluster, colors, nodesByCluster };
+        }
+
+        function toggleClusterMode() {
+            colorByCluster = !colorByCluster;
+            document.getElementById('cluster-mode-btn').classList.toggle('active', colorByCluster);
+            if (colorByCluster) {
+                // Can't show clusters on Unlinked — move to All
+                if (connectionFilter === 'unlinked') {
+                    connectionFilter = 'all';
+                    document.querySelectorAll('.graph-filter-btn[data-filter]').forEach(btn => {
+                        btn.classList.toggle('active', btn.dataset.filter === 'all');
+                    });
+                }
+                // Clear directory filters — they conflict with the cluster color view
+                activeDirectoryFilters.clear();
+                document.querySelectorAll('.graph-legend-item').forEach(el => {
+                    el.classList.remove('active', 'dimmed');
+                });
+            } else {
+                // Clear any active cluster filter when leaving cluster mode
+                activeClusterFilter = new Set();
+            }
+            updateClusterLegend();
+            if (window.lastGraphData) renderGraph(window.lastGraphData);
+        }
+
+        function openClusterPreview(clusterId) {
+            if (clusterId === undefined || clusterId === null) return;
+            const nodeIds = clusterNodes.get(clusterId) || [];
+            const nodeMap = window.lastFullNodeMap || new Map();
+            const panel = document.getElementById('preview-panel');
+            const content = document.getElementById('preview-content');
+            const color = clusterColors[clusterId] || '#64748b';
+            const isIsolated = nodeIds.length === 1;
+
+            // Showing the cluster list — no "back" context
+            previewReturnClusterId = null;
+            document.getElementById('preview-back-btn').style.display = 'none';
+            // Cluster list gets pencil (rename), not new-window
+            document.getElementById('preview-open-new-window-btn').style.display = 'none';
+            document.getElementById('preview-cluster-rename-btn').style.display =
+                isIsolated ? 'none' : '';
+            // Hide file action buttons in cluster list view
+            document.querySelector('.preview-actions').style.display = 'none';
+            // Store active cluster id for rename function
+            window.activeClusterId = isIsolated ? null : clusterId;
+
+            panel.classList.add('show');
+            document.body.classList.add('preview-open');
+
+            const savedName = getClusterDisplayName(clusterId);
+            document.getElementById('preview-filename').textContent =
+                isIsolated ? 'Unlinked file' : (savedName || `Cluster (${nodeIds.length} files)`);
+            document.getElementById('preview-size').textContent = '';
+
+            if (isIsolated) {
+                // Single isolated node — open its file preview directly
+                const node = nodeMap.get(nodeIds[0]);
+                if (node) openFilePreview(node.id);
+                return;
+            }
+
+            const items = nodeIds.map(nid => {
+                const n = nodeMap.get(nid);
+                if (!n) return '';
+                return `
+                    <li onclick="openFilePreviewFromCluster('${n.id.replace(/'/g, "\\'")}', ${clusterId})">
+                        <span class="cluster-file-dot" style="background:${color}"></span>
+                        <span>${n.name}</span>
+                        <span class="cluster-file-dir">${n.directory}</span>
+                    </li>`;
+            }).join('');
+
+            content.innerHTML = `
+                <div class="cluster-preview-header">
+                    ${nodeIds.length} linked files &mdash; click to open
+                </div>
+                <ul class="cluster-file-list">${items}</ul>`;
+        }
+
+        function openFilePreviewFromCluster(path, clusterId) {
+            previewReturnClusterId = clusterId;
+            openFilePreview(path);
+        }
+
+        function goBackToCluster() {
+            const id = previewReturnClusterId;
+            previewReturnClusterId = null;
+            openClusterPreview(id);
+        }
+
+        // ──────────────────────────────────────────────────────────────────────────
 
         function toggleLinkMode() {
             linkMode = !linkMode;
@@ -4474,9 +5230,18 @@
 
         function resetGraphView() {
             if (!window.graphZoom || !window.graphSvg) return;
-            window.graphSvg.transition().duration(300).call(
-                window.graphZoom.transform, d3.zoomIdentity
-            );
+            const isFullscreen = document.querySelector('.graph-panel')?.classList.contains('fullscreen');
+            if (isFullscreen) {
+                fitAllNodes(true);
+            } else {
+                const svg = d3.select('#graph-svg');
+                const w = +svg.attr('width') || 400;
+                const h = +svg.attr('height') || 300;
+                window.graphSvg.transition().duration(300).call(
+                    window.graphZoom.transform,
+                    d3.zoomIdentity.translate(w / 2, h / 2).scale(0.75).translate(-w / 2, -h / 2)
+                );
+            }
         }
 
         async function manualRefreshGraph() {
