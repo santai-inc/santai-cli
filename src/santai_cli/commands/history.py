@@ -83,7 +83,9 @@ def history(
 
         console.print(Rule(style="dim"))
         console.print(
-            f"[dim]{len(entries)} {'entry' if len(entries) == 1 else 'entries'} total[/dim]"
+            f"[dim]{len(entries)} "
+            f"{'entry' if len(entries) == 1 else 'entries'}"
+            " total[/dim]"
         )
         console.print()
 

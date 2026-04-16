@@ -1,7 +1,9 @@
 """Textual TUI application for Santai."""
 
+from collections.abc import Callable, Iterable
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -20,6 +22,7 @@ from textual.widgets import (
 )
 
 from santai_cli.core.project import (
+    NoteEntry,
     SantaiProject,
     get_directory_stats,
     get_file_graph,
@@ -29,7 +32,7 @@ from santai_cli.tui.graph_render import search_nodes as graph_search_nodes
 from santai_cli.tui.themes import ThemeManager, get_theme_css
 
 
-def format_size(size_bytes: int) -> str:
+def format_size(size_bytes: int | float) -> str:
     """Format bytes as human-readable size."""
     for unit in ["B", "KB", "MB", "GB"]:
         if size_bytes < 1024:
@@ -62,8 +65,8 @@ def format_time_ago(dt: datetime) -> str:
 class FilteredDirectoryTree(DirectoryTree):
     """DirectoryTree that only shows santai directories."""
 
-    def filter_paths(self, paths: list[Path]) -> list[Path]:
-        """Filter to only show resources, codebases, history, notes dirs at root level."""
+    def filter_paths(self, paths: Iterable[Path]) -> Iterable[Path]:
+        """Filter to only show santai dirs at root level."""
         return [
             p
             for p in paths
@@ -103,7 +106,12 @@ class StatsPanel(Static):
         dir_table.add_row("notes", str(stats.notes_count))
         dir_table.add_row(
             "[bold]Total[/bold]",
-            f"[bold]{stats.resources_count + stats.codebases_count + stats.history_count + stats.notes_count}[/bold]",
+            f"[bold]{
+                stats.resources_count
+                + stats.codebases_count
+                + stats.history_count
+                + stats.notes_count
+            }[/bold]",
         )
         dir_table.add_row("Size", format_size(stats.total_size_bytes))
 
@@ -128,7 +136,9 @@ class RecentFilesPanel(Static):
         self._recent_files: list = []
 
     def compose(self) -> ComposeResult:
-        yield Label("[bold]Recent Files[/bold] [dim](click to open)[/dim]", id="recent-title")
+        yield Label(
+            "[bold]Recent Files[/bold] [dim](click to open)[/dim]", id="recent-title"
+        )
         yield DataTable(id="recent-table", cursor_type="row")
 
     def on_mount(self) -> None:
@@ -164,6 +174,7 @@ class ClickableNote(Static):
 
     class Clicked(Message):
         """Message sent when a note is clicked."""
+
         def __init__(self, note: "NoteEntry") -> None:
             super().__init__()
             self.note = note
@@ -195,7 +206,6 @@ class NotesPanel(Static):
 
     def refresh_notes(self) -> None:
         """Refresh notes data."""
-        from santai_cli.core.project import NoteEntry
 
         theme = ThemeManager.get_current_theme()
         self._notes = get_notes(self.project)
@@ -260,7 +270,12 @@ class GraphPanel(Static):
         """Populate graph view."""
         self.refresh_graph()
 
-    def set_search(self, query: str, selected_id: str | None = None, highlight_ids: set[str] | None = None) -> None:
+    def set_search(
+        self,
+        query: str,
+        selected_id: str | None = None,
+        highlight_ids: set[str] | None = None,
+    ) -> None:
         """Set search state and re-render."""
         self._search_query = query
         self._selected_id = selected_id
@@ -308,14 +323,18 @@ class GraphPanel(Static):
 
         # Apply directory filter
         if self._filter_dirs is not None:
-            filtered_node_ids = {n.id for n in nodes if n.directory in self._filter_dirs}
+            filtered_node_ids = {
+                n.id for n in nodes if n.directory in self._filter_dirs
+            }
             nodes = [n for n in nodes if n.id in filtered_node_ids]
-            edges = [e for e in edges if e.source in filtered_node_ids and e.target in filtered_node_ids]
+            edges = [
+                e
+                for e in edges
+                if e.source in filtered_node_ids and e.target in filtered_node_ids
+            ]
 
         if not nodes:
-            content_widget.update(
-                "[dim]No files match the current filter.[/dim]"
-            )
+            content_widget.update("[dim]No files match the current filter.[/dim]")
             self._node_positions = {}
             self._render_width = 0
             self._render_height = 0
@@ -368,12 +387,16 @@ class GraphPanel(Static):
             stats_line += f"  [bold cyan]Filter:[/bold cyan] {filter_names}"
         else:
             stats_line = (
-                f"[bold]Nodes:[/bold] {total_nodes}  "
-                f"[bold]Edges:[/bold] {total_edges}"
+                f"[bold]Nodes:[/bold] {total_nodes}  [bold]Edges:[/bold] {total_edges}"
             )
         if self._search_query:
             match_count = len(self._highlight_ids) if self._highlight_ids else 0
-            stats_line += f"  [bold yellow]Search:[/bold yellow] \"{self._search_query}\" ({match_count} match{'es' if match_count != 1 else ''})"
+            suffix = "es" if match_count != 1 else ""
+            stats_line += (
+                f"  [bold yellow]Search:[/bold yellow]"
+                f' "{self._search_query}"'
+                f" ({match_count} match{suffix})"
+            )
         lines.append(stats_line)
         lines.append("")
 
@@ -399,14 +422,15 @@ class GraphPanel(Static):
 
         if graph_data.edges:
             lines.append(
-                "[dim]⬢ hub (5+)  ◆ connected (3+)  ● node  ◈ match  ◉ selected  c=clear[/dim]"
+                "[dim]⬢ hub (5+)  ◆ connected (3+)  ● node"
+                "  ◈ match  ◉ selected  c=clear[/dim]"
             )
 
         content_widget.update("\n".join(lines))
 
     def on_click(self, event) -> None:
         """Handle click on graph — find nearest node and open file."""
-        if not hasattr(self, '_node_positions') or not self._node_positions:
+        if not hasattr(self, "_node_positions") or not self._node_positions:
             return
 
         # Get click position relative to the graph content widget
@@ -429,7 +453,7 @@ class GraphPanel(Static):
 
         # Find the nearest node within a reasonable click radius
         best_node_id = None
-        best_dist = float('inf')
+        best_dist = float("inf")
         click_radius = 3.0  # max distance in character cells to register a click
 
         for node_id, (nx, ny) in self._node_positions.items():
@@ -450,10 +474,13 @@ class GraphPanel(Static):
 
         # Determine if it's a note
         node = self._node_map.get(best_node_id)
-        is_note = node and node.directory == "notes" and file_path.suffix in (".md", ".txt")
+        is_note = (
+            node and node.directory == "notes" and file_path.suffix in (".md", ".txt")
+        )
 
         if is_note:
             from santai_cli.core.project import NoteEntry
+
             try:
                 content = file_path.read_text(encoding="utf-8")
                 title = file_path.stem.replace("-", " ").replace("_", " ").title()
@@ -491,22 +518,20 @@ class ConfirmScreen(ModalScreen):
         Binding("n", "dismiss", "No"),
     ]
 
-    def __init__(self, message: str, on_confirm: callable) -> None:
+    def __init__(self, message: str, on_confirm: Callable[[], Any]) -> None:
         super().__init__()
         self._message = message
         self._on_confirm = on_confirm
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="theme-modal"):
-            with Vertical(id="theme-modal-content"):
-                yield Label("[bold]Confirm[/bold]", id="theme-modal-title")
-                yield Static(id="confirm-body")
+        with Vertical(id="theme-modal"), Vertical(id="theme-modal-content"):
+            yield Label("[bold]Confirm[/bold]", id="theme-modal-title")
+            yield Static(id="confirm-body")
 
     def on_mount(self) -> None:
         body = self.query_one("#confirm-body", Static)
         body.update(
-            f"{self._message}\n\n"
-            f"[bold]y[/bold] = Yes  |  [bold]n[/bold] / Esc = Cancel"
+            f"{self._message}\n\n[bold]y[/bold] = Yes  |  [bold]n[/bold] / Esc = Cancel"
         )
 
     def action_confirm(self) -> None:
@@ -547,10 +572,9 @@ class MoveFileScreen(ModalScreen):
         self._project = project
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="theme-modal"):
-            with Vertical(id="theme-modal-content"):
-                yield Label("[bold]Move File[/bold]", id="theme-modal-title")
-                yield Static(id="move-body")
+        with Vertical(id="theme-modal"), Vertical(id="theme-modal-content"):
+            yield Label("[bold]Move File[/bold]", id="theme-modal-title")
+            yield Static(id="move-body")
 
     def on_mount(self) -> None:
         body = self.query_one("#move-body", Static)
@@ -622,13 +646,12 @@ class NoteDetailScreen(ModalScreen):
         self._project = project
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="notes-modal"):
-            with VerticalScroll(id="notes-modal-content"):
-                yield Label(
-                    f"[bold]📄 {self._note.title}[/bold]",
-                    id="notes-modal-title",
-                )
-                yield Static(id="notes-modal-body")
+        with Vertical(id="notes-modal"), VerticalScroll(id="notes-modal-content"):
+            yield Label(
+                f"[bold]📄 {self._note.title}[/bold]",
+                id="notes-modal-title",
+            )
+            yield Static(id="notes-modal-body")
 
     def on_mount(self) -> None:
         """Populate note content."""
@@ -646,7 +669,11 @@ class NoteDetailScreen(ModalScreen):
         lines.append(f"[{accent}]{'─' * 50}[/{accent}]")
         lines.append("")
         # Show full content
-        content = self._note.content[:5000] if len(self._note.content) > 5000 else self._note.content
+        content = (
+            self._note.content[:5000]
+            if len(self._note.content) > 5000
+            else self._note.content
+        )
         lines.append(content)
         if len(self._note.content) > 5000:
             lines.append("")
@@ -718,7 +745,9 @@ class NoteDetailScreen(ModalScreen):
     def _get_project(self) -> SantaiProject | None:
         """Get project from the app."""
         if hasattr(self.app, "project"):
-            return self.app.project
+            project = self.app.project  # type: ignore[attr-defined]
+            if isinstance(project, SantaiProject):
+                return project
         return None
 
 
@@ -738,21 +767,20 @@ class EditNoteScreen(ModalScreen):
         self._has_changes: bool = False
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="edit-note-modal"):
-            with Vertical(id="edit-note-content"):
-                yield Label(
-                    f"[bold]✏️  Editing: {self._note.title}[/bold]",
-                    id="edit-note-title",
-                )
-                yield Static(
-                    f"[dim]{self._file_path.name}[/dim]",
-                    id="edit-note-path",
-                )
-                yield TextArea(id="edit-note-textarea")
-                yield Static(
-                    "[dim]Ctrl+S = save · Esc = close (unsaved changes will prompt)[/dim]",
-                    id="edit-note-help",
-                )
+        with Vertical(id="edit-note-modal"), Vertical(id="edit-note-content"):
+            yield Label(
+                f"[bold]✏️  Editing: {self._note.title}[/bold]",
+                id="edit-note-title",
+            )
+            yield Static(
+                f"[dim]{self._file_path.name}[/dim]",
+                id="edit-note-path",
+            )
+            yield TextArea(id="edit-note-textarea")
+            yield Static(
+                "[dim]Ctrl+S = save · Esc = close (unsaved changes will prompt)[/dim]",
+                id="edit-note-help",
+            )
 
     def on_mount(self) -> None:
         """Load file content into the editor."""
@@ -815,23 +843,22 @@ class AddNoteScreen(ModalScreen):
         self.project = project
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="notes-modal"):
-            with Vertical(id="notes-modal-content"):
-                yield Label(
-                    "[bold]📝 Add Note (Esc to cancel)[/bold]",
-                    id="notes-modal-title",
-                )
-                yield Label("Title:")
-                yield Input(
-                    placeholder="my-note (will be saved as my-note.md)",
-                    id="note-title-input",
-                )
-                yield Label("Content:")
-                yield TextArea(id="note-content-input")
-                yield Static(
-                    "[dim]Tab to switch fields · Ctrl+S to save · Esc to cancel[/dim]",
-                    id="note-help",
-                )
+        with Vertical(id="notes-modal"), Vertical(id="notes-modal-content"):
+            yield Label(
+                "[bold]📝 Add Note (Esc to cancel)[/bold]",
+                id="notes-modal-title",
+            )
+            yield Label("Title:")
+            yield Input(
+                placeholder="my-note (will be saved as my-note.md)",
+                id="note-title-input",
+            )
+            yield Label("Content:")
+            yield TextArea(id="note-content-input")
+            yield Static(
+                "[dim]Tab to switch fields · Ctrl+S to save · Esc to cancel[/dim]",
+                id="note-help",
+            )
 
     def on_mount(self) -> None:
         """Focus the title input."""
@@ -902,21 +929,20 @@ class EditFileScreen(ModalScreen):
         self._has_changes: bool = False
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="edit-note-modal"):
-            with Vertical(id="edit-note-content"):
-                yield Label(
-                    f"[bold]✏️  Editing: {self._file_path.name}[/bold]",
-                    id="edit-note-title",
-                )
-                yield Static(
-                    f"[dim]{self._file_path}[/dim]",
-                    id="edit-note-path",
-                )
-                yield TextArea(id="edit-file-textarea")
-                yield Static(
-                    "[dim]Ctrl+S = save · Esc = close (unsaved changes will prompt)[/dim]",
-                    id="edit-note-help",
-                )
+        with Vertical(id="edit-note-modal"), Vertical(id="edit-note-content"):
+            yield Label(
+                f"[bold]✏️  Editing: {self._file_path.name}[/bold]",
+                id="edit-note-title",
+            )
+            yield Static(
+                f"[dim]{self._file_path}[/dim]",
+                id="edit-note-path",
+            )
+            yield TextArea(id="edit-file-textarea")
+            yield Static(
+                "[dim]Ctrl+S = save · Esc = close (unsaved changes will prompt)[/dim]",
+                id="edit-note-help",
+            )
 
     def on_mount(self) -> None:
         """Load file content into the editor."""
@@ -984,13 +1010,15 @@ class FilePreviewScreen(ModalScreen):
         self._is_text_file: bool = False
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="file-preview-modal"):
-            with VerticalScroll(id="file-preview-content"):
-                yield Label(
-                    f"[bold]{self.file_path.name}[/bold]",
-                    id="file-preview-title",
-                )
-                yield Static(id="file-preview-body")
+        with (
+            Vertical(id="file-preview-modal"),
+            VerticalScroll(id="file-preview-content"),
+        ):
+            yield Label(
+                f"[bold]{self.file_path.name}[/bold]",
+                id="file-preview-title",
+            )
+            yield Static(id="file-preview-body")
 
     def on_mount(self) -> None:
         """Load file content."""
@@ -1005,8 +1033,11 @@ class FilePreviewScreen(ModalScreen):
         except UnicodeDecodeError:
             self._is_text_file = False
             body.update(
-                f"[dim]Binary file: {format_size(self.file_path.stat().st_size)}[/dim]\n\n"
-                f"[dim]d = delete · m = move · Esc = close[/dim]"
+                f"[dim]Binary file: "
+                f"{format_size(self.file_path.stat().st_size)}"
+                f"[/dim]\n\n"
+                f"[dim]d = delete · m = move"
+                f" · Esc = close[/dim]"
             )
         except OSError as e:
             body.update(f"[dim]Error reading file: {e}[/dim]")
@@ -1015,7 +1046,9 @@ class FilePreviewScreen(ModalScreen):
         if self._project:
             return self._project
         if hasattr(self.app, "project"):
-            return self.app.project
+            project = self.app.project  # type: ignore[attr-defined]
+            if isinstance(project, SantaiProject):
+                return project
         return None
 
     def action_edit_file(self) -> None:
@@ -1036,6 +1069,7 @@ class FilePreviewScreen(ModalScreen):
 
     def action_delete_file(self) -> None:
         """Delete this file with confirmation."""
+
         def do_delete():
             try:
                 self.file_path.unlink()
@@ -1062,6 +1096,7 @@ class FilePreviewScreen(ModalScreen):
         else:
             self.app.notify("Cannot determine project", severity="error")
 
+
 class ThemeSelectScreen(ModalScreen):
     """Theme selection modal with live switching."""
 
@@ -1075,11 +1110,13 @@ class ThemeSelectScreen(ModalScreen):
     ]
 
     def compose(self) -> ComposeResult:
-        theme = ThemeManager.get_current_theme()
-        with Vertical(id="theme-modal"):
-            with Vertical(id="theme-modal-content"):
-                yield Label("[bold]Theme Selector (press Esc to close)[/bold]", id="theme-modal-title")
-                yield Static(id="theme-options")
+        ThemeManager.get_current_theme()
+        with Vertical(id="theme-modal"), Vertical(id="theme-modal-content"):
+            yield Label(
+                "[bold]Theme Selector (press Esc to close)[/bold]",
+                id="theme-modal-title",
+            )
+            yield Static(id="theme-options")
 
     def on_mount(self) -> None:
         """Show theme options."""
@@ -1130,7 +1167,9 @@ class ThemeSelectScreen(ModalScreen):
             # Fallback: replace all non-default sources
             for key, css_source in self.app.stylesheet.source.items():
                 if not css_source.is_defaults:
-                    self.app.stylesheet.source[key] = css_source._replace(content=new_css)
+                    self.app.stylesheet.source[key] = css_source._replace(
+                        content=new_css
+                    )
                     break
 
         # Also update the class variable for consistency
@@ -1174,17 +1213,18 @@ class GraphSearchScreen(ModalScreen):
         self._all_nodes: list = []
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="graph-search-modal"):
-            with Vertical(id="graph-search-content"):
-                yield Label(
-                    "[bold]🔍 Graph Search[/bold] [dim](↑↓ select, Enter=open, Ctrl+H=highlight in graph, Esc=close)[/dim]",
-                    id="graph-search-title",
-                )
-                yield Input(
-                    placeholder="Search files...",
-                    id="graph-search-input",
-                )
-                yield Static(id="graph-search-results")
+        with Vertical(id="graph-search-modal"), Vertical(id="graph-search-content"):
+            yield Label(
+                "[bold]🔍 Graph Search[/bold]"
+                " [dim](↑↓ select, Enter=open,"
+                " Ctrl+H=highlight in graph, Esc=close)[/dim]",
+                id="graph-search-title",
+            )
+            yield Input(
+                placeholder="Search files...",
+                id="graph-search-input",
+            )
+            yield Static(id="graph-search-results")
 
     def on_mount(self) -> None:
         """Focus the search input and load nodes."""
@@ -1233,6 +1273,7 @@ class GraphSearchScreen(ModalScreen):
         is_note = selected.directory == "notes" and file_path.suffix in (".md", ".txt")
         if is_note:
             from santai_cli.core.project import NoteEntry
+
             try:
                 content = file_path.read_text(encoding="utf-8")
                 title = file_path.stem.replace("-", " ").replace("_", " ").title()
@@ -1251,9 +1292,13 @@ class GraphSearchScreen(ModalScreen):
                     modified_at=datetime.fromtimestamp(stat.st_mtime),
                     size_bytes=stat.st_size,
                 )
-                self.app.push_screen(NoteDetailScreen(note_entry, project=self._project))
+                self.app.push_screen(
+                    NoteDetailScreen(note_entry, project=self._project)
+                )
             except (OSError, UnicodeDecodeError):
-                self.app.push_screen(FilePreviewScreen(file_path, project=self._project))
+                self.app.push_screen(
+                    FilePreviewScreen(file_path, project=self._project)
+                )
         else:
             self.app.push_screen(FilePreviewScreen(file_path, project=self._project))
 
@@ -1335,7 +1380,11 @@ class GraphSearchScreen(ModalScreen):
         total = len(self._all_nodes)
         showing = len(self._results)
         lines.append("")
-        lines.append(f"[dim]{showing} of {total} files · Enter=open · Ctrl+H=highlight · Esc=cancel[/dim]")
+        lines.append(
+            f"[dim]{showing} of {total} files"
+            " · Enter=open · Ctrl+H=highlight"
+            " · Esc=cancel[/dim]"
+        )
 
         results_widget.update("\n".join(lines))
 
@@ -1358,7 +1407,9 @@ class GraphFilterScreen(ModalScreen):
 
     DIRS = ["resources", "codebases", "history", "notes"]
 
-    def __init__(self, project: SantaiProject, current_filter: set[str] | None = None) -> None:
+    def __init__(
+        self, project: SantaiProject, current_filter: set[str] | None = None
+    ) -> None:
         super().__init__()
         self._project = project
         # If no filter is active, all dirs are selected
@@ -1369,13 +1420,12 @@ class GraphFilterScreen(ModalScreen):
         self._available_dirs: set[str] = set()
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="theme-modal"):
-            with Vertical(id="theme-modal-content"):
-                yield Label(
-                    "[bold]🔍 Graph Filter[/bold]",
-                    id="theme-modal-title",
-                )
-                yield Static(id="filter-body")
+        with Vertical(id="theme-modal"), Vertical(id="theme-modal-content"):
+            yield Label(
+                "[bold]🔍 Graph Filter[/bold]",
+                id="theme-modal-title",
+            )
+            yield Static(id="filter-body")
 
     def on_mount(self) -> None:
         """Detect available directories and render."""
@@ -1434,7 +1484,9 @@ class GraphFilterScreen(ModalScreen):
         lines.append("")
 
         selected_count = sum(
-            self._dir_counts.get(d, 0) for d in self._selected if d in self._available_dirs
+            self._dir_counts.get(d, 0)
+            for d in self._selected
+            if d in self._available_dirs
         )
         total_count = sum(self._dir_counts.values())
         lines.append(f"  Showing: [bold]{selected_count}[/bold] of {total_count} files")
@@ -1610,7 +1662,10 @@ class SantaiApp(App):
         SantaiApp.CSS = new_css
         self.refresh_css()
         theme = ThemeManager.get_current_theme()
-        self.notify(f"{theme.display_name}: {palette.display_name} ({ThemeManager.get_palette_info()})")
+        self.notify(
+            f"{theme.display_name}: {palette.display_name}"
+            f" ({ThemeManager.get_palette_info()})"
+        )
 
     def action_graph_search(self) -> None:
         """Open graph search modal (only in fullscreen graph mode)."""
@@ -1667,13 +1722,16 @@ class SantaiApp(App):
         """Handle click on a note — open note detail modal."""
         self.push_screen(NoteDetailScreen(event.note, project=self.project))
 
-    def action_back(self) -> None:
+    async def action_back(self) -> None:
         """Go back — exit fullscreen graph or do nothing on dashboard."""
         if self._graph_fullscreen:
             self.action_toggle_graph()
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
-        """Handle row selection in data tables — open appropriate screen for recent files."""
+        """Handle row selection in data tables.
+
+        Opens the appropriate screen for recent files.
+        """
         # Check if this is the recent files table
         table = event.data_table
         if table.id == "recent-table":
@@ -1686,7 +1744,10 @@ class SantaiApp(App):
                         self._open_file(file_info.path)
 
     def _open_file(self, file_path: Path) -> None:
-        """Open a file in the appropriate screen — NoteDetailScreen for notes, FilePreviewScreen for others."""
+        """Open a file in the appropriate screen.
+
+        Uses NoteDetailScreen for notes, FilePreviewScreen for others.
+        """
         # Check if this file is in the notes directory
         try:
             rel = file_path.relative_to(self.project.root)
@@ -1696,6 +1757,7 @@ class SantaiApp(App):
 
         if is_note and file_path.suffix in (".md", ".txt"):
             from santai_cli.core.project import NoteEntry
+
             try:
                 content = file_path.read_text(encoding="utf-8")
                 title = file_path.stem.replace("-", " ").replace("_", " ").title()

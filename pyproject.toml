@@ -17,6 +17,13 @@ dependencies = [
     "python-multipart>=0.0.9",
 ]
 
+[dependency-groups]
+dev = [
+    "ruff==0.15.6",
+    "ty>=0.0.31",
+    "pre-commit>=3.5.0",
+]
+
 [project.scripts]
 santai = "santai_cli.cli:app"
 
@@ -26,3 +33,26 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/santai_cli"]
+
+[tool.ruff]
+target-version = "py312"
+src = ["src"]
+line-length = 88
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "SIM", # flake8-simplify
+    "RUF", # ruff-specific rules
+]
+ignore = [
+    "RUF012", # mutable class attributes — false positives for Textual widget patterns (BINDINGS, etc.)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"src/santai_cli/commands/init.py" = ["E501"]  # long strings in README template

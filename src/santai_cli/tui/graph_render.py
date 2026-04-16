@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import math
 import random
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass
@@ -131,7 +131,9 @@ def force_directed_layout(
             for i, nd in enumerate(comp):
                 angle = 2 * math.pi * i / max(len(comp), 1)
                 nd.x = comp_cx + sub_radius * math.cos(angle) + random.uniform(-1, 1)
-                nd.y = comp_cy + sub_radius * math.sin(angle) + random.uniform(-0.5, 0.5)
+                nd.y = (
+                    comp_cy + sub_radius * math.sin(angle) + random.uniform(-0.5, 0.5)
+                )
                 nd.vx = 0.0
                 nd.vy = 0.0
 
@@ -239,7 +241,9 @@ class BrailleCanvas:
         # Color per character cell
         self._colors: dict[tuple[int, int], str] = {}
         # Override characters (for node symbols)
-        self._char_override: dict[tuple[int, int], tuple[str, str]] = {}  # (char, color)
+        self._char_override: dict[
+            tuple[int, int], tuple[str, str]
+        ] = {}  # (char, color)
         # Labels
         self._labels: list[tuple[int, int, str, str]] = []  # (cx, cy, text, color)
 
@@ -251,13 +255,15 @@ class BrailleCanvas:
                 cx, cy = px // 2, py // 4
                 self._colors[(cx, cy)] = color
 
-    def draw_line(self, x0: float, y0: float, x1: float, y1: float, color: str = "dim #555555") -> None:
+    def draw_line(
+        self, x0: float, y0: float, x1: float, y1: float, color: str = "dim #555555"
+    ) -> None:
         """Draw a line using sub-pixels (Bresenham's algorithm on the pixel grid)."""
         # Convert graph coords to pixel coords
-        px0 = int(round(x0 * 2))
-        py0 = int(round(y0 * 4))
-        px1 = int(round(x1 * 2))
-        py1 = int(round(y1 * 4))
+        px0 = round(x0 * 2)
+        py0 = round(y0 * 4)
+        px1 = round(x1 * 2)
+        py1 = round(y1 * 4)
 
         dx = abs(px1 - px0)
         dy = abs(py1 - py0)
@@ -285,15 +291,15 @@ class BrailleCanvas:
 
     def set_node(self, x: float, y: float, char: str, color: str) -> None:
         """Place a node character at graph coordinates."""
-        cx = int(round(x))
-        cy = int(round(y))
+        cx = round(x)
+        cy = round(y)
         if 0 <= cx < self.char_width and 0 <= cy < self.char_height:
             self._char_override[(cx, cy)] = (char, color)
 
     def add_label(self, x: float, y: float, text: str, color: str) -> None:
         """Add a text label near a position."""
-        cx = int(round(x))
-        cy = int(round(y))
+        cx = round(x)
+        cy = round(y)
         self._labels.append((cx, cy, text, color))
 
     def render(self) -> list[list[tuple[str, str | None]]]:
@@ -389,7 +395,7 @@ def search_nodes(
         # Fuzzy: check if all query chars appear in order
         qi = 0
         penalty = 0.0
-        for ci, ch in enumerate(label_lower):
+        for _ci, ch in enumerate(label_lower):
             if qi < len(query_lower) and ch == query_lower[qi]:
                 qi += 1
             else:
@@ -492,7 +498,9 @@ def render_graph(
             color = "bold #ffffff"
         elif node.id in hl and hl:
             char = "◈"
-            color = "bold " + dir_colors.get(node.directory, dir_colors.get("other", "#6b6560"))
+            color = "bold " + dir_colors.get(
+                node.directory, dir_colors.get("other", "#6b6560")
+            )
         elif degree >= 5:
             char = "⬢"
         elif degree >= 3:
@@ -514,7 +522,7 @@ def render_graph(
             label = node.label
             max_len = 14 if fullscreen else 10
             if len(label) > max_len:
-                label = label[:max_len - 1] + "…"
+                label = label[: max_len - 1] + "…"
 
             if is_highlighted:
                 color = "bold " + color
@@ -539,7 +547,9 @@ def render_graph(
             if col != current_color:
                 if current_text:
                     if current_color:
-                        parts.append(f"[{current_color}]{current_text}[/{current_color}]")
+                        parts.append(
+                            f"[{current_color}]{current_text}[/{current_color}]"
+                        )
                     else:
                         parts.append(current_text)
                 current_color = col
@@ -570,7 +580,9 @@ def render_graph(
     )
 
 
-def build_graph_from_project_data(graph_data) -> tuple[list[GraphNode], list[GraphEdge]]:
+def build_graph_from_project_data(
+    graph_data,
+) -> tuple[list[GraphNode], list[GraphEdge]]:
     """Convert project graph data to our internal format."""
     nodes = []
     for node in graph_data.nodes:

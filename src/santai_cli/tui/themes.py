@@ -1,5 +1,6 @@
 """TUI Theme System with palettes and runtime switching support."""
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 
@@ -347,7 +348,7 @@ def light_theme() -> Theme:
     )
 
 
-AVAILABLE_THEMES: dict[str, callable] = {
+AVAILABLE_THEMES: dict[str, Callable[[], Theme]] = {
     "claude": claude_theme,
     "catppuccin": catppuccin_theme,
     "btop": btop_theme,
@@ -367,7 +368,9 @@ class ThemeManager:
         """Set the current theme by name, optionally with a palette index."""
         if name in AVAILABLE_THEMES:
             cls._current_theme = AVAILABLE_THEMES[name]()
-            cls._current_palette_idx = min(palette_idx, len(cls._current_theme.palettes) - 1)
+            cls._current_palette_idx = min(
+                palette_idx, len(cls._current_theme.palettes) - 1
+            )
             return True
         return False
 
@@ -599,7 +602,10 @@ def _generate_css(c: ThemeColors) -> str:
         height: auto;
     }}
 
-    StatsPanel > Label, NotesPanel > Label, GraphPanel > Label, RecentFilesPanel > Label {{
+    StatsPanel > Label,
+    NotesPanel > Label,
+    GraphPanel > Label,
+    RecentFilesPanel > Label {{
         color: {c.fg};
     }}
 
@@ -632,7 +638,10 @@ def _generate_css(c: ThemeColors) -> str:
 
     /* === Modal Screens (centered overlay) === */
 
-    NoteDetailScreen, AddNoteScreen, EditNoteScreen, EditFileScreen, FilePreviewScreen, ThemeSelectScreen, ConfirmScreen, MoveFileScreen, GraphSearchScreen, GraphFilterScreen {{
+    NoteDetailScreen, AddNoteScreen, EditNoteScreen,
+    EditFileScreen, FilePreviewScreen, ThemeSelectScreen,
+    ConfirmScreen, MoveFileScreen,
+    GraphSearchScreen, GraphFilterScreen {{
         align: center middle;
         background: {c.bg} 80%;
     }}

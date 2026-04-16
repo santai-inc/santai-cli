@@ -68,10 +68,7 @@ def copy(
     This allows you to fork a knowledge base and manage it independently.
     """
     # Resolve source path
-    if source == ".":
-        source_path = Path.cwd()
-    else:
-        source_path = Path(source).resolve()
+    source_path = Path.cwd() if source == "." else Path(source).resolve()
 
     # Validate source exists
     if not source_path.exists():
@@ -109,7 +106,7 @@ def copy(
         shutil.copytree(source_path, dest_path, ignore=_ignore_patterns)
     except Exception as e:
         console.print(f"[red]Error copying files: {e}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
     # Initialize fresh git repository
     console.print("Initializing fresh git repository...")
