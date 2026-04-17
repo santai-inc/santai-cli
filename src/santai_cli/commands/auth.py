@@ -165,11 +165,39 @@ def logout() -> None:
 
 def whoami() -> None:
     """Show the currently authenticated user."""
+    import urllib.request
+    import urllib.error
+
     creds = load_credentials()
     if not creds:
         console.print("Not logged in. Run [bold]santai login[/bold] to authenticate.")
         raise typer.Exit(1)
 
     hub = creds.get("hub_url", DEFAULT_HUB_URL)
-    console.print(f"Logged in as [bold]{creds.get('username', 'unknown')}[/bold]")
-    console.print(f"  Hub: [dim]{hub}[/dim]")
+    backend = hub.replace(":3000", ":3001") if ":3000" in hub else hub
+
+    try:
+        req = urllib.request.Request(
+            f"{backend}/api/auth/get-session",
+            headers={"Authorization": f"Bearer {creds['token']}"},
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read())
+            user = data.get("user", {})
+            session = data.get("session", {})
+            console.print(f"Logged in as [bold]{user.get('username', creds.get('username', 'unknown'))}[/bold]")
+            console.print(f"  Name:  {user.get('name', 'N/A')}")
+            console.print(f"  Email: {user.get('email', 'N/A')}")
+            console.print(f"  Hub:   [dim]{hub}[/dim]")
+            if session.get("expiresAt"):
+                console.print(f"  Expires: [dim]{session['expiresAt']}[/dim]")
+    except urllib.error.HTTPError as e:
+        if e.code == 401:
+            console.print("[yellow]Session expired. Run [bold]santai login[/bold] to re-authenticate.[/yellow]")
+            _clear_credentials()
+            raise typer.Exit(1)
+        console.print(f"[red]Failed to verify session: HTTP {e.code}[/red]")
+        raise typer.Exit(1)
+    except (urllib.error.URLError, TimeoutError):
+        console.print(f"Logged in as [bold]{creds.get('username', 'unknown')}[/bold]  [dim](offline — could not reach hub)[/dim]")
+        console.print(f"  Hub: [dim]{hub}[/dim]")
