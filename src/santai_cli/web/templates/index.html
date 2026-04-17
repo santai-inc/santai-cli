@@ -1005,14 +1005,73 @@
         .preview-panel {
             width: 400px;
             flex-shrink: 0;
-            display: none;
+            display: flex;
             flex-direction: column;
             overflow: hidden;
         }
 
-        .preview-panel.show {
+        /* Tab bar */
+        /* Right panel tab bar */
+        .right-panel-tabs {
             display: flex;
-            z-index: 1001;
+            flex-shrink: 0;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+        }
+
+        .right-panel-tab {
+            flex: 1;
+            padding: 11px 8px;
+            font-size: 13px;
+            font-weight: 500;
+            background: none;
+            border: none;
+            border-bottom: 2px solid transparent;
+            cursor: pointer;
+            color: var(--text-secondary);
+            transition: color 0.15s, border-color 0.15s;
+            white-space: nowrap;
+        }
+
+        .right-panel-tab.active {
+            color: var(--text-primary);
+            border-bottom-color: var(--accent, rgba(0, 122, 255, 0.8));
+        }
+
+        .right-panel-tab:hover:not(.active) {
+            color: var(--text-primary);
+        }
+
+        /* Pane content visibility */
+        .right-panel-pane {
+            display: none;
+            flex-direction: column;
+            flex: 1;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .right-panel-pane.active {
+            display: flex;
+        }
+
+        /* Empty preview state */
+        .preview-empty {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            font-size: 13px;
+            gap: 10px;
+            padding: 24px;
+            text-align: center;
+        }
+
+        .preview-empty svg {
+            width: 40px;
+            height: 40px;
+            opacity: 0.25;
         }
 
         .preview-header {
@@ -1268,6 +1327,46 @@
             backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation)) brightness(var(--glass-brightness));
         }
 
+        /* Chat fullscreen: expand messages area */
+        .preview-panel.fullscreen .right-panel-pane.chat-pane .chat-messages {
+            max-width: 800px;
+            width: 100%;
+            align-self: center;
+        }
+
+        .preview-panel.fullscreen .right-panel-pane.chat-pane .chat-input-row {
+            max-width: 800px;
+            width: 100%;
+            align-self: center;
+        }
+
+        /* Chat fullscreen button (matches preview-fullscreen-btn style) */
+        .chat-fullscreen-btn {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            border-radius: 8px;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: background 0.15s;
+        }
+
+        .chat-fullscreen-btn:hover {
+            background: rgba(255, 255, 255, 0.95);
+        }
+
+        .chat-fullscreen-btn svg {
+            width: 16px;
+            height: 16px;
+            stroke: var(--text-primary);
+            stroke-width: 1.5;
+        }
+
         .preview-panel.fullscreen .preview-header {
             padding: 20px 24px;
             background: rgba(255, 255, 255, 0.6);
@@ -1505,13 +1604,24 @@
         }
 
         /* Dashboard Layout */
+        .dashboard-view {
+            display: flex;
+            flex-direction: row;
+            flex: 1;
+            gap: 12px;
+            padding: 20px;
+            overflow: hidden;
+            min-height: 0;
+        }
+
         .dashboard {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            grid-template-rows: 1fr auto auto;
+            grid-template-rows: 1fr 1fr;
             gap: 12px;
-            height: 100%;
-            padding: 20px;
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
         }
 
         .dashboard-panel {
@@ -1533,8 +1643,12 @@
         }
 
         .dashboard-panel.graph-panel {
-            grid-column: 1 / -1;
+            grid-column: 1 / 3;
             overflow: visible;
+        }
+
+        .dashboard-panel.chat-panel {
+            display: none; /* removed — chat is now in the right panel */
         }
 
         .panel-content {
@@ -2460,16 +2574,14 @@
             padding: 20px;
         }
 
-        /* Chat Panel */
-        .dashboard-panel.chat-panel {
-            grid-column: 1 / -1;
-            max-height: 500px;
+        .right-panel-pane.chat-pane {
+            padding: 16px;
         }
 
         .chat-header {
             display: flex;
-            align-items: center;
-            justify-content: space-between;
+            flex-direction: column;
+            gap: 8px;
             margin-bottom: 12px;
             padding-bottom: 8px;
             border-bottom: 1px solid rgba(0, 0, 0, 0.06);
@@ -2483,11 +2595,13 @@
 
         .chat-header-controls {
             display: flex;
-            gap: 8px;
+            gap: 6px;
             align-items: center;
         }
 
         .chat-header-controls select {
+            flex: 1;
+            min-width: 0;
             padding: 4px 8px;
             border-radius: 8px;
             border: 1px solid rgba(0, 0, 0, 0.1);
@@ -2495,6 +2609,9 @@
             font-size: 12px;
             color: var(--text-primary);
             cursor: pointer;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .chat-messages {
@@ -2677,6 +2794,7 @@
         <!-- Main Content -->
         <main class="main glass">
             <!-- Dashboard View (default) -->
+            <div class="dashboard-view" id="dashboard-view">
             <div class="dashboard" id="dashboard">
                 <div class="dashboard-panel">
                     <h3>Notes Preview</h3>
@@ -2768,30 +2886,7 @@
                 </div>
             </div>
 
-            <!-- Chat Panel -->
-            <div class="dashboard-panel chat-panel" id="chat-panel">
-                <div class="chat-header">
-                    <h3>AI Chat</h3>
-                    <div class="chat-header-controls">
-                        <select id="chat-agent-select" onchange="onChatAgentChange()">
-                            <option value="">No Agent</option>
-                        </select>
-                        <select id="chat-model-select">
-                            <option value="">Loading models...</option>
-                        </select>
-                        <button onclick="clearChat()" style="padding: 4px 10px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.1); background: rgba(255,255,255,0.6); font-size: 12px; cursor: pointer;">Clear</button>
-                    </div>
-                </div>
-                <div class="chat-messages" id="chat-messages">
-                    <div class="chat-msg system">Loading configuration...</div>
-                </div>
-                <div class="chat-input-row">
-                    <input type="text" id="chat-input" placeholder="Type a message..." onkeydown="if(event.key==='Enter')sendChatMessage()" disabled>
-                    <button id="chat-send-btn" onclick="sendChatMessage()" disabled>Send</button>
-                </div>
-            </div>
-
-            </div>
+            </div><!-- /.dashboard-view -->
             <div class="content" id="content" style="display: none;">
                 <div class="browser-header">
                     <button class="dashboard-btn" onclick="showDashboard()">Dashboard</button>
@@ -2821,62 +2916,107 @@
 
         <!-- File Preview Panel -->
         <aside class="preview-panel glass" id="preview-panel">
-            <div class="preview-header">
-                <button class="preview-back-btn" id="preview-back-btn" onclick="goBackToCluster()" style="display:none;" title="Back to cluster">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-                    </svg>
-                </button>
-                <div class="preview-title">
-                    <h2 id="preview-filename">filename.txt</h2>
-                    <button class="preview-open-new-window" id="preview-open-new-window-btn" onclick="openPreviewInNewTab()" title="Open in new window">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-                        </svg>
-                    </button>
-                    <button class="preview-open-new-window" id="preview-cluster-rename-btn" onclick="startClusterRename()" title="Rename cluster" style="display:none;">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                        </svg>
-                    </button>
-                    <span id="preview-size">0 KB</span>
+
+            <!-- Tab bar -->
+            <div class="right-panel-tabs">
+                <button class="right-panel-tab active" id="tab-chat" onclick="switchRightTab('chat')">AI Chat</button>
+                <button class="right-panel-tab" id="tab-preview" onclick="switchRightTab('preview')">File Preview</button>
+            </div>
+
+            <!-- Chat pane (default) -->
+            <div class="right-panel-pane chat-pane active" id="pane-chat">
+                <div class="chat-header">
+                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                        <h3 style="flex-shrink: 0;">AI Chat</h3>
+                        <button onclick="showSettingsModal()" style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:8px;border:1px solid rgba(0,0,0,0.1);background:rgba(255,255,255,0.6);font-size:12px;cursor:pointer;flex-shrink:0;">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:13px;height:13px;stroke-width:2;">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            Settings
+                        </button>
+                    </div>
+                    <div class="chat-header-controls">
+                        <select id="chat-agent-select" onchange="onChatAgentChange()">
+                            <option value="">Default</option>
+                        </select>
+                        <select id="chat-model-select">
+                            <option value="">Loading models...</option>
+                        </select>
+                        <button onclick="clearChat()" style="padding:4px 10px;border-radius:8px;border:1px solid rgba(0,0,0,0.1);background:rgba(255,255,255,0.6);font-size:12px;cursor:pointer;flex-shrink:0;">Clear</button>
+                    </div>
                 </div>
-                <button class="preview-fullscreen-btn" onclick="togglePreviewFullscreen()" title="Toggle fullscreen">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" id="preview-fullscreen-expand">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
-                    </svg>
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" id="preview-fullscreen-collapse" style="display: none;">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
-                    </svg>
-                </button>
-                <button class="preview-close" onclick="closePreview()">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
+                <div class="chat-messages" id="chat-messages">
+                    <div class="chat-msg system">Loading configuration...</div>
+                </div>
+                <div class="chat-input-row">
+                    <input type="text" id="chat-input" placeholder="Type a message..." onkeydown="if(event.key==='Enter')sendChatMessage()" disabled>
+                    <button id="chat-send-btn" onclick="sendChatMessage()" disabled>Send</button>
+                </div>
             </div>
-            <div class="preview-content" id="preview-content">
-                <!-- Content loaded dynamically -->
-            </div>
-            <div class="preview-actions">
-                <button class="btn" id="preview-edit" onclick="editPreviewFile()">
+
+            <!-- File Preview pane -->
+            <div class="right-panel-pane preview-pane" id="pane-preview">
+                <!-- Empty state -->
+                <div class="preview-empty" id="preview-empty-state">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                     </svg>
-                    Edit
-                </button>
-                <button class="btn btn-primary" id="preview-download" onclick="downloadPreviewFile()">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                    </svg>
-                    Download
-                </button>
-                <button class="btn btn-danger" id="preview-delete" onclick="deletePreviewFile()">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                    </svg>
-                    Delete
-                </button>
+                    <span>Select a file to preview</span>
+                </div>
+                <!-- Preview header (hidden until a file is loaded) -->
+                <div class="preview-header" id="preview-file-header" style="display:none;">
+                    <button class="preview-back-btn" id="preview-back-btn" onclick="goBackToCluster()" style="display:none;" title="Back to cluster">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                        </svg>
+                    </button>
+                    <div class="preview-title">
+                        <h2 id="preview-filename">filename.txt</h2>
+                        <button class="preview-open-new-window" id="preview-open-new-window-btn" onclick="openPreviewInNewTab()" title="Open in new window">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                            </svg>
+                        </button>
+                        <button class="preview-open-new-window" id="preview-cluster-rename-btn" onclick="startClusterRename()" title="Rename cluster" style="display:none;">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                            </svg>
+                        </button>
+                        <span id="preview-size">0 KB</span>
+                    </div>
+                    <button class="preview-fullscreen-btn" onclick="togglePreviewFullscreen()" title="Toggle fullscreen">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" id="preview-fullscreen-expand">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+                        </svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" id="preview-fullscreen-collapse" style="display: none;">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="preview-content" id="preview-content">
+                    <!-- Content loaded dynamically -->
+                </div>
+                <div class="preview-actions" id="preview-actions" style="display:none;">
+                    <button class="btn" id="preview-edit" onclick="editPreviewFile()">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                        </svg>
+                        Edit
+                    </button>
+                    <button class="btn btn-primary" id="preview-download" onclick="downloadPreviewFile()">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                        </svg>
+                        Download
+                    </button>
+                    <button class="btn btn-danger" id="preview-delete" onclick="deletePreviewFile()">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                        </svg>
+                        Delete
+                    </button>
+                </div>
             </div>
         </aside>
     </div>
@@ -2952,6 +3092,67 @@
         </div>
     </div>
 
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="settings-modal">
+        <div class="modal" style="min-width: 380px; max-width: 480px;">
+            <div class="edit-modal-header" style="margin-bottom: 20px;">
+                <h2 style="margin: 0; font-size: 17px;">API Keys</h2>
+                <button class="preview-close" onclick="closeModals()">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 20px;">
+                <!-- Anthropic -->
+                <div>
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                        <label style="font-size: 13px; font-weight: 600;">Anthropic</label>
+                        <span id="anthropic-status" style="font-size: 12px; color: var(--text-muted);"></span>
+                    </div>
+                    <div style="position:relative;">
+                        <input type="password" class="modal-input" id="anthropic-key-input"
+                               placeholder="sk-ant-api03-..."
+                               oninput="updateKeyCount('anthropic')"
+                               style="margin-bottom:0; padding-right: 52px;">
+                        <span id="anthropic-key-count" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--text-muted);pointer-events:none;"></span>
+                    </div>
+                    <p style="font-size: 11px; color: var(--text-muted); margin: 5px 0 0;">
+                        Get your key at <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color: var(--accent, #007aff);">console.anthropic.com</a>
+                    </p>
+                </div>
+
+                <!-- OpenAI -->
+                <div>
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                        <label style="font-size: 13px; font-weight: 600;">OpenAI</label>
+                        <span id="openai-status" style="font-size: 12px; color: var(--text-muted);"></span>
+                    </div>
+                    <div style="position:relative;">
+                        <input type="password" class="modal-input" id="openai-key-input"
+                               placeholder="sk-proj-..."
+                               oninput="updateKeyCount('openai')"
+                               style="margin-bottom:0; padding-right: 52px;">
+                        <span id="openai-key-count" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--text-muted);pointer-events:none;"></span>
+                    </div>
+                    <p style="font-size: 11px; color: var(--text-muted); margin: 5px 0 0;">
+                        Get your key at <a href="https://platform.openai.com/api-keys" target="_blank" style="color: var(--accent, #007aff);">platform.openai.com</a>
+                    </p>
+                </div>
+
+                <p style="font-size: 11px; color: var(--text-muted); margin: 0; padding-top: 4px; border-top: 1px solid rgba(0,0,0,0.06);">
+                    Keys are saved to <code style="font-family: monospace; background: rgba(0,0,0,0.06); padding: 1px 4px; border-radius: 3px;">.env</code> in your project folder. At least one key is required for AI Chat.
+                </p>
+            </div>
+
+            <div class="modal-actions" style="margin-top: 20px; justify-content: flex-end;">
+                <button class="btn" onclick="closeModals()">Cancel</button>
+                <button class="btn btn-primary" id="settings-save-btn" onclick="saveSettings()">Save</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Drop Zone -->
     <div class="drop-zone" id="drop-zone">
         <span class="drop-zone-text">Drop files to upload</span>
@@ -2993,10 +3194,17 @@
         let previewPath = null;
         let previewReturnClusterId = null; // set when a file is opened from a cluster list
 
+        // Right Panel Tab Switching
+        function switchRightTab(tab) {
+            document.getElementById('tab-chat').classList.toggle('active', tab === 'chat');
+            document.getElementById('tab-preview').classList.toggle('active', tab === 'preview');
+            document.getElementById('pane-chat').classList.toggle('active', tab === 'chat');
+            document.getElementById('pane-preview').classList.toggle('active', tab === 'preview');
+        }
+
         // File Preview Functions
         async function openFilePreview(path) {
             previewPath = path;
-            const panel = document.getElementById('preview-panel');
             const content = document.getElementById('preview-content');
 
             // Show or hide the back-to-cluster button
@@ -3005,12 +3213,14 @@
             // File previews use the new-window button; cluster previews use pencil
             document.getElementById('preview-open-new-window-btn').style.display = '';
             document.getElementById('preview-cluster-rename-btn').style.display = 'none';
-            // Show file action buttons for file previews
-            document.querySelector('.preview-actions').style.display = '';
+            // Show file header and action buttons
+            document.getElementById('preview-file-header').style.display = '';
+            document.getElementById('preview-actions').style.display = '';
+            // Hide empty state
+            document.getElementById('preview-empty-state').style.display = 'none';
 
-            // Show panel with loading state
-            panel.classList.add('show');
-            document.body.classList.add('preview-open');
+            // Switch to the preview tab
+            switchRightTab('preview');
             content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
 
             try {
@@ -3114,7 +3324,6 @@
             }
 
             const panel = document.getElementById('preview-panel');
-            panel.classList.remove('show');
             panel.classList.remove('fullscreen');
             document.body.classList.remove('preview-open');
             previewPath = null;
@@ -3126,6 +3335,13 @@
             // Reset fullscreen icons
             document.getElementById('preview-fullscreen-expand').style.display = 'block';
             document.getElementById('preview-fullscreen-collapse').style.display = 'none';
+            // Reset preview pane to empty state
+            document.getElementById('preview-file-header').style.display = 'none';
+            document.getElementById('preview-actions').style.display = 'none';
+            document.getElementById('preview-empty-state').style.display = '';
+            document.getElementById('preview-content').innerHTML = '';
+            // Switch back to chat tab
+            switchRightTab('chat');
         }
 
         function togglePreviewFullscreen() {
@@ -3913,6 +4129,76 @@
             document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('show'));
         }
 
+        function updateKeyCount(provider) {
+            const input = document.getElementById(`${provider}-key-input`);
+            const counter = document.getElementById(`${provider}-key-count`);
+            const len = input.value.trim().length;
+            counter.textContent = len > 0 ? `${len} chars` : '';
+        }
+
+        async function showSettingsModal() {
+            // Load current status
+            const anthropicInput = document.getElementById('anthropic-key-input');
+            const openaiInput = document.getElementById('openai-key-input');
+            try {
+                const res = await fetch('/api/settings');
+                const data = await res.json();
+                const anthropicStatus = document.getElementById('anthropic-status');
+                const openaiStatus = document.getElementById('openai-status');
+                anthropicStatus.textContent = data.anthropic.configured
+                    ? `✓ Saved (${data.anthropic.key_preview})`
+                    : 'Not configured';
+                anthropicStatus.style.color = data.anthropic.configured ? '#34c759' : 'var(--text-muted)';
+                anthropicInput.placeholder = data.anthropic.configured
+                    ? 'Leave blank to keep existing key'
+                    : 'sk-ant-api03-...';
+                openaiStatus.textContent = data.openai.configured
+                    ? `✓ Saved (${data.openai.key_preview})`
+                    : 'Not configured';
+                openaiStatus.style.color = data.openai.configured ? '#34c759' : 'var(--text-muted)';
+                openaiInput.placeholder = data.openai.configured
+                    ? 'Leave blank to keep existing key'
+                    : 'sk-proj-...';
+            } catch {}
+            // Clear inputs and counters
+            anthropicInput.value = '';
+            openaiInput.value = '';
+            document.getElementById('anthropic-key-count').textContent = '';
+            document.getElementById('openai-key-count').textContent = '';
+            document.getElementById('settings-modal').classList.add('show');
+        }
+
+        async function saveSettings() {
+            const anthropicKey = document.getElementById('anthropic-key-input').value.trim();
+            const openaiKey = document.getElementById('openai-key-input').value.trim();
+            const btn = document.getElementById('settings-save-btn');
+            btn.disabled = true;
+            btn.textContent = 'Saving...';
+            try {
+                const res = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        anthropic_api_key: anthropicKey || null,
+                        openai_api_key: openaiKey || null,
+                    }),
+                });
+                if (!res.ok) {
+                    const body = await res.text();
+                    throw new Error(`${res.status}: ${body}`);
+                }
+                closeModals();
+                showToast('API keys saved. Reloading chat...');
+                setTimeout(() => initChat(), 500);
+            } catch (e) {
+                console.error('saveSettings error:', e);
+                showToast('Failed to save: ' + e.message, true);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Save';
+            }
+        }
+
         document.querySelectorAll('.modal-overlay').forEach(m => {
             m.addEventListener('click', (e) => {
                 if (e.target === m) closeModals();
@@ -3941,9 +4227,8 @@
         // Toast
         function showToast(message, isError = false) {
             const toast = document.getElementById('toast');
-            const previewOpen = document.getElementById('preview-panel').classList.contains('show');
             toast.textContent = message;
-            toast.className = 'toast show' + (isError ? ' error' : '') + (previewOpen ? ' preview-open' : '');
+            toast.className = 'toast show' + (isError ? ' error' : '');
             setTimeout(() => toast.classList.remove('show'), 3000);
         }
 
@@ -4264,7 +4549,7 @@
 
         function showDashboard() {
             currentView = 'dashboard';
-            document.getElementById('dashboard').style.display = 'grid';
+            document.getElementById('dashboard-view').style.display = 'flex';
             document.getElementById('content').style.display = 'none';
             currentPath = '';
             // Reset navigation state when returning to dashboard
@@ -4279,7 +4564,7 @@
 
         function showFileBrowser(path) {
             currentView = 'browser';
-            document.getElementById('dashboard').style.display = 'none';
+            document.getElementById('dashboard-view').style.display = 'none';
             document.getElementById('content').style.display = 'block';
             // Reset navigation state when entering file browser
             forwardHistory = [];
@@ -4844,7 +5129,7 @@
                 svg.call(zoom.transform,
                     d3.zoomIdentity
                         .translate(width / 2, height / 2)
-                        .scale(0.75)
+                        .scale(0.55)
                         .translate(-width / 2, -height / 2)
                 );
             }
@@ -4907,7 +5192,7 @@
                 modelSelect.innerHTML = '';
                 if (modelsData.models.length === 0) {
                     modelSelect.innerHTML = '<option value="">No models available</option>';
-                    messagesEl.innerHTML = '<div class="chat-no-config">No API keys configured. Add a <code>.env</code> file with your API keys to enable chat.<br>See <code>.env.example</code> for the template.</div>';
+                    messagesEl.innerHTML = '<div class="chat-no-config">No API keys configured. <a href="#" onclick="event.preventDefault(); showSettingsModal()" style="color: var(--accent, #007aff);">Add your API keys</a> to enable chat.</div>';
                     return;
                 }
 
@@ -4920,11 +5205,14 @@
                 });
 
                 // Populate agent select
-                agentSelect.innerHTML = '<option value="">No Agent</option>';
+                agentSelect.innerHTML = '<option value="">Default</option>';
                 agentsData.agents.forEach(a => {
                     const opt = document.createElement('option');
                     opt.value = a.name;
-                    opt.textContent = a.name;
+                    const minor = new Set(['and','or','of','the','in','on','at','to','a','an','but','for','nor','so','yet']);
+                    opt.textContent = a.name
+                        .replace(/[-_]/g, ' ')
+                        .replace(/\b\w+/g, (w, i) => (i === 0 || !minor.has(w)) ? w[0].toUpperCase() + w.slice(1) : w);
                     if (a.description) opt.title = a.description;
                     agentSelect.appendChild(opt);
                 });
@@ -5550,11 +5838,14 @@
             document.getElementById('preview-cluster-rename-btn').style.display =
                 isIsolated ? 'none' : '';
             // Hide file action buttons in cluster list view
-            document.querySelector('.preview-actions').style.display = 'none';
+            document.getElementById('preview-actions').style.display = 'none';
+            // Show file header for cluster name display
+            document.getElementById('preview-file-header').style.display = '';
+            document.getElementById('preview-empty-state').style.display = 'none';
             // Store active cluster id for rename function
             window.activeClusterId = isIsolated ? null : clusterId;
 
-            panel.classList.add('show');
+            switchRightTab('preview');
             document.body.classList.add('preview-open');
 
             const savedName = getClusterDisplayName(clusterId);
@@ -5738,7 +6029,7 @@
                 const h = +svg.attr('height') || 300;
                 window.graphSvg.transition().duration(300).call(
                     window.graphZoom.transform,
-                    d3.zoomIdentity.translate(w / 2, h / 2).scale(0.75).translate(-w / 2, -h / 2)
+                    d3.zoomIdentity.translate(w / 2, h / 2).scale(0.55).translate(-w / 2, -h / 2)
                 );
             }
         }
@@ -5824,9 +6115,14 @@
                     window.location.href = '/';
                     return;
                 }
-                // Check preview panel first (higher z-index) - close it entirely
+                // Check if preview tab is active and has content — exit fullscreen or close preview
                 const previewPanel = document.getElementById('preview-panel');
-                if (previewPanel && previewPanel.classList.contains('show')) {
+                const previewPaneActive = document.getElementById('pane-preview').classList.contains('active');
+                if (previewPanel && previewPanel.classList.contains('fullscreen')) {
+                    togglePreviewFullscreen();
+                    return;
+                }
+                if (previewPaneActive && previewPath) {
                     closePreview();
                     return;
                 }

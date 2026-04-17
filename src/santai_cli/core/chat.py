@@ -98,7 +98,7 @@ async def stream_response(
             yield chunk
     elif provider == "openai":
         async for chunk in _stream_openai(
-            session, provider_config.api_key, target_model
+            session, provider_config.api_key, target_model, provider_config.base_url
         ):
             yield chunk
     else:
@@ -163,9 +163,10 @@ async def _stream_openai(
     session: ChatSession,
     api_key: str,
     model: str,
+    base_url: str | None = None,
 ) -> AsyncGenerator[str, None]:
     """Stream a response from the OpenAI API."""
-    client = openai.AsyncOpenAI(api_key=api_key)
+    client = openai.AsyncOpenAI(api_key=api_key, base_url=base_url or openai.NOT_GIVEN)
 
     stream = await client.chat.completions.create(
         model=model,
