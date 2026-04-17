@@ -64,10 +64,14 @@ def login(
         str | None,
         typer.Option("--hub-url", help="Santai Hub URL"),
     ] = None,
+    port: Annotated[
+        int | None,
+        typer.Option("--port", "-p", help="Fixed port for callback server (useful for SSH tunneling)"),
+    ] = None,
 ) -> None:
     """Authenticate with Santai Hub via the browser."""
     hub = hub_url or _get_hub_url()
-    port = _find_free_port()
+    port = port or _find_free_port()
 
     result: dict[str, str] = {}
     error: list[str] = []
