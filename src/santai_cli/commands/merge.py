@@ -223,4 +223,3 @@ def merge(
     console.print(f"  cd {project_name}")
     console.print("  santai ui      # Launch TUI dashboard")
     console.print("  santai web     # Launch web dashboard")
-    console.print("  santai history # View project history")

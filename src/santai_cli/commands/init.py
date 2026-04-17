@@ -250,4 +250,3 @@ def init(
     console.print("  santai ui      # Launch TUI dashboard")
     console.print("  santai web     # Launch web dashboard")
     console.print("  santai chat    # Chat with AI models")
-    console.print("  santai history # View project history")

@@ -10,7 +10,18 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from santai_cli.commands import auth, chat, copy, history, init, merge, pull, push, ui, web
+from santai_cli.commands import (
+    auth,
+    chat,
+    cherry_pick,
+    copy,
+    init,
+    merge,
+    pull,
+    push,
+    ui,
+    web,
+)
 
 
 class _VerboseHelpGroup(typer.core.TyperGroup):
@@ -54,9 +65,9 @@ def _main() -> None:
 
 app.command(name="init")(init.init)
 app.command(name="copy")(copy.copy)
+app.command(name="cherry-pick")(cherry_pick.cherry_pick)
 app.command(name="chat")(chat.chat)
 app.command(name="merge")(merge.merge)
-app.command(name="history")(history.history)
 app.command(name="ui")(ui.ui)
 app.command(name="web")(web.web)
 app.command(name="push")(push.push)
@@ -103,18 +114,23 @@ _COMMANDS: list[dict[str, str | list[str]]] = [
         ],
     },
     {
-        "name": "santai history",
-        "summary": "Display project history entries.",
+        "name": "santai cherry-pick SOURCE DESTINATION FILES...",
+        "summary": "Cherry-pick specific files or folders from one KB into another.",
         "detail": (
-            "Renders markdown files from the history/ directory that follow\n"
-            "the YYYY-MM-DD-description.md naming convention. Entries are\n"
-            "displayed newest-first by default with Rich markdown formatting\n"
-            "and a pager for long output."
+            "Selectively copies individual files or entire folders from a\n"
+            "source Santai project into a destination project. Unlike 'copy'\n"
+            "(which clones everything) or 'merge' (which combines two full\n"
+            "projects), cherry-pick lets you move just the pieces you need."
         ),
+        "args": [
+            "SOURCE       Source Santai project path (or '.' for current directory)",
+            "DESTINATION  Destination Santai project path (or '.')",
+            "FILES...     One or more files or folders to cherry-pick (relative paths)",
+        ],
         "options": [
-            "--limit, -n INT   Show only N most recent entries",
-            "--reverse, -r     Show oldest first instead of newest first",
-            "--no-pager        Disable paging output",
+            "--overwrite   Overwrite existing files without prompting",
+            "--skip        Silently skip files that already exist",
+            "--dry-run     Show what would be copied without copying",
         ],
     },
     {
@@ -210,8 +226,11 @@ def _print_verbose_help() -> None:
         ("cd myproject", ""),
         ("santai ui", "Launch the TUI dashboard"),
         ("santai web", "Launch the web dashboard (http://localhost:8000)"),
-        ("santai history", "View project history"),
         ("santai copy . ../backup", "Copy project with fresh git history"),
+        (
+            "santai cherry-pick ./src ./dst notes/idea.md",
+            "Cherry-pick files between KBs",
+        ),
     ]
     for cmd_text, description in quick_start:
         if description:
@@ -247,10 +266,10 @@ def _print_verbose_help() -> None:
     # -- Tips ----------------------------------------------------------
     console.print("[bold underline]Tips[/bold underline]\n")
     tips = [
-        "History files follow the naming convention: YYYY-MM-DD-description.md",
         "TUI themes: claude, catppuccin, btop (default), light",
         "Web dashboard auto-opens your browser at http://localhost:PORT",
         "Use 'santai copy' to fork a knowledge base with a clean git history",
+        "Use 'santai cherry-pick' to move specific files between KBs",
         "Run 'santai <command> --help' for detailed help on any command",
     ]
     for tip in tips:
