@@ -11,3 +11,6 @@ wheels/
 
 # Claude Code local settings
 .claude/
+
+# Environment secrets
+.env

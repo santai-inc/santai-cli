@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -41,6 +41,13 @@ class FileContentRequest(BaseModel):
 class MoveRequest(BaseModel):
     source_path: str
     target_folder: str
+
+
+class ChatRequest(BaseModel):
+    messages: list[dict[str, str]]
+    provider: str
+    model: str
+    agent: str | None = None
 
 
 def format_size(size_bytes: int | float) -> str:
@@ -618,5 +625,97 @@ def create_app(project: SantaiProject) -> FastAPI:
             raise HTTPException(status_code=400, detail="Cannot download a directory")
 
         return FileResponse(target, filename=target.name)
+
+    # === Chat API Endpoints ===
+
+    @app.get("/api/chat/models")
+    async def chat_models() -> dict[str, Any]:
+        """Return available AI models based on configured API keys."""
+        from santai_cli.core.config import load_config
+
+        config = load_config(project.root)
+        models: list[dict[str, str | bool]] = []
+        for provider_name, provider_config in config.providers.items():
+            for model_name in provider_config.available_models:
+                is_default = model_name == provider_config.model
+                models.append(
+                    {
+                        "provider": provider_name,
+                        "provider_display": provider_config.name,
+                        "model": model_name,
+                        "default": is_default,
+                    }
+                )
+        return {"models": models, "configured": config.has_any_provider}
+
+    @app.get("/api/chat/agents")
+    async def chat_agents() -> dict[str, Any]:
+        """Return available agent profiles."""
+        from santai_cli.core.config import get_agent_profiles
+
+        profiles = get_agent_profiles()
+        agents = [{"name": name, "description": desc} for name, desc in profiles]
+        return {"agents": agents}
+
+    @app.post("/api/chat")
+    async def chat_send(req: ChatRequest) -> StreamingResponse:
+        """Stream an AI chat response via Server-Sent Events (SSE).
+
+        Accepts the full conversation history and streams the
+        assistant's response back as SSE data events.
+        """
+        import json
+
+        from santai_cli.core.chat import ChatSession, stream_response
+        from santai_cli.core.config import load_agent_prompt, load_config
+
+        config = load_config(project.root)
+
+        if req.provider not in config.providers:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Provider '{req.provider}' not configured. Check your .env file."
+                ),
+            )
+
+        provider_config = config.providers[req.provider]
+
+        # Build session from message history
+        system_prompt = None
+        if req.agent:
+            system_prompt = load_agent_prompt(req.agent)
+
+        session = ChatSession(system_prompt=system_prompt)
+        for msg in req.messages:
+            if msg.get("role") == "user":
+                session.add_user_message(msg.get("content", ""))
+            elif msg.get("role") == "assistant":
+                session.add_assistant_message(msg.get("content", ""))
+
+        async def event_generator():
+            """Generate SSE events from the streaming response."""
+            try:
+                async for chunk in stream_response(
+                    session, req.provider, provider_config, req.model
+                ):
+                    # SSE format: data: <json>\n\n
+                    data = json.dumps({"type": "chunk", "content": chunk})
+                    yield f"data: {data}\n\n"
+                # Send done event
+                yield f"data: {json.dumps({'type': 'done'})}\n\n"
+            except Exception as e:
+                error_data = json.dumps({"type": "error", "content": str(e)})
+                yield f"data: {error_data}\n\n"
+
+        return StreamingResponse(
+            event_generator(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
 
     return app

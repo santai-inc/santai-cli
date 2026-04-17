@@ -65,6 +65,25 @@ RUMDL_TOML_CONTENT = """\
 include = ["**/*.md"]
 """
 
+ENV_EXAMPLE_CONTENT = """\
+# Santai CLI - AI Chatbot Configuration
+# Copy this file to .env and fill in your API keys.
+# At least one provider key is required for `santai chat` to work.
+
+# --- Anthropic ---
+ANTHROPIC_API_KEY=your-anthropic-api-key-here
+ANTHROPIC_MODEL=claude-sonnet-4-20250514
+
+# --- OpenAI ---
+OPENAI_API_KEY=your-openai-api-key-here
+OPENAI_MODEL=gpt-4o
+"""
+
+GITIGNORE_CONTENT = """\
+# Environment secrets
+.env
+"""
+
 
 def _is_directory_empty(path: Path) -> bool:
     """Check if directory is completely empty (no files, no .git)."""
@@ -178,6 +197,14 @@ def init(
     console.print("Creating rumdl.toml...")
     (target_path / "rumdl.toml").write_text(RUMDL_TOML_CONTENT, encoding="utf-8")
 
+    # Write .env.example
+    console.print("Creating .env.example...")
+    (target_path / ".env.example").write_text(ENV_EXAMPLE_CONTENT, encoding="utf-8")
+
+    # Write .gitignore
+    console.print("Creating .gitignore...")
+    (target_path / ".gitignore").write_text(GITIGNORE_CONTENT, encoding="utf-8")
+
     # Install prek hooks
     console.print("Installing prek hooks...")
     if not _run_command(["prek", "install"], cwd=target_path):
@@ -196,6 +223,8 @@ def init(
     console.print("Project structure:")
     console.print(f"  {project_name}/")
     console.print("  ├── .git/")
+    console.print("  ├── .gitignore")
+    console.print("  ├── .env.example")
     console.print("  ├── .pre-commit-config.yaml")
     console.print("  ├── rumdl.toml")
     console.print("  ├── AGENTS.md")
@@ -210,4 +239,5 @@ def init(
     console.print(f"  cd {project_name}" if name != "." else "")
     console.print("  santai ui      # Launch TUI dashboard")
     console.print("  santai web     # Launch web dashboard")
+    console.print("  santai chat    # Chat with AI models")
     console.print("  santai history # View project history")
