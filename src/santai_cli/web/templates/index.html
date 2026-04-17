@@ -2729,6 +2729,10 @@
                                     <span class="graph-legend-color" style="background: #fbbf24;"></span>
                                     <span>notes</span>
                                 </div>
+                                <div class="graph-legend-item" data-directory="wiki" onclick="toggleDirectoryFilter('wiki')">
+                                    <span class="graph-legend-color" style="background: #34d399;"></span>
+                                    <span>wiki</span>
+                                </div>
                                 <button class="graph-cluster-clear-btn" id="dir-clear-btn" style="display:none;" onclick="clearDirectoryFilter()">Clear</button>
                             </div>
                             <div id="graph-cluster-legend" style="display:none;"></div>
@@ -4411,6 +4415,7 @@
             codebases: '#a855f7',  // Deep purple
             history: '#f87171',    // Red
             notes: '#fbbf24',      // Yellow (sticky note)
+            wiki: '#34d399',       // Emerald green
             other: '#94a3b8'       // Slate gray
         };
 

@@ -154,6 +154,12 @@ def create_app(project: SantaiProject) -> FastAPI:
                 "is_dir": True,
                 "children": get_file_tree(project.notes_path, project.root),
             },
+            {
+                "name": "wiki",
+                "path": "wiki",
+                "is_dir": True,
+                "children": get_file_tree(project.wiki_path, project.root),
+            },
         ]
 
         return templates.TemplateResponse(
@@ -177,6 +183,7 @@ def create_app(project: SantaiProject) -> FastAPI:
             "codebases_count": stats.codebases_count,
             "history_count": stats.history_count,
             "notes_count": stats.notes_count,
+            "wiki_count": stats.wiki_count,
             "total_size_bytes": stats.total_size_bytes,
             "total_size_formatted": format_size(stats.total_size_bytes),
             "file_types": stats.file_types,
@@ -402,6 +409,7 @@ def create_app(project: SantaiProject) -> FastAPI:
             "history",
             "notes",
             "resources",
+            "wiki",
             "AGENTS.md",
             "CLAUDE.md",
             "README.md",
