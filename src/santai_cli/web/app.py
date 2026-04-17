@@ -50,6 +50,11 @@ class ChatRequest(BaseModel):
     agent: str | None = None
 
 
+class SettingsRequest(BaseModel):
+    anthropic_api_key: str | None = None
+    openai_api_key: str | None = None
+
+
 def format_size(size_bytes: int | float) -> str:
     """Format bytes as human-readable size."""
     for unit in ["B", "KB", "MB", "GB"]:
@@ -636,7 +641,12 @@ def create_app(project: SantaiProject) -> FastAPI:
         config = load_config(project.root)
         models: list[dict[str, str | bool]] = []
         for provider_name, provider_config in config.providers.items():
-            for model_name in provider_config.available_models:
+            model_list = (
+                [provider_config.model]
+                if provider_config.base_url
+                else provider_config.available_models
+            )
+            for model_name in model_list:
                 is_default = model_name == provider_config.model
                 models.append(
                     {
@@ -717,5 +727,79 @@ def create_app(project: SantaiProject) -> FastAPI:
                 "X-Accel-Buffering": "no",
             },
         )
+
+    @app.get("/api/settings")
+    async def get_settings() -> dict[str, Any]:
+        """Return current API key configuration status (keys masked)."""
+        import os
+
+        from dotenv import dotenv_values
+
+        env_path = project.root / ".env"
+        stored = dotenv_values(env_path) if env_path.is_file() else {}
+
+        def masked(key: str) -> str | None:
+            val = stored.get(key) or os.environ.get(key, "")
+            if not val or val.startswith("your-"):
+                return None
+            return val[:8] + "..." + val[-4:] if len(val) > 12 else "****"
+
+        return {
+            "anthropic": {
+                "configured": bool(
+                    (
+                        stored.get("ANTHROPIC_API_KEY")
+                        or os.environ.get("ANTHROPIC_API_KEY", "")
+                    )
+                    and not (stored.get("ANTHROPIC_API_KEY", "") or "").startswith(
+                        "your-"
+                    )
+                ),
+                "key_preview": masked("ANTHROPIC_API_KEY"),
+            },
+            "openai": {
+                "configured": bool(
+                    (
+                        stored.get("OPENAI_API_KEY")
+                        or os.environ.get("OPENAI_API_KEY", "")
+                    )
+                    and not (stored.get("OPENAI_API_KEY", "") or "").startswith("your-")
+                ),
+                "key_preview": masked("OPENAI_API_KEY"),
+            },
+        }
+
+    @app.post("/api/settings")
+    async def save_settings(req: SettingsRequest) -> dict[str, str]:
+        """Save API keys to the project .env file."""
+        import os
+
+        from dotenv import dotenv_values, load_dotenv
+
+        env_path = project.root / ".env"
+
+        # Read existing values
+        existing: dict[str, str] = {}
+        if env_path.is_file():
+            existing = dict(dotenv_values(env_path))
+
+        # Update with new values (empty string = leave unchanged)
+        if req.anthropic_api_key is not None and req.anthropic_api_key.strip():
+            existing["ANTHROPIC_API_KEY"] = req.anthropic_api_key.strip()
+        if req.openai_api_key is not None and req.openai_api_key.strip():
+            existing["OPENAI_API_KEY"] = req.openai_api_key.strip()
+
+        # Ensure defaults are present
+        existing.setdefault("ANTHROPIC_MODEL", "claude-sonnet-4-6")
+        existing.setdefault("OPENAI_MODEL", "gpt-4o")
+
+        # Write .env file — quote all values so special chars are preserved
+        lines = [f'{k}="{v}"\n' for k, v in existing.items()]
+        env_path.write_text("".join(lines), encoding="utf-8")
+
+        # Reload into the running process immediately
+        load_dotenv(env_path, override=True)
+
+        return {"status": "saved"}
 
     return app

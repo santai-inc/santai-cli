@@ -12,24 +12,27 @@ from dotenv import load_dotenv
 
 # Default models per provider
 DEFAULT_MODELS: dict[str, str] = {
-    "anthropic": "claude-sonnet-4-20250514",
+    "anthropic": "claude-sonnet-4-6",
     "openai": "gpt-4o",
 }
 
 # Popular models available per provider (for interactive selection)
 AVAILABLE_MODELS: dict[str, list[str]] = {
     "anthropic": [
-        "claude-sonnet-4-20250514",
-        "claude-opus-4-20250514",
-        "claude-haiku-4-20250514",
+        "claude-opus-4-7",
+        "claude-sonnet-4-6",
+        "claude-haiku-4-5-20251001",
+        "claude-3-7-sonnet-20250219",
+        "claude-3-5-sonnet-20241022",
+        "claude-3-5-haiku-20241022",
     ],
     "openai": [
         "gpt-4o",
         "gpt-4o-mini",
-        "o3-mini",
         "gpt-4.1",
         "gpt-4.1-mini",
         "gpt-4.1-nano",
+        "o3-mini",
     ],
 }
 
@@ -42,6 +45,7 @@ class ProviderConfig:
     api_key: str
     model: str
     available_models: list[str] = field(default_factory=list)
+    base_url: str | None = None
 
 
 @dataclass
@@ -88,10 +92,10 @@ def load_config(project_root: Path | None = None) -> ChatConfig:
     if project_root:
         env_path = project_root / ".env"
         if env_path.is_file():
-            load_dotenv(env_path)
+            load_dotenv(env_path, override=True)
     else:
         # Try loading from cwd
-        load_dotenv()
+        load_dotenv(override=True)
 
     config = ChatConfig()
 
@@ -112,11 +116,13 @@ def load_config(project_root: Path | None = None) -> ChatConfig:
     openai_key = os.environ.get("OPENAI_API_KEY", "").strip()
     if openai_key and not openai_key.startswith("your-"):
         openai_model = os.environ.get("OPENAI_MODEL", DEFAULT_MODELS["openai"]).strip()
+        openai_base_url = os.environ.get("OPENAI_API_BASE_URL", "").strip() or None
         config.providers["openai"] = ProviderConfig(
             name="OpenAI",
             api_key=openai_key,
             model=openai_model,
             available_models=AVAILABLE_MODELS["openai"],
+            base_url=openai_base_url,
         )
 
     return config
