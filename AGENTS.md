@@ -44,6 +44,18 @@ src/santai_cli/
 
 Entry point: `santai_cli.cli:app` (Typer application)
 
+## Santai Project Directories
+
+When `santai init` creates a new project, it creates these core directories:
+
+- **resources/** - Reference materials (markdown, PDFs, images, documents)
+- **codebases/** - Code repositories and references
+- **history/** - Markdown documentation of major changes and decisions
+- **notes/** - General notes, scratch space, and quick thoughts
+- **wiki/** - Important context for grounding AI agents and solidifying project knowledge
+
+These are defined in `SANTAI_DIRS` in `src/santai_cli/core/project.py`. When adding a new directory, update all references across `core/project.py`, `commands/init.py`, `tui/app.py`, `web/app.py`, and `web/templates/index.html`.
+
 ## Key Constraints
 
 - **Python 3.12+** required

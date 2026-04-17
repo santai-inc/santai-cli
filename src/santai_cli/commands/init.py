@@ -20,6 +20,7 @@ This directory is managed by Santai.
 - **codebases/** - Code repositories and references
 - **history/** - Markdown documentation of major changes and decisions (supplements git history)
 - **notes/** - General notes, scratch space, and quick thoughts
+- **wiki/** - Important context for grounding AI agents and solidifying project knowledge
 
 ## Pre-commit Hooks
 
@@ -40,6 +41,14 @@ The `notes/` directory is for general notes and scratch space:
 - Use `.md` or `.txt` files
 - Name files descriptively (e.g., `meeting-notes.md`, `ideas.txt`)
 - Notes are displayed with previews in the dashboard
+
+## Wiki Convention
+
+The `wiki/` directory is for important context grounding:
+
+- Add files that contain particularly important project knowledge
+- Use wiki entries to highlight context for AI agents
+- Supports `.md` and `.txt` files
 """
 
 README_MD_TEMPLATE = """\
