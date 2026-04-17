@@ -18,6 +18,7 @@ from santai_cli.core.project import (
     get_history_entries,
     get_notes,
 )
+from santai_cli.core.repo_context import build_repo_context, inject_repo_context
 
 # Templates and static directories
 TEMPLATES_DIR = Path(__file__).parent / "templates"
@@ -704,6 +705,10 @@ def create_app(project: SantaiProject) -> FastAPI:
         if req.agent:
             system_prompt = load_agent_prompt(req.agent)
 
+        # Inject repository context
+        repo_context = build_repo_context(project)
+        system_prompt = inject_repo_context(system_prompt, repo_context)
+
         session = ChatSession(system_prompt=system_prompt)
         for msg in req.messages:
             if msg.get("role") == "user":
@@ -780,7 +785,6 @@ def create_app(project: SantaiProject) -> FastAPI:
     @app.post("/api/settings")
     async def save_settings(req: SettingsRequest) -> dict[str, str]:
         """Save API keys to the project .env file."""
-        import os
 
         from dotenv import dotenv_values, load_dotenv
 

@@ -2635,37 +2635,119 @@
 
         .chat-msg.user {
             align-self: flex-end;
-            background: var(--accent, rgba(0, 122, 255, 0.15));
+            background: linear-gradient(135deg, rgba(62, 180, 137, 0.15), rgba(62, 180, 137, 0.1));
             color: var(--text-primary);
             border-bottom-right-radius: 4px;
+            padding: 10px 14px;
+            line-height: 1.5;
         }
 
         .chat-msg.assistant {
             align-self: flex-start;
-            background: rgba(0, 0, 0, 0.04);
+            background: rgba(255, 255, 255, 0.6);
             color: var(--text-primary);
             border-bottom-left-radius: 4px;
+            padding: 12px 16px;
+        }
+
+        .chat-msg.assistant {
+            line-height: 1.6;
+        }
+
+        .chat-msg.assistant > *:first-child {
+            margin-top: 0;
+        }
+
+        .chat-msg.assistant > *:last-child {
+            margin-bottom: 0;
         }
 
         .chat-msg.assistant p {
-            margin: 0 0 8px 0;
+            margin: 0 0 10px 0;
         }
 
-        .chat-msg.assistant p:last-child {
-            margin-bottom: 0;
+        .chat-msg.assistant h1, 
+        .chat-msg.assistant h2, 
+        .chat-msg.assistant h3,
+        .chat-msg.assistant h4 {
+            margin: 16px 0 8px 0;
+            font-weight: 600;
+            line-height: 1.3;
+        }
+
+        .chat-msg.assistant h1 { font-size: 16px; }
+        .chat-msg.assistant h2 { font-size: 15px; }
+        .chat-msg.assistant h3 { font-size: 14px; }
+
+        .chat-msg.assistant ul,
+        .chat-msg.assistant ol {
+            margin: 8px 0;
+            padding-left: 20px;
+        }
+
+        .chat-msg.assistant li {
+            margin: 4px 0;
+        }
+
+        .chat-msg.assistant a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        .chat-msg.assistant a:hover {
+            text-decoration: underline;
         }
 
         .chat-msg.assistant pre {
             background: rgba(0, 0, 0, 0.06);
-            padding: 8px 12px;
+            padding: 12px 14px;
             border-radius: 8px;
             overflow-x: auto;
             font-size: 12px;
+            margin: 10px 0;
         }
 
         .chat-msg.assistant code {
-            font-family: "SF Mono", "Fira Code", monospace;
+            font-family: "SF Mono", "Fira Code", Consolas, monospace;
             font-size: 12px;
+        }
+
+        .chat-msg.assistant :not(pre) > code {
+            background: rgba(0, 0, 0, 0.06);
+            padding: 2px 5px;
+            border-radius: 4px;
+        }
+
+        .chat-msg.assistant blockquote {
+            border-left: 3px solid var(--accent);
+            margin: 10px 0;
+            padding: 8px 12px;
+            background: rgba(0, 0, 0, 0.03);
+            border-radius: 0 6px 6px 0;
+            color: var(--text-secondary);
+        }
+
+        .chat-msg.assistant hr {
+            border: none;
+            border-top: 1px solid rgba(0, 0, 0, 0.1);
+            margin: 16px 0;
+        }
+
+        .chat-msg.assistant table {
+            border-collapse: collapse;
+            margin: 10px 0;
+            font-size: 12px;
+        }
+
+        .chat-msg.assistant th,
+        .chat-msg.assistant td {
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            padding: 6px 10px;
+            text-align: left;
+        }
+
+        .chat-msg.assistant th {
+            background: rgba(0, 0, 0, 0.04);
         }
 
         .chat-msg.system {
@@ -2726,13 +2808,27 @@
             font-size: 13px;
         }
 
+        /* Chat streaming indicator */
+        .chat-msg.assistant.streaming::after {
+            content: '▊';
+            animation: blink 0.8s infinite;
+            color: var(--accent);
+            margin-left: 4px;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
         /* Simple theme overrides for chat */
         body.simple-theme .chat-msg.user {
-            background: rgba(0, 122, 255, 0.1);
+            background: rgba(62, 180, 137, 0.15);
         }
 
         body.simple-theme .chat-msg.assistant {
-            background: rgba(0, 0, 0, 0.03);
+            background: white;
+            border: 1px solid rgba(0, 0, 0, 0.08);
         }
 
         body.simple-theme .chat-input-row input {
@@ -3168,6 +3264,16 @@
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
     <script>
+        // Configure marked for security and proper rendering
+        if (typeof marked !== 'undefined') {
+            marked.setOptions({
+                breaks: true,
+                gfm: true,
+                headerIds: false,
+                mangle: false
+            });
+        }
+
         // Theme Management - 2 themes: simple (light) and glass
         function setTheme(theme) {
             document.documentElement.setAttribute('data-theme', theme);
@@ -5295,6 +5401,7 @@
 
             // Create the assistant message element for streaming
             const assistantDiv = appendChatMessage('assistant', '');
+            assistantDiv.classList.add('streaming');
             let fullResponse = '';
 
             try {
@@ -5358,6 +5465,7 @@
                 assistantDiv.innerHTML = `<span style="color: red;">Error: ${e.message}</span>`;
                 console.error('Chat error:', e);
             } finally {
+                assistantDiv.classList.remove('streaming');
                 chatStreaming = false;
                 inputEl.disabled = false;
                 sendBtn.disabled = false;
