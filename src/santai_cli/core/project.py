@@ -5,7 +5,8 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
 
-SANTAI_DIRS = ["resources", "codebases", "history", "notes"]
+SANTAI_REQUIRED_DIRS = ["resources", "codebases", "history", "notes"]
+SANTAI_DIRS = [*SANTAI_REQUIRED_DIRS, "wiki"]
 
 
 @dataclass
@@ -77,6 +78,7 @@ class DirectoryStats:
     codebases_count: int
     history_count: int
     notes_count: int
+    wiki_count: int
     total_size_bytes: int
     file_types: dict[str, int]
     recent_files: list[FileInfo]
@@ -105,6 +107,10 @@ class SantaiProject:
     def notes_path(self) -> Path:
         return self.root / "notes"
 
+    @property
+    def wiki_path(self) -> Path:
+        return self.root / "wiki"
+
 
 def is_santai_project(path: Path) -> bool:
     """Check if the given path is a Santai project.
@@ -114,7 +120,7 @@ def is_santai_project(path: Path) -> bool:
     if not path.is_dir():
         return False
 
-    return all((path / dir_name).is_dir() for dir_name in SANTAI_DIRS)
+    return all((path / dir_name).is_dir() for dir_name in SANTAI_REQUIRED_DIRS)
 
 
 def get_project(path: Path | None = None) -> SantaiProject | None:
@@ -174,6 +180,7 @@ def get_directory_stats(project: SantaiProject) -> DirectoryStats:
     codebases_count = _count_files_recursive(project.codebases_path)
     history_count = _count_files_recursive(project.history_path)
     notes_count = _count_files_recursive(project.notes_path)
+    wiki_count = _count_files_recursive(project.wiki_path)
 
     # Calculate total size
     total_size = sum(f.size_bytes for f in all_files)
@@ -191,6 +198,7 @@ def get_directory_stats(project: SantaiProject) -> DirectoryStats:
         codebases_count=codebases_count,
         history_count=history_count,
         notes_count=notes_count,
+        wiki_count=wiki_count,
         total_size_bytes=total_size,
         file_types=file_types,
         recent_files=recent_files,

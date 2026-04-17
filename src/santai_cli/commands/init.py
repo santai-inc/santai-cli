@@ -129,7 +129,7 @@ def init(
 
     Creates a new directory (or uses current directory) with:
     - Git repository
-    - resources/, codebases/, history/, notes/ folders
+    - resources/, codebases/, history/, notes/, wiki/ folders
     - AGENTS.md, README.md, CLAUDE.md
     - Pre-commit hooks with rumdl for markdown linting (using prek)
     """
@@ -169,7 +169,7 @@ def init(
 
     # Create directories
     console.print("Creating directory structure...")
-    for dir_name in ["resources", "codebases", "history", "notes"]:
+    for dir_name in ["resources", "codebases", "history", "notes", "wiki"]:
         (target_path / dir_name).mkdir(exist_ok=True)
         # Add .gitkeep to keep empty directories in git
         (target_path / dir_name / ".gitkeep").touch()
@@ -233,7 +233,8 @@ def init(
     console.print("  ├── resources/")
     console.print("  ├── codebases/")
     console.print("  ├── history/")
-    console.print("  └── notes/")
+    console.print("  ├── notes/")
+    console.print("  └── wiki/")
     console.print()
     console.print("Next steps:")
     console.print(f"  cd {project_name}" if name != "." else "")
