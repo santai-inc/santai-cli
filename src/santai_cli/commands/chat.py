@@ -23,7 +23,8 @@ from santai_cli.core.config import (
     load_agent_prompt,
     load_config,
 )
-from santai_cli.core.project import get_project
+from santai_cli.core.project import SantaiProject, get_project
+from santai_cli.core.repo_context import build_repo_context, inject_repo_context
 
 console = Console()
 
@@ -37,6 +38,7 @@ class _ChatState:
     provider: str
     model: str
     agent: str | None
+    project: SantaiProject | None = None
 
 
 def chat(
@@ -105,6 +107,12 @@ def chat(
             _print_available_agents()
             raise typer.Exit(1)
 
+    # Inject repository context if in a Santai project
+    if project:
+        repo_context = build_repo_context(project)
+        system_prompt = inject_repo_context(system_prompt, repo_context)
+        console.print(f"[dim]Repository context loaded: {project.root.name}[/]")
+
     # Select model (interactive or from flag)
     provider, selected_model = _select_model(config, model)
     if provider is None or selected_model is None:
@@ -118,7 +126,7 @@ def chat(
 
     # Enter REPL loop
     try:
-        _repl_loop(session, config, provider, selected_model, active_agent)
+        _repl_loop(session, config, provider, selected_model, active_agent, project)
     except KeyboardInterrupt:
         console.print("\n[dim]Chat ended.[/]")
 
@@ -244,6 +252,7 @@ def _repl_loop(
     provider: str,
     model: str,
     agent: str | None,
+    project: SantaiProject | None = None,
 ) -> None:
     """Main REPL loop for the chat."""
     state = _ChatState(
@@ -252,6 +261,7 @@ def _repl_loop(
         provider=provider,
         model=model,
         agent=agent,
+        project=project,
     )
 
     while True:
@@ -323,6 +333,9 @@ def _handle_command(command: str, state: _ChatState) -> str:
                 console.print(f"[red]Agent '{arg}' not found.[/]")
                 _print_available_agents()
             else:
+                if state.project:
+                    repo_context = build_repo_context(state.project)
+                    new_prompt = inject_repo_context(new_prompt, repo_context)
                 state.session = ChatSession(system_prompt=new_prompt)
                 state.agent = arg
                 console.print(f"[dim]Switched to agent: {arg}. History cleared.[/]\n")
