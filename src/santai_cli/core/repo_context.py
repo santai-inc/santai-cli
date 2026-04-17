@@ -243,8 +243,8 @@ def build_repo_context_prompt(context: RepoContext) -> str:
         [
             "",
             "## Important Guidelines",
-            "- You have full visibility into this project's structure and content.",
-            "- When answering questions, reference relevant files and content from above.",
+            ("- You have full visibility into this project's structure and content."),
+            ("- When answering questions, reference relevant files and content."),
             "- Use [[wikilinks]] or markdown links when referencing project files.",
         ]
     )
