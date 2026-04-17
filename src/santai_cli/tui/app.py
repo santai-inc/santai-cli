@@ -17,6 +17,7 @@ from textual.widgets import (
     Header,
     Input,
     Label,
+    RichLog,
     Static,
     TextArea,
 )
@@ -1544,6 +1545,296 @@ class GraphFilterScreen(ModalScreen):
         self.dismiss()
 
 
+# === Chat Screen ===
+
+
+class ChatScreen(ModalScreen):
+    """Modal screen for AI chat within the TUI dashboard."""
+
+    BINDINGS = [
+        Binding("escape", "dismiss", "Close"),
+    ]
+
+    DEFAULT_CSS = """
+    ChatScreen {
+        align: center middle;
+    }
+    #chat-modal {
+        width: 90%;
+        height: 90%;
+        border: thick $primary;
+        background: $surface;
+    }
+    #chat-modal-header {
+        dock: top;
+        height: 3;
+        padding: 0 2;
+        background: $primary;
+        color: $text;
+    }
+    #chat-log {
+        height: 1fr;
+        padding: 1 2;
+        scrollbar-size-vertical: 1;
+    }
+    #chat-input-bar {
+        dock: bottom;
+        height: 3;
+        padding: 0 1;
+    }
+    #chat-input {
+        width: 1fr;
+    }
+    #chat-status {
+        dock: bottom;
+        height: 1;
+        padding: 0 2;
+        color: $text-muted;
+    }
+    """
+
+    def __init__(self, project: SantaiProject) -> None:
+        super().__init__()
+        self.project = project
+        self._provider: str | None = None
+        self._model: str | None = None
+        self._agent: str | None = None
+        self._session: Any = None
+        self._config: Any = None
+        self._streaming = False
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="chat-modal"):
+            yield Label(
+                "[bold]Santai Chat[/bold] — press Escape to close",
+                id="chat-modal-header",
+            )
+            yield RichLog(id="chat-log", wrap=True, highlight=True, markup=True)
+            yield Label("", id="chat-status")
+            with Horizontal(id="chat-input-bar"):
+                yield Input(
+                    placeholder="Type a message... (/help for commands)",
+                    id="chat-input",
+                )
+
+    def on_mount(self) -> None:
+        """Initialize chat configuration."""
+        from santai_cli.core.config import load_config
+
+        log = self.query_one("#chat-log", RichLog)
+        status = self.query_one("#chat-status", Label)
+
+        self._config = load_config(self.project.root)
+
+        if not self._config.has_any_provider:
+            log.write(
+                "[bold red]No API keys configured.[/]\n\n"
+                "Create a .env file in your project root with at least one key:\n"
+                "  ANTHROPIC_API_KEY=sk-ant-...\n"
+                "  OPENAI_API_KEY=sk-...\n\n"
+                "See .env.example for the full template."
+            )
+            status.update("No providers configured")
+            return
+
+        # Auto-select first available model
+        choices = self._config.get_model_choices()
+        if choices:
+            _, self._provider, self._model = choices[0]
+            provider_name = self._config.providers[self._provider].name
+            status.update(
+                f"Provider: {provider_name} | Model: {self._model} | /help for commands"
+            )
+
+            # Show model selection prompt
+            log.write("[bold cyan]Welcome to Santai Chat![/]\n")
+            log.write(f"[dim]Using {provider_name}: {self._model}[/]")
+            if len(choices) > 1:
+                log.write("[dim]Type /model to switch models.[/]")
+            log.write("[dim]Type /help for all commands.[/]\n")
+
+        # Initialize session
+        from santai_cli.core.chat import ChatSession
+
+        self._session = ChatSession()
+
+        # Focus the input
+        self.query_one("#chat-input", Input).focus()
+
+    async def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Handle user input submission."""
+        if event.input.id != "chat-input":
+            return
+
+        user_text = event.value.strip()
+        if not user_text:
+            return
+
+        event.input.value = ""
+        log = self.query_one("#chat-log", RichLog)
+
+        if self._session is None or self._config is None:
+            log.write("[red]Chat not initialized. Check your .env configuration.[/]")
+            return
+
+        # Handle slash commands
+        if user_text.startswith("/"):
+            self._handle_chat_command(user_text)
+            return
+
+        if self._provider is None or self._model is None:
+            log.write("[red]No model selected. Type /model to select one.[/]")
+            return
+
+        if self._streaming:
+            log.write("[dim]Please wait for the current response to finish.[/]")
+            return
+
+        # Show user message
+        log.write(f"\n[bold green]You:[/] {user_text}")
+
+        # Get streaming response
+        self._session.add_user_message(user_text)
+        self._streaming = True
+        status = self.query_one("#chat-status", Label)
+        status.update("Generating response...")
+
+        try:
+            from santai_cli.core.chat import stream_response
+
+            provider_config = self._config.providers[self._provider]
+            full_text = ""
+
+            log.write("[bold cyan]Assistant:[/]")
+
+            async for chunk in stream_response(
+                self._session, self._provider, provider_config, self._model
+            ):
+                full_text += chunk
+                # RichLog doesn't support in-place updates easily,
+                # so we write chunks as they arrive
+                log.write(chunk, scroll_end=True)
+
+            log.write("")  # Blank line after response
+            self._session.add_assistant_message(full_text)
+
+            provider_name = self._config.providers[self._provider].name
+            status.update(
+                f"Provider: {provider_name} | Model: {self._model} | /help for commands"
+            )
+
+        except Exception as e:
+            error_msg = str(e)
+            if "401" in error_msg or "authentication" in error_msg.lower():
+                log.write("[red]Authentication failed. Check your API key.[/]")
+            elif "429" in error_msg or "rate" in error_msg.lower():
+                log.write("[red]Rate limited. Wait a moment and try again.[/]")
+            else:
+                log.write(f"[red]Error: {error_msg}[/]")
+            # Remove the failed user message
+            self._session.messages.pop()
+            status.update("Error occurred")
+        finally:
+            self._streaming = False
+
+    def _handle_chat_command(self, command: str) -> None:
+        """Handle slash commands in the chat input."""
+        from santai_cli.core.chat import ChatSession
+        from santai_cli.core.config import load_agent_prompt
+
+        log = self.query_one("#chat-log", RichLog)
+        status = self.query_one("#chat-status", Label)
+
+        parts = command.strip().split(maxsplit=1)
+        cmd = parts[0].lower()
+        arg = parts[1] if len(parts) > 1 else None
+
+        if cmd in ("/quit", "/exit", "/q"):
+            self.dismiss()
+
+        elif cmd == "/clear":
+            if self._session:
+                self._session.clear()
+            log.clear()
+            log.write("[dim]Conversation cleared.[/]\n")
+
+        elif cmd == "/help":
+            log.write(
+                "\n[bold]Commands:[/]\n"
+                "  [cyan]/quit[/]          Close the chat\n"
+                "  [cyan]/clear[/]         Clear conversation history\n"
+                "  [cyan]/agent[/]         List agents, or /agent <name> to switch\n"
+                "  [cyan]/model[/]         Switch model (shows numbered list)\n"
+                "  [cyan]/help[/]          Show this help\n"
+            )
+
+        elif cmd == "/agent":
+            if arg:
+                prompt = load_agent_prompt(arg)
+                if prompt is None:
+                    log.write(f"[red]Agent '{arg}' not found.[/]")
+                    self._show_agents(log)
+                else:
+                    self._session = ChatSession(system_prompt=prompt)
+                    self._agent = arg
+                    log.clear()
+                    log.write(f"[dim]Switched to agent: {arg}. History cleared.[/]\n")
+                    status.update(
+                        f"Agent: {arg} | Model: {self._model} | /help for commands"
+                    )
+            else:
+                self._show_agents(log)
+
+        elif cmd == "/model":
+            if self._config is None:
+                return
+            choices = self._config.get_model_choices()
+            if not choices:
+                log.write("[red]No models available.[/]")
+                return
+
+            log.write("\n[bold]Available models:[/]")
+            for i, (label, _, _) in enumerate(choices, 1):
+                log.write(f"  [cyan]{i}[/]) {label}")
+
+            if arg:
+                # Allow direct selection by number
+                try:
+                    idx = int(arg) - 1
+                    if 0 <= idx < len(choices):
+                        _, self._provider, self._model = choices[idx]
+                        provider_name = self._config.providers[self._provider].name
+                        log.write(
+                            f"\n[dim]Switched to {provider_name}: {self._model}[/]\n"
+                        )
+                        status.update(
+                            f"Provider: {provider_name} | Model: {self._model}"
+                        )
+                        return
+                except ValueError:
+                    pass
+
+            log.write("[dim]Type /model <number> to switch.[/]\n")
+
+        else:
+            log.write(f"[red]Unknown command: {cmd}[/]. Type /help for options.")
+
+    def _show_agents(self, log: RichLog) -> None:
+        """Display available agent profiles."""
+        from santai_cli.core.config import get_agent_profiles
+
+        profiles = get_agent_profiles()
+        if not profiles:
+            log.write("[dim]No agent profiles found.[/]")
+            return
+
+        log.write("\n[bold]Available agents:[/]")
+        for name, description in profiles:
+            desc_text = f" — {description}" if description else ""
+            log.write(f"  [cyan]{name}[/]{desc_text}")
+        log.write("[dim]Type /agent <name> to switch.[/]\n")
+
+
 # === Main App ===
 
 
@@ -1563,6 +1854,7 @@ class SantaiApp(App):
         Binding("n", "add_note", "Add Note"),
         Binding("p", "cycle_palette", "Palette"),
         Binding("c", "clear_graph_search", "Clear Search", show=True),
+        Binding("x", "open_chat", "Chat", show=True),
         Binding("escape", "back", "Back", show=True),
     ]
 
@@ -1717,6 +2009,10 @@ class SantaiApp(App):
     def action_add_note(self) -> None:
         """Open add note modal."""
         self.push_screen(AddNoteScreen(self.project))
+
+    def action_open_chat(self) -> None:
+        """Open the AI chat modal."""
+        self.push_screen(ChatScreen(self.project))
 
     def on_clickable_note_clicked(self, event: ClickableNote.Clicked) -> None:
         """Handle click on a note — open note detail modal."""

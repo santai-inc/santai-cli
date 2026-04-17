@@ -2,7 +2,7 @@
 
 import typer
 
-from santai_cli.commands import copy, history, init, ui, web
+from santai_cli.commands import chat, copy, history, init, ui, web
 
 app = typer.Typer(
     name="santai",
@@ -12,6 +12,7 @@ app = typer.Typer(
 
 app.command(name="init")(init.init)
 app.command(name="copy")(copy.copy)
+app.command(name="chat")(chat.chat)
 app.command(name="history")(history.history)
 app.command(name="ui")(ui.ui)
 app.command(name="web")(web.web)
