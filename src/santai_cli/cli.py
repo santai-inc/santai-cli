@@ -10,7 +10,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from santai_cli.commands import auth, chat, copy, history, init, merge, ui, web
+from santai_cli.commands import auth, chat, copy, history, init, merge, pull, push, ui, web
 
 
 class _VerboseHelpGroup(typer.core.TyperGroup):
@@ -59,6 +59,8 @@ app.command(name="merge")(merge.merge)
 app.command(name="history")(history.history)
 app.command(name="ui")(ui.ui)
 app.command(name="web")(web.web)
+app.command(name="push")(push.push)
+app.command(name="pull")(pull.pull)
 app.command(name="login")(auth.login)
 app.command(name="logout")(auth.logout)
 app.command(name="whoami")(auth.whoami)
