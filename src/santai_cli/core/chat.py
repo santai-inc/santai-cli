@@ -266,7 +266,7 @@ async def stream_response(
     provider: str,
     provider_config: ProviderConfig,
     model: str | None = None,
-) -> AsyncGenerator[str, None]:
+) -> AsyncGenerator[str | dict, None]:
     """Stream a response from the specified provider with tool support.
 
     Handles the full conversation loop: if the model calls tools,
@@ -279,7 +279,8 @@ async def stream_response(
         model: Model to use. Falls back to provider_config.model if None.
 
     Yields:
-        Text chunks of the response.
+        Text chunks (str) or file event dicts like
+        {"event": "file_written", "path": "..."}.
     """
     target_model = model or provider_config.model
     max_tool_turns = 10
@@ -305,6 +306,15 @@ async def stream_response(
         for tool_call in tool_calls:
             result = execute_tool(tool_call, session.project_root)
             results.append((tool_call.get("name", "unknown"), tool_call, result))
+            tool_name = tool_call.get("name", "")
+            if tool_name in ("write_file", "move"):
+                try:
+                    args = json.loads(tool_call.get("arguments", "{}"))
+                except json.JSONDecodeError:
+                    args = {}
+                path = args.get("destination") if tool_name == "move" else args.get("filepath")
+                if path:
+                    yield {"event": "file_written", "path": path}
         session.add_tool_turn(tool_calls, results)
 
 

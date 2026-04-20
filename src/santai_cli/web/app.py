@@ -745,8 +745,10 @@ def create_app(project: SantaiProject) -> FastAPI:
                 async for chunk in stream_response(
                     session, req.provider, provider_config, req.model
                 ):
-                    # SSE format: data: <json>\n\n
-                    data = json.dumps({"type": "chunk", "content": chunk})
+                    if isinstance(chunk, dict):
+                        data = json.dumps({"type": "file_written", "path": chunk["path"]})
+                    else:
+                        data = json.dumps({"type": "chunk", "content": chunk})
                     yield f"data: {data}\n\n"
                 # Send done event
                 yield f"data: {json.dumps({'type': 'done'})}\n\n"
