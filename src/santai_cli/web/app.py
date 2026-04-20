@@ -732,7 +732,7 @@ def create_app(project: SantaiProject) -> FastAPI:
         repo_context = build_repo_context(project)
         system_prompt = inject_repo_context(system_prompt, repo_context)
 
-        session = ChatSession(system_prompt=system_prompt)
+        session = ChatSession(system_prompt=system_prompt, project_root=project.root)
         for msg in req.messages:
             if msg.get("role") == "user":
                 session.add_user_message(msg.get("content", ""))

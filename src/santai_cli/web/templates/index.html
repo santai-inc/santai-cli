@@ -4551,7 +4551,10 @@
 
         // Delete item directly (from button)
         async function deleteItem(path, name, isDir) {
-            if (!confirm(`Delete "${name}"?`)) return;
+            const msg = isDir
+                ? `Delete folder "${name}" and all its contents?`
+                : `Delete "${name}"?`;
+            if (!confirm(msg)) return;
 
             try {
                 const res = await fetch(`/api/files?path=${encodeURIComponent(path)}`, {
@@ -4684,7 +4687,10 @@
         // Delete
         async function deleteSelected() {
             if (!selectedItem) return;
-            if (!confirm(`Delete "${selectedItem.name}"?`)) return;
+            const deleteMsg = selectedItem.is_dir
+                ? `Delete folder "${selectedItem.name}" and all its contents?`
+                : `Delete "${selectedItem.name}"?`;
+            if (!confirm(deleteMsg)) return;
 
             try {
                 const res = await fetch(`/api/files?path=${encodeURIComponent(selectedItem.path)}`, {

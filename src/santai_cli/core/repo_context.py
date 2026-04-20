@@ -249,6 +249,39 @@ def build_repo_context_prompt(context: RepoContext) -> str:
         ]
     )
 
+    sections.extend(
+        [
+            "",
+            "## Available Tools",
+            "You have access to the following tools. WHEN THE USER ASKS YOU TO CREATE OR WRITE A FILE, YOU MUST USE THE write_file TOOL - DO NOT JUST TELL THEM HOW TO DO IT:",
+            "",
+            "- **write_file**: Write content to a file. Creates directories as needed.",
+            "  Arguments: filepath (string), content (string)",
+            "  Example use: write_file(filepath='notes/test.md', content='Hi')",
+            "",
+            "- **read_file**: Read the contents of a file.",
+            "  Arguments: filepath (string)",
+            "",
+            "- **list_dir**: List files in a directory.",
+            "  Arguments: directory (optional, defaults to project root)",
+            "",
+            "- **mkdir**: Create a directory. Creates parent directories as needed.",
+            "  Arguments: path (string)",
+            "",
+            "- **move**: Move a file or directory to a new location. Prefer this over manually copying and deleting.",
+            "  Arguments: source (string), destination (string)",
+            "",
+            "- **remove_file**: Remove a file.",
+            "  Arguments: filepath (string)",
+            "",
+            "- **remove_dir**: Remove a directory. If empty, deletes immediately. If non-empty, the tool returns a CONFIRM_REQUIRED message — show only that message to the user (do not add any preamble or narration), then wait for confirmation before calling again with confirmed=true.",
+            "  Arguments: path (string), confirmed (boolean, optional)",
+            "",
+            "IMPORTANT: When the user asks you to create, write, or edit a file, use the write_file tool - do not describe how to do it or suggest commands.",
+            "IMPORTANT: For remove_dir, call the tool first without narrating — do not say you are about to delete anything. Let the tool result determine what to say.",
+        ]
+    )
+
     return "\n".join(sections)
 
 
