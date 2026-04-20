@@ -1,0 +1,68 @@
+site_name: Santai CLI Documentation
+site_description: Documentation for the Santai project management CLI
+site_url: https://santai-inc.github.io/santai-cli
+
+repo_name: santai-inc/santai-cli
+repo_url: https://github.com/santai-inc/santai-cli
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: teal
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: teal
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - content.code.copy
+    - content.code.annotate
+    - search.suggest
+    - search.highlight
+  icon:
+    repo: fontawesome/brands/github
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Commands:
+      - Overview: commands/index.md
+      - init: commands/init.md
+      - copy: commands/copy.md
+      - cherry-pick: commands/cherry_pick.md
+      - merge: commands/merge.md
+      - chat: commands/chat.md
+      - ui: commands/ui.md
+      - web: commands/web.md
+      - push: commands/push.md
+      - pull: commands/pull.md
+      - Authentication: commands/auth.md
+  - Configuration: configuration.md
+  - Agent Profiles: agents.md
+  - Use Cases: use-cases.md

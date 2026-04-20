@@ -102,6 +102,29 @@ santai web
 santai web --port 3000
 ```
 
+### `santai push` / `santai pull`
+
+Sync projects with Santai Hub (requires `santai login`).
+
+```bash
+santai push                  # Upload current project
+santai pull my-project       # Download a project
+```
+
+### `santai login` / `santai logout` / `santai whoami`
+
+Authenticate with Santai Hub.
+
+```bash
+santai login                 # Browser-based auth flow
+santai whoami                # Show current user
+santai logout                # Clear credentials
+```
+
+---
+
+For detailed usage, options, and examples for all commands, see the [full documentation](https://santai-inc.github.io/santai-cli/commands/).
+
 ## Project Structure
 
 A Santai project contains these directories:
@@ -121,6 +144,9 @@ uv sync --group dev
 uv run santai --help
 ruff format .
 ruff check --fix .
+
+# Serve documentation locally
+uv run mkdocs serve
 ```
 
 ### Source Layout
@@ -134,6 +160,9 @@ src/santai_cli/
 │   ├── cherry_pick.py   # santai cherry-pick
 │   ├── merge.py         # santai merge
 │   ├── chat.py          # santai chat
+│   ├── auth.py          # santai login/logout/whoami
+│   ├── push.py          # santai push
+│   ├── pull.py          # santai pull
 │   ├── ui.py            # santai ui
 │   └── web.py           # santai web
 ├── core/

@@ -14,3 +14,6 @@ wheels/
 
 # Environment secrets
 .env
+
+# MkDocs build output
+site/
