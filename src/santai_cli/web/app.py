@@ -732,7 +732,7 @@ def create_app(project: SantaiProject) -> FastAPI:
         repo_context = build_repo_context(project)
         system_prompt = inject_repo_context(system_prompt, repo_context)
 
-        session = ChatSession(system_prompt=system_prompt)
+        session = ChatSession(system_prompt=system_prompt, project_root=project.root)
         for msg in req.messages:
             if msg.get("role") == "user":
                 session.add_user_message(msg.get("content", ""))
@@ -745,8 +745,10 @@ def create_app(project: SantaiProject) -> FastAPI:
                 async for chunk in stream_response(
                     session, req.provider, provider_config, req.model
                 ):
-                    # SSE format: data: <json>\n\n
-                    data = json.dumps({"type": "chunk", "content": chunk})
+                    if isinstance(chunk, dict):
+                        data = json.dumps({"type": "file_written", "path": chunk["path"]})
+                    else:
+                        data = json.dumps({"type": "chunk", "content": chunk})
                     yield f"data: {data}\n\n"
                 # Send done event
                 yield f"data: {json.dumps({'type': 'done'})}\n\n"

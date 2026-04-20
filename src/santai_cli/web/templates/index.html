@@ -44,6 +44,10 @@
         html.preview-only-mode .preview-panel {
             display: flex !important;
         }
+        /* Hide tab bar in preview-only mode so AI Chat tab isn't shown */
+        html.preview-only-mode .right-panel-tabs {
+            display: none !important;
+        }
         :root {
             /* Liquid Glass Core - Light mode for Apple-style vibrancy */
             --glass-bg: rgba(255, 255, 255, 0.45);
@@ -2842,6 +2846,23 @@
         .chat-messages::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 999px; }
 
         /* ── Shared bubble base ── */
+        .chat-file-pill {
+            padding: 4px 8px;
+            margin: 6px 0 2px;
+            display: inline-flex;
+            align-items: center;
+            background: var(--sidebar-bg, #f3f4f6);
+            border: 1px solid var(--border, #e5e7eb);
+            border-radius: 6px;
+            font-size: 12px;
+        }
+        .chat-file-pill a {
+            color: #16a34a !important;
+            text-decoration: none;
+            font-family: monospace;
+        }
+        .chat-file-pill a:hover { text-decoration: underline; }
+
         .chat-msg {
             padding: 10px 14px;
             border-radius: 18px;
@@ -4551,7 +4572,10 @@
 
         // Delete item directly (from button)
         async function deleteItem(path, name, isDir) {
-            if (!confirm(`Delete "${name}"?`)) return;
+            const msg = isDir
+                ? `Delete folder "${name}" and all its contents?`
+                : `Delete "${name}"?`;
+            if (!confirm(msg)) return;
 
             try {
                 const res = await fetch(`/api/files?path=${encodeURIComponent(path)}`, {
@@ -4684,7 +4708,10 @@
         // Delete
         async function deleteSelected() {
             if (!selectedItem) return;
-            if (!confirm(`Delete "${selectedItem.name}"?`)) return;
+            const deleteMsg = selectedItem.is_dir
+                ? `Delete folder "${selectedItem.name}" and all its contents?`
+                : `Delete "${selectedItem.name}"?`;
+            if (!confirm(deleteMsg)) return;
 
             try {
                 const res = await fetch(`/api/files?path=${encodeURIComponent(selectedItem.path)}`, {
@@ -6259,6 +6286,7 @@
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
                 let buffer = '';
+                const filePills = [];
 
                 while (true) {
                     const {done, value} = await reader.read();
@@ -6278,9 +6306,22 @@
                                     }
                                     fullResponse += data.content;
                                     renderMarkdown(assistantDiv, fullResponse);
+                                    filePills.forEach(pill => assistantDiv.appendChild(pill));
                                     const messagesEl = document.getElementById('chat-messages');
                                     messagesEl.scrollTop = messagesEl.scrollHeight;
                                     chatUpdateScrollBtn();
+                                } else if (data.type === 'file_written') {
+                                    removeThinking();
+                                    if (!assistantDiv) {
+                                        assistantDiv = appendChatMessage('assistant', '');
+                                        assistantDiv.classList.add('streaming');
+                                    }
+                                    const url = '/?preview=' + encodeURIComponent(data.path) + '&fullscreen=true';
+                                    const pill = document.createElement('div');
+                                    pill.className = 'chat-file-pill';
+                                    pill.innerHTML = `<a href="${url}" target="_blank" rel="noopener"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:-1px;margin-right:4px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>${data.path}</a>`;
+                                    filePills.push(pill);
+                                    assistantDiv.appendChild(pill);
                                 } else if (data.type === 'error') {
                                     removeThinking();
                                     if (!assistantDiv) assistantDiv = appendChatMessage('assistant', '');
