@@ -1340,6 +1340,20 @@
             align-self: center;
         }
 
+        /* In fullscreen, center the header and constrain to same width as messages */
+        .preview-panel.fullscreen .right-panel-pane.chat-pane .chat-header {
+            max-width: 800px;
+            width: 100%;
+            align-self: center;
+            box-sizing: border-box;
+        }
+
+        /* Make the three controls equal-width and fill the full 800px */
+        .preview-panel.fullscreen .chat-header-controls select,
+        .preview-panel.fullscreen .chat-header-controls .chat-ctrl-btn {
+            flex: 1;
+        }
+
         /* Chat fullscreen button (matches preview-fullscreen-btn style) */
         .chat-fullscreen-btn {
             background: transparent;
@@ -1377,6 +1391,44 @@
         }
 
         [data-theme="simple"] .chat-fullscreen-btn:hover {
+            background: #f1f3f5;
+        }
+
+        /* Chat settings button (header, next to fullscreen btn) */
+        .chat-settings-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 9px;
+            border-radius: 7px;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            background: rgba(255, 255, 255, 0.6);
+            font-size: 11px;
+            font-family: inherit;
+            color: var(--text-primary);
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: background 0.15s;
+        }
+
+        .chat-settings-btn:hover {
+            background: rgba(255, 255, 255, 0.9);
+        }
+
+        .chat-settings-btn svg {
+            width: 12px;
+            height: 12px;
+            stroke: currentColor;
+            stroke-width: 2;
+            flex-shrink: 0;
+        }
+
+        [data-theme="simple"] .chat-settings-btn {
+            background: transparent;
+            border-color: rgba(0, 0, 0, 0.15);
+        }
+
+        [data-theme="simple"] .chat-settings-btn:hover {
             background: #f1f3f5;
         }
 
@@ -1814,8 +1866,8 @@
 
         .graph-legend {
             position: absolute;
-            top: 12px;
-            right: 0;
+            top: 52px;
+            right: 12px;
             display: flex;
             flex-direction: column;
             gap: 4px;
@@ -2138,6 +2190,20 @@
             gap: 6px;
         }
 
+        .graph-overlay-actions {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 5;
+        }
+
+        .graph-panel.fullscreen .graph-header .graph-overlay-actions {
+            position: static;
+            top: auto;
+            right: auto;
+            z-index: auto;
+        }
+
         .graph-fullscreen-btn {
             width: 28px;
             height: 28px;
@@ -2256,6 +2322,7 @@
         }
 
         .graph-panel.fullscreen .graph-legend {
+            top: 12px;
             right: 16px;
             background: linear-gradient(135deg,
                 rgba(100, 200, 255, 0.35) 0%,
@@ -2607,10 +2674,11 @@
             margin: 0;
             border: none;
             padding: 0;
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 600;
             letter-spacing: 0;
             line-height: 1.2;
+            color: var(--text-primary);
         }
 
         .chat-header-controls {
@@ -2649,6 +2717,110 @@
         .chat-header-controls select:hover,
         .chat-header-controls .chat-ctrl-btn:hover {
             background: rgba(255, 255, 255, 0.9);
+        }
+
+        /* Custom dropdown (replaces native <select> for always-downward opening) */
+        .chat-custom-select {
+            position: relative;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .chat-custom-select-btn {
+            width: 100%;
+            padding: 3px 20px 3px 6px;
+            border-radius: 7px;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            background: rgba(255, 255, 255, 0.6);
+            font-size: 11px;
+            font-family: inherit;
+            color: var(--text-primary);
+            cursor: pointer;
+            text-align: left;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            transition: background 0.15s;
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23888' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 6px center;
+        }
+
+        .chat-custom-select-btn:hover {
+            background-color: rgba(255, 255, 255, 0.9);
+        }
+
+        .chat-custom-select-btn.open {
+            border-color: rgba(0, 0, 0, 0.2);
+            background-color: rgba(255, 255, 255, 0.9);
+        }
+
+        .chat-custom-select-list {
+            display: none;
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            min-width: 100%;
+            max-width: 280px;
+            max-height: 240px;
+            overflow-y: auto;
+            background: rgba(255, 255, 255, 0.96);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+            z-index: 200;
+            padding: 3px;
+        }
+
+        .chat-custom-select-list.open {
+            display: block;
+        }
+
+        .chat-custom-select-option {
+            padding: 5px 8px;
+            font-size: 11px;
+            font-family: inherit;
+            color: var(--text-primary);
+            border-radius: 5px;
+            cursor: pointer;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            transition: background 0.1s;
+        }
+
+        .chat-custom-select-option:hover {
+            background: rgba(0, 0, 0, 0.06);
+        }
+
+        .chat-custom-select-option.selected {
+            background: rgba(var(--accent-rgb, 62, 180, 137), 0.12);
+            color: var(--accent, #3eb489);
+            font-weight: 500;
+        }
+
+        [data-theme="simple"] .chat-custom-select-btn {
+            background-color: transparent;
+            border-color: rgba(0, 0, 0, 0.15);
+        }
+
+        [data-theme="simple"] .chat-custom-select-btn:hover,
+        [data-theme="simple"] .chat-custom-select-btn.open {
+            background-color: #f1f3f5;
+        }
+
+        [data-theme="simple"] .chat-custom-select-list {
+            background: #ffffff;
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
+        }
+
+        [data-theme="simple"] .chat-custom-select-option:hover {
+            background: #f1f3f5;
         }
 
         /* ── Messages area ── */
@@ -2813,79 +2985,92 @@
 
         /* ── Chat input row ── */
         .chat-input-row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
             padding: 10px 12px 6px 12px;
-            border-top: 1px solid rgba(0, 0, 0, 0.07);
             flex-shrink: 0;
         }
 
-        /* Wrapper gives the pill container look */
-        .chat-input-row {
-            background: transparent;
-        }
-
-        .chat-input-row input,
-        .chat-input-row textarea {
-            flex: 1;
-            padding: 9px 14px;
+        /* Pill container: border lives here, flex row with textarea + button */
+        .chat-input-pill {
+            display: flex;
+            align-items: center;
+            gap: 0;
             border-radius: 20px;
             border: 1px solid rgba(0, 0, 0, 0.12);
             background: rgba(255, 255, 255, 0.7);
-            font-size: 13px;
-            font-family: inherit;
-            color: var(--text-primary);
-            outline: none;
             transition: border-color 0.2s, box-shadow 0.2s;
-            line-height: 1.4;
+            padding: 6px 8px 6px 14px;
         }
 
-        .chat-input-row input::placeholder,
-        .chat-input-row textarea::placeholder {
-            color: var(--text-muted);
-        }
-
-        .chat-input-row input:focus,
-        .chat-input-row textarea:focus {
+        .chat-input-pill:focus-within {
             border-color: var(--accent);
             box-shadow: 0 0 0 3px var(--accent-light);
         }
 
-        /* Send button: round icon button */
-        .chat-input-row button {
-            width: 34px;
-            height: 34px;
+        .chat-input-pill textarea {
+            flex: 1;
+            padding: 6px 0;
+            border: none;
+            background: transparent;
+            font-size: 13px;
+            font-family: inherit;
+            color: var(--text-primary);
+            outline: none;
+            box-shadow: none;
+            line-height: 1.6;
+            resize: none;
+            overflow: hidden;
+            min-height: 36px;
+            max-height: 140px;
+            display: block;
+        }
+
+        .chat-input-pill textarea::placeholder {
+            color: var(--text-muted);
+        }
+
+        /* Send button: inside the pill, vertically centered */
+        #chat-send-btn {
+            width: 30px;
+            height: 30px;
             border-radius: 50%;
             border: none;
-            background: var(--accent);
-            color: white;
-            font-size: 0;         /* hide text "Send" */
+            font-size: 0;
             cursor: pointer;
             flex-shrink: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: background 0.15s, opacity 0.15s, transform 0.1s;
-            /* send arrow icon via mask */
+            position: relative;
+            transition: background 0.15s, transform 0.1s;
+            /* Grayed out by default (empty textarea or unconfigured) */
+            background: rgba(0, 0, 0, 0.18);
+        }
+
+        /* White send arrow via pseudo-element so it stays white regardless of bg */
+        #chat-send-btn::after {
+            content: '';
+            position: absolute;
+            inset: 0;
             -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z'/%3E%3C/svg%3E");
             mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z'/%3E%3C/svg%3E");
-            -webkit-mask-size: 55%;
-            mask-size: 55%;
+            -webkit-mask-size: 52%;
+            mask-size: 52%;
             -webkit-mask-repeat: no-repeat;
             mask-repeat: no-repeat;
             -webkit-mask-position: center;
             mask-position: center;
+            background: white;
         }
 
-        .chat-input-row button:hover:not(:disabled) {
+        /* Active state: green circle + white icon */
+        #chat-send-btn.has-text {
+            background: var(--accent);
+        }
+
+        #chat-send-btn.has-text:hover {
             background: var(--accent-hover);
-            transform: scale(1.05);
+            transform: scale(1.07);
         }
 
-        .chat-input-row button:disabled {
-            background: rgba(0, 0, 0, 0.12);
-            opacity: 1;
+        #chat-send-btn:disabled {
+            background: rgba(0, 0, 0, 0.18);
             cursor: not-allowed;
             transform: none;
         }
@@ -2921,7 +3106,7 @@
             border: 1px solid rgba(0, 0, 0, 0.1);
         }
 
-        body.simple-theme .chat-input-row textarea {
+        body.simple-theme .chat-input-pill {
             background: #ffffff;
             border-color: #d1d5db;
         }
@@ -3016,32 +3201,7 @@
         .chat-thinking-line:nth-child(2) { width: 68%; animation-delay: 120ms; }
         .chat-thinking-line:nth-child(3) { width: 50%; animation-delay: 240ms; }
 
-        /* ── Feature 4: Textarea input ── */
-        .chat-input-row textarea {
-            flex: 1;
-            padding: 9px 14px;
-            border-radius: 16px;
-            border: 1px solid rgba(0, 0, 0, 0.12);
-            background: rgba(255, 255, 255, 0.7);
-            font-size: 13px;
-            font-family: inherit;
-            color: var(--text-primary);
-            outline: none;
-            transition: border-color 0.2s, box-shadow 0.2s;
-            line-height: 1.45;
-            resize: none;
-            overflow: hidden;
-            min-height: 38px;
-            max-height: 140px;
-            display: block;
-        }
-        .chat-input-row textarea::placeholder {
-            color: var(--text-muted);
-        }
-        .chat-input-row textarea:focus {
-            border-color: var(--accent);
-            box-shadow: 0 0 0 3px var(--accent-light);
-        }
+        /* ── Feature 4: Textarea input (styles on .chat-input-pill textarea above) ── */
         .chat-input-hint {
             font-size: 10px;
             color: var(--text-muted);
@@ -3263,7 +3423,10 @@
                 <div class="dashboard-panel graph-panel">
                     <div class="graph-header">
                         <h3>File Graph</h3>
-                        <div class="graph-header-actions">
+                    </div>
+                    <div class="graph-container">
+                        <svg id="graph-svg"></svg>
+                        <div class="graph-header-actions graph-overlay-actions">
                             <button class="graph-fullscreen-btn" onclick="manualRefreshGraph()" title="Refresh graph">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -3278,9 +3441,6 @@
                                 </svg>
                             </button>
                         </div>
-                    </div>
-                    <div class="graph-container">
-                        <svg id="graph-svg"></svg>
                         <div class="graph-legend">
                             <div id="graph-dir-legend">
                                 <div class="graph-legend-item" data-directory="resources" onclick="toggleDirectoryFilter('resources')">
@@ -3380,12 +3540,11 @@
                 <div class="chat-header">
                     <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
                         <div style="min-width:0; flex:1;">
-                            <h3 style="flex-shrink: 0;">AI Chat</h3>
-                            <p style="font-size:11px; color:var(--text-muted); margin:1px 0 0 0; line-height:1.2;">AI coding assistant</p>
+                            <h3>AI Coding Assistant</h3>
                         </div>
                         <div style="display:flex;align-items:center;gap:5px;">
-                            <button onclick="showSettingsModal()" style="display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:7px;border:1px solid rgba(0,0,0,0.1);background:rgba(255,255,255,0.6);font-size:11px;font-family:inherit;color:var(--text-primary);cursor:pointer;flex-shrink:0;transition:background 0.15s;" onmouseover="this.style.background='rgba(255,255,255,0.9)'" onmouseout="this.style.background='rgba(255,255,255,0.6)'">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:12px;height:12px;stroke-width:2;">
+                            <button class="chat-settings-btn" onclick="showSettingsModal()">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                 </svg>
@@ -3399,12 +3558,16 @@
                         </div>
                     </div>
                     <div class="chat-header-controls">
-                        <select id="chat-agent-select" onchange="onChatAgentChange()">
-                            <option value="">Default</option>
-                        </select>
-                        <select id="chat-model-select">
-                            <option value="">Loading models...</option>
-                        </select>
+                        <div class="chat-custom-select" id="chat-agent-select-wrap">
+                            <button class="chat-custom-select-btn" id="chat-agent-select-btn" onclick="toggleChatDropdown('agent')" type="button">Default</button>
+                            <div class="chat-custom-select-list" id="chat-agent-select-list"></div>
+                            <select id="chat-agent-select" style="display:none;" onchange="onChatAgentChange()"></select>
+                        </div>
+                        <div class="chat-custom-select" id="chat-model-select-wrap">
+                            <button class="chat-custom-select-btn" id="chat-model-select-btn" onclick="toggleChatDropdown('model')" type="button">Loading models…</button>
+                            <div class="chat-custom-select-list" id="chat-model-select-list"></div>
+                            <select id="chat-model-select" style="display:none;"></select>
+                        </div>
                         <button class="chat-ctrl-btn" onclick="clearChat()">Clear</button>
                     </div>
                 </div>
@@ -3414,20 +3577,20 @@
                         <!-- Empty state chips — shown when no real messages exist -->
                         <div class="chat-empty-state" id="chat-empty-state">
                             <p class="chat-empty-heading">Try asking…</p>
-                            <button class="chat-suggestion-chip" onclick="sendSuggestion('Summarize this project')">
-                                <span>Summarize this project</span>
+                            <button class="chat-suggestion-chip" onclick="sendSuggestion('Explain the selected file')">
+                                <span>Explain the selected file</span>
                                 <svg class="chip-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
                             </button>
-                            <button class="chat-suggestion-chip" onclick="sendSuggestion('What are the most important files here?')">
-                                <span>What are the most important files here?</span>
+                            <button class="chat-suggestion-chip" onclick="sendSuggestion('Summarize this codebase')">
+                                <span>Summarize this codebase</span>
                                 <svg class="chip-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
                             </button>
-                            <button class="chat-suggestion-chip" onclick="sendSuggestion('How is this codebase structured?')">
-                                <span>How is this codebase structured?</span>
+                            <button class="chat-suggestion-chip" onclick="sendSuggestion('Explore and suggest improvements')">
+                                <span>Explore and suggest improvements</span>
                                 <svg class="chip-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
                             </button>
-                            <button class="chat-suggestion-chip" onclick="sendSuggestion('Are there any obvious bugs or issues?')">
-                                <span>Are there any obvious bugs or issues?</span>
+                            <button class="chat-suggestion-chip" onclick="sendSuggestion('Add documentation to this codebase')">
+                                <span>Add documentation to this codebase</span>
                                 <svg class="chip-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
                             </button>
                         </div>
@@ -3438,8 +3601,10 @@
                     </button>
                 </div>
                 <div class="chat-input-row">
-                    <textarea id="chat-input" rows="1" placeholder="Ask or type a message…" onkeydown="chatInputKeydown(event)" oninput="chatInputResize(this)" disabled></textarea>
-                    <button id="chat-send-btn" onclick="sendChatMessage()" disabled title="Send"></button>
+                    <div class="chat-input-pill">
+                        <textarea id="chat-input" rows="1" placeholder="Ask or type a message…" onkeydown="chatInputKeydown(event)" oninput="chatInputResize(this); chatUpdateSendBtn()" disabled></textarea>
+                        <button id="chat-send-btn" onclick="sendChatMessage()" disabled title="Send"></button>
+                    </div>
                 </div>
                 <div class="chat-input-hint">Enter to send &middot; Shift+Enter for new line</div>
             </div>
@@ -5684,12 +5849,57 @@
         let chatConfigured = false;
         let chatStreaming = false;
 
+        // ── Custom dropdown helpers ──────────────────────────────────────────
+        function toggleChatDropdown(which) {
+            const btn  = document.getElementById(`chat-${which}-select-btn`);
+            const list = document.getElementById(`chat-${which}-select-list`);
+            const isOpen = list.classList.contains('open');
+            // Close all dropdowns first
+            document.querySelectorAll('.chat-custom-select-list.open').forEach(el => el.classList.remove('open'));
+            document.querySelectorAll('.chat-custom-select-btn.open').forEach(el => el.classList.remove('open'));
+            if (!isOpen) {
+                list.classList.add('open');
+                btn.classList.add('open');
+            }
+        }
+
+        function selectChatOption(which, value, label) {
+            const btn    = document.getElementById(`chat-${which}-select-btn`);
+            const list   = document.getElementById(`chat-${which}-select-list`);
+            const hidden = document.getElementById(`chat-${which}-select`);
+            // Update button label
+            btn.textContent = label;
+            // Update hidden select value
+            hidden.value = value;
+            // Mark selected option
+            list.querySelectorAll('.chat-custom-select-option').forEach(el => {
+                el.classList.toggle('selected', el.dataset.value === value);
+            });
+            // Close
+            list.classList.remove('open');
+            btn.classList.remove('open');
+            // Fire change event so existing handlers (onChatAgentChange) still work
+            hidden.dispatchEvent(new Event('change'));
+        }
+
+        // Close dropdowns when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.chat-custom-select')) {
+                document.querySelectorAll('.chat-custom-select-list.open').forEach(el => el.classList.remove('open'));
+                document.querySelectorAll('.chat-custom-select-btn.open').forEach(el => el.classList.remove('open'));
+            }
+        });
+        // ────────────────────────────────────────────────────────────────────
+
         async function initChat() {
             const messagesEl = document.getElementById('chat-messages');
             const inputEl = document.getElementById('chat-input');
             const sendBtn = document.getElementById('chat-send-btn');
             const modelSelect = document.getElementById('chat-model-select');
             const agentSelect = document.getElementById('chat-agent-select');
+            const modelList   = document.getElementById('chat-model-select-list');
+            const agentList   = document.getElementById('chat-agent-select-list');
+            const modelBtn    = document.getElementById('chat-model-select-btn');
 
             try {
                 // Load models and agents in parallel
@@ -5701,39 +5911,74 @@
                 const modelsData = await modelsRes.json();
                 const agentsData = await agentsRes.json();
 
-                // Populate model select
+                // Populate model custom dropdown
                 modelSelect.innerHTML = '';
+                modelList.innerHTML = '';
                 if (modelsData.models.length === 0) {
-                    modelSelect.innerHTML = '<option value="">No models available</option>';
+                    modelBtn.textContent = 'No models available';
                     messagesEl.innerHTML = '<div class="chat-no-config">No API keys configured. <a href="#" onclick="event.preventDefault(); showSettingsModal()" style="color: var(--accent, #007aff);">Add your API keys</a> to enable chat.</div>';
                     return;
                 }
 
+                let defaultModelLabel = '';
                 modelsData.models.forEach(m => {
+                    const value = JSON.stringify({provider: m.provider, model: m.model});
+                    const label = m.model;
+                    // Hidden select option
                     const opt = document.createElement('option');
-                    opt.value = JSON.stringify({provider: m.provider, model: m.model});
-                    opt.textContent = `${m.provider_display}: ${m.model}`;
-                    if (m.default) opt.selected = true;
+                    opt.value = value;
+                    opt.textContent = label;
+                    if (m.default) { opt.selected = true; defaultModelLabel = label; }
                     modelSelect.appendChild(opt);
+                    // Visible list item
+                    const item = document.createElement('div');
+                    item.className = 'chat-custom-select-option' + (m.default ? ' selected' : '');
+                    item.dataset.value = value;
+                    item.textContent = label;
+                    item.title = label;
+                    item.onclick = () => selectChatOption('model', value, label);
+                    modelList.appendChild(item);
                 });
+                modelBtn.textContent = defaultModelLabel || modelsData.models[0].model;
 
-                // Populate agent select
-                agentSelect.innerHTML = '<option value="">Default</option>';
+                // Populate agent custom dropdown
+                agentSelect.innerHTML = '';
+                agentList.innerHTML = '';
+                const defaultAgentOpt = document.createElement('option');
+                defaultAgentOpt.value = '';
+                defaultAgentOpt.textContent = 'Default';
+                defaultAgentOpt.selected = true;
+                agentSelect.appendChild(defaultAgentOpt);
+                const defaultAgentItem = document.createElement('div');
+                defaultAgentItem.className = 'chat-custom-select-option selected';
+                defaultAgentItem.dataset.value = '';
+                defaultAgentItem.textContent = 'Default';
+                defaultAgentItem.onclick = () => selectChatOption('agent', '', 'Default');
+                agentList.appendChild(defaultAgentItem);
+
+                const minor = new Set(['and','or','of','the','in','on','at','to','a','an','but','for','nor','so','yet']);
                 agentsData.agents.forEach(a => {
-                    const opt = document.createElement('option');
-                    opt.value = a.name;
-                    const minor = new Set(['and','or','of','the','in','on','at','to','a','an','but','for','nor','so','yet']);
-                    opt.textContent = a.name
+                    const displayName = a.name
                         .replace(/[-_]/g, ' ')
                         .replace(/\b\w+/g, (w, i) => (i === 0 || !minor.has(w)) ? w[0].toUpperCase() + w.slice(1) : w);
-                    if (a.description) opt.title = a.description;
+                    const opt = document.createElement('option');
+                    opt.value = a.name;
+                    opt.textContent = displayName;
                     agentSelect.appendChild(opt);
+                    const item = document.createElement('div');
+                    item.className = 'chat-custom-select-option';
+                    item.dataset.value = a.name;
+                    item.textContent = displayName;
+                    if (a.description) item.title = a.description;
+                    item.onclick = () => selectChatOption('agent', a.name, displayName);
+                    agentList.appendChild(item);
                 });
 
                 // Enable chat
                 chatConfigured = true;
                 inputEl.disabled = false;
                 sendBtn.disabled = false;
+                chatUpdateSendBtn();
                 // Don't add a system message — just leave the suggestion chips visible
 
             } catch (e) {
@@ -5756,6 +6001,15 @@
         function chatInputResize(el) {
             el.style.height = 'auto';
             el.style.height = Math.min(el.scrollHeight, 140) + 'px';
+        }
+
+        // Toggle send button appearance based on whether the textarea has content
+        function chatUpdateSendBtn() {
+            const inputEl = document.getElementById('chat-input');
+            const sendBtn = document.getElementById('chat-send-btn');
+            if (!inputEl || !sendBtn) return;
+            const hasText = inputEl.value.trim().length > 0;
+            sendBtn.classList.toggle('has-text', hasText && !sendBtn.disabled);
         }
 
         // Keyboard: Enter sends, Shift+Enter inserts newline
@@ -5793,9 +6047,40 @@
         }
 
         // Send a suggestion chip message
-        function sendSuggestion(text) {
+        async function sendSuggestion(text) {
             const inputEl = document.getElementById('chat-input');
             if (!inputEl || inputEl.disabled) return;
+
+            if (text === 'Explain the selected file') {
+                // Resolve the current file — prefer the open preview, fall back to selected item
+                const filePath = previewPath || (selectedItem && !selectedItem.isDir ? selectedItem.path : null);
+                if (!filePath) {
+                    inputEl.value = 'Explain the selected file';
+                    sendChatMessage();
+                    return;
+                }
+                const fileName = filePath.split('/').pop();
+                let apiContent = `Explain the file: ${fileName}`;
+                try {
+                    const res = await fetch(`/api/files/content?path=${encodeURIComponent(filePath)}`);
+                    if (!res.ok) throw new Error();
+                    const data = await res.json();
+                    const content = data.content ?? '';
+                    if (content) {
+                        apiContent = `Explain the following file (${fileName}):\n\n\`\`\`\n${content}\n\`\`\``;
+                    }
+                } catch { /* fall through to plain filename message */ }
+
+                // Show a clean label in the chat bubble, send full content to the API
+                const displayText = `Explain "${fileName}"`;
+                if (!chatConfigured || chatStreaming) return;
+                appendChatMessage('user', displayText);
+                chatMessages.push({role: 'user', content: apiContent});
+                chatHideEmptyState();
+                await _streamFromMessages();
+                return;
+            }
+
             inputEl.value = text;
             sendChatMessage();
         }
@@ -5932,44 +6217,25 @@
             chatUpdateScrollBtn();
         }
 
-        async function sendChatMessage() {
-            if (!chatConfigured || chatStreaming) return;
-
+        // Stream a response using the current chatMessages state and selected model/agent.
+        // Call after pushing the user message into chatMessages and showing it in the UI.
+        async function _streamFromMessages() {
             const inputEl = document.getElementById('chat-input');
             const sendBtn = document.getElementById('chat-send-btn');
-            const userText = inputEl.value.trim();
-            if (!userText) return;
 
-            // Get selected model
             const modelSelect = document.getElementById('chat-model-select');
             const modelValue = modelSelect.value;
             if (!modelValue) return;
-
             let selected;
-            try {
-                selected = JSON.parse(modelValue);
-            } catch {
-                return;
-            }
-
-            // Get selected agent
+            try { selected = JSON.parse(modelValue); } catch { return; }
             const agent = document.getElementById('chat-agent-select').value || null;
 
-            // Clear input and show user message
-            inputEl.value = '';
-            chatInputResize(inputEl);
-            appendChatMessage('user', userText);
-            chatMessages.push({role: 'user', content: userText});
-
-            // Disable input during streaming
             chatStreaming = true;
             inputEl.disabled = true;
             sendBtn.disabled = true;
+            sendBtn.classList.remove('has-text');
 
-            // Show thinking indicator while waiting for first token
             const removeThinking = showThinkingIndicator();
-
-            // Create the assistant message element for streaming
             let assistantDiv = null;
             let fullResponse = '';
 
@@ -5990,7 +6256,6 @@
                     throw new Error(err.detail || 'Chat request failed');
                 }
 
-                // Read SSE stream
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
                 let buffer = '';
@@ -5998,17 +6263,14 @@
                 while (true) {
                     const {done, value} = await reader.read();
                     if (done) break;
-
                     buffer += decoder.decode(value, {stream: true});
                     const lines = buffer.split('\n');
                     buffer = lines.pop() || '';
-
                     for (const line of lines) {
                         if (line.startsWith('data: ')) {
                             try {
                                 const data = JSON.parse(line.slice(6));
                                 if (data.type === 'chunk') {
-                                    // On first chunk: remove thinking indicator and create bubble
                                     if (!assistantDiv) {
                                         removeThinking();
                                         assistantDiv = appendChatMessage('assistant', '');
@@ -6024,16 +6286,12 @@
                                     if (!assistantDiv) assistantDiv = appendChatMessage('assistant', '');
                                     assistantDiv.innerHTML = `<span style="color:#ef4444;">Error: ${data.content}</span>`;
                                 }
-                            } catch {
-                                // Ignore malformed data lines
-                            }
+                            } catch { /* ignore malformed SSE lines */ }
                         }
                     }
                 }
 
-                if (fullResponse) {
-                    chatMessages.push({role: 'assistant', content: fullResponse});
-                }
+                if (fullResponse) chatMessages.push({role: 'assistant', content: fullResponse});
 
             } catch (e) {
                 removeThinking();
@@ -6045,8 +6303,26 @@
                 chatStreaming = false;
                 inputEl.disabled = false;
                 sendBtn.disabled = false;
+                chatUpdateSendBtn();
                 inputEl.focus();
             }
+        }
+
+        async function sendChatMessage() {
+            if (!chatConfigured || chatStreaming) return;
+
+            const inputEl = document.getElementById('chat-input');
+            const userText = inputEl.value.trim();
+            if (!userText) return;
+
+            // Clear input and show user message
+            inputEl.value = '';
+            chatInputResize(inputEl);
+            appendChatMessage('user', userText);
+            chatMessages.push({role: 'user', content: userText});
+            chatHideEmptyState();
+
+            await _streamFromMessages();
         }
 
         function toggleChatFullscreen() {
@@ -6751,6 +7027,9 @@
             const panel = document.querySelector('.graph-panel');
             const expandIcon = document.getElementById('fullscreen-icon-expand');
             const collapseIcon = document.getElementById('fullscreen-icon-collapse');
+            const actions = panel.querySelector('.graph-overlay-actions');
+            const header = panel.querySelector('.graph-header');
+            const container = panel.querySelector('.graph-container');
 
             const isFullscreen = panel.classList.contains('fullscreen');
 
@@ -6759,6 +7038,8 @@
                 _graphPanelOriginalParent = panel.parentNode;
                 _graphPanelNextSibling = panel.nextSibling;
                 document.body.appendChild(panel);
+                // Move buttons into the header
+                if (actions && header) header.appendChild(actions);
                 // Force a reflow so the browser registers the new DOM position before
                 // applying the fullscreen styles, preventing a double-layout flash
                 panel.getBoundingClientRect();
@@ -6768,6 +7049,8 @@
             } else {
                 // Exiting fullscreen: remove class first, then restore DOM position — same frame
                 panel.classList.remove('fullscreen');
+                // Move buttons back into the container
+                if (actions && container) container.appendChild(actions);
                 panel.getBoundingClientRect();
                 if (_graphPanelOriginalParent) {
                     _graphPanelOriginalParent.insertBefore(panel, _graphPanelNextSibling);
