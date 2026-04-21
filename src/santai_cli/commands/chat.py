@@ -6,6 +6,7 @@ using Rich for terminal formatting and streaming response display.
 
 import asyncio
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -22,6 +23,7 @@ from santai_cli.core.config import (
     get_agent_profiles,
     load_agent_prompt,
     load_config,
+    save_api_keys,
 )
 from santai_cli.core.project import SantaiProject, get_project
 from santai_cli.core.repo_context import build_repo_context, inject_repo_context
@@ -83,19 +85,9 @@ def chat(
     config = load_config(project_root)
 
     if not config.has_any_provider:
-        console.print(
-            Panel(
-                "[bold red]No API keys configured.[/]\n\n"
-                "Create a [cyan].env[/] file in your project root"
-                " with at least one key:\n\n"
-                "  [dim]ANTHROPIC_API_KEY=sk-ant-...[/]\n"
-                "  [dim]OPENAI_API_KEY=sk-...[/]\n\n"
-                "See [cyan].env.example[/] for the full template.",
-                title="Configuration Required",
-                border_style="red",
-            )
-        )
-        raise typer.Exit(1)
+        config = _prompt_api_keys(project_root)
+        if config is None:
+            raise typer.Exit(1)
 
     # Load agent system prompt if specified
     system_prompt = None
@@ -171,6 +163,54 @@ def _select_model(
         except ValueError:
             pass
         console.print(f"[red]Please enter a number between 1 and {len(choices)}.[/]")
+
+
+def _prompt_api_keys(project_root: Path | None) -> ChatConfig | None:
+    """Interactively prompt the user for API keys and save them to .env.
+
+    Asks for Anthropic and OpenAI keys one at a time, writes them to the
+    project's .env file, reloads config, and returns it. Returns None if
+    the user skips both providers.
+    """
+    console.print(
+        Panel(
+            "[bold]No API keys configured.[/]\n\n"
+            "Let's set one up. Enter your API key(s) below.\n"
+            "Press [cyan]Enter[/] to skip a provider.",
+            title="Chat Setup",
+            border_style="cyan",
+        )
+    )
+    console.print()
+
+    anthropic_key = Prompt.ask(
+        "  [bold]Anthropic[/] API key",
+        password=True,
+        default="",
+    ).strip()
+
+    openai_key = Prompt.ask(
+        "  [bold]OpenAI[/] API key",
+        password=True,
+        default="",
+    ).strip()
+
+    if not anthropic_key and not openai_key:
+        console.print(
+            "\n[red]No keys provided.[/] At least one API key is required.\n"
+            "See [cyan].env.example[/] for the full template."
+        )
+        return None
+
+    env_path = save_api_keys(
+        project_root,
+        anthropic_key=anthropic_key,
+        openai_key=openai_key,
+    )
+    console.print(f"\n[green]API key(s) saved to {env_path}[/]\n")
+
+    # Reload config so the rest of the chat flow picks up the new keys
+    return load_config(project_root)
 
 
 def _resolve_model_provider(
