@@ -21,6 +21,10 @@ def web(
         int,
         typer.Option("--port", "-p", help="Port to run the server on"),
     ] = 8000,
+    host: Annotated[
+        str,
+        typer.Option("--host", "-H", help="Host to bind the server to"),
+    ] = "127.0.0.1",
     no_open: Annotated[
         bool,
         typer.Option("--no-open", help="Don't automatically open browser"),
@@ -63,7 +67,7 @@ def web(
     # Run server
     uvicorn.run(
         app,
-        host="127.0.0.1",
+        host=host,
         port=port,
         log_level="warning",
     )

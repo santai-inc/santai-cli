@@ -1,0 +1,37 @@
+# Version control
+.git
+.gitignore
+
+# Python artifacts
+__pycache__
+*.py[cod]
+*.egg-info
+build/
+dist/
+wheels/
+
+# Virtual environments
+.venv
+.env
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# CI / tooling caches
+.ruff_cache
+.rumdl_cache
+.mypy_cache
+.pytest_cache
+
+# Documentation build
+site/
+
+# Claude / AI local settings
+.claude/
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -156,8 +156,9 @@ _COMMANDS: list[dict[str, str | list[str]]] = [
             "Press Ctrl+C to stop the server."
         ),
         "options": [
-            "--port, -p INT  Port to run the server on [default: 8000]",
-            "--no-open       Don't automatically open the browser",
+            "--port, -p INT    Port to run the server on [default: 8000]",
+            "--host, -H TEXT   Host to bind the server to [default: 127.0.0.1]",
+            "--no-open         Don't automatically open the browser",
         ],
     },
 ]
