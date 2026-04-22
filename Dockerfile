@@ -22,6 +22,10 @@ RUN uv sync --frozen --no-dev
 # ---- Stage 2: runtime ----------------------------------------------
 FROM python:3.12-slim AS runtime
 
+# Install git (required by `santai init` to initialize repos)
+RUN apt-get update && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
+
 # Create a non-root user
 RUN groupadd --gid 1000 santai \
     && useradd --uid 1000 --gid santai --create-home santai
