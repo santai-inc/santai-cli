@@ -175,16 +175,24 @@ class ChatSession:
         self.messages.append(ChatMessage(role="assistant", content=content))
 
     def add_tool_turn(
-        self, tool_calls: list[dict[str, Any]], results: list[tuple[str, dict[str, Any], str]]
+        self,
+        tool_calls: list[dict[str, Any]],
+        results: list[tuple[str, dict[str, Any], str]],
     ) -> None:
         """Record one round of tool calls and their results."""
-        self.tool_turns.append({
-            "calls": tool_calls,
-            "results": [
-                {"tool_name": name, "tool_use_id": inp.get("id", "unknown"), "content": content}
-                for name, inp, content in results
-            ],
-        })
+        self.tool_turns.append(
+            {
+                "calls": tool_calls,
+                "results": [
+                    {
+                        "tool_name": name,
+                        "tool_use_id": inp.get("id", "unknown"),
+                        "content": content,
+                    }
+                    for name, inp, content in results
+                ],
+            }
+        )
 
     def clear(self) -> None:
         """Clear conversation history (keeps system prompt)."""
@@ -200,30 +208,34 @@ class ChatSession:
         ]
         for turn in self.tool_turns:
             # Assistant message containing the tool_use blocks
-            msgs.append({
-                "role": "assistant",
-                "content": [
-                    {
-                        "type": "tool_use",
-                        "id": tc["id"],
-                        "name": tc["name"],
-                        "input": json.loads(tc.get("arguments", "{}") or "{}"),
-                    }
-                    for tc in turn["calls"]
-                ],
-            })
+            msgs.append(
+                {
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": tc["id"],
+                            "name": tc["name"],
+                            "input": json.loads(tc.get("arguments", "{}") or "{}"),
+                        }
+                        for tc in turn["calls"]
+                    ],
+                }
+            )
             # User message containing the tool_result blocks
-            msgs.append({
-                "role": "user",
-                "content": [
-                    {
-                        "type": "tool_result",
-                        "tool_use_id": r["tool_use_id"],
-                        "content": r["content"],
-                    }
-                    for r in turn["results"]
-                ],
-            })
+            msgs.append(
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": r["tool_use_id"],
+                            "content": r["content"],
+                        }
+                        for r in turn["results"]
+                    ],
+                }
+            )
         return msgs
 
     def to_openai_messages(self) -> list[dict[str, Any]]:
@@ -238,26 +250,33 @@ class ChatSession:
         )
         for turn in self.tool_turns:
             # Assistant message with tool_calls array
-            msgs.append({
-                "role": "assistant",
-                "content": None,
-                "tool_calls": [
-                    {
-                        "id": tc["id"],
-                        "type": "function",
-                        "function": {"name": tc["name"], "arguments": tc.get("arguments", "{}") or "{}"},
-                    }
-                    for tc in turn["calls"]
-                ],
-            })
+            msgs.append(
+                {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": tc["id"],
+                            "type": "function",
+                            "function": {
+                                "name": tc["name"],
+                                "arguments": tc.get("arguments", "{}") or "{}",
+                            },
+                        }
+                        for tc in turn["calls"]
+                    ],
+                }
+            )
             # One tool message per result
             for r in turn["results"]:
-                msgs.append({
-                    "role": "tool",
-                    "tool_call_id": r["tool_use_id"],
-                    "name": r["tool_name"],
-                    "content": r["content"],
-                })
+                msgs.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": r["tool_use_id"],
+                        "name": r["tool_name"],
+                        "content": r["content"],
+                    }
+                )
         return msgs
 
 
@@ -290,12 +309,10 @@ async def stream_response(
             text, tool_calls = await _stream_anthropic_with_tools(
                 session, provider_config.api_key, target_model
             )
-        elif provider == "openai":
+        else:
             text, tool_calls = await _stream_openai_with_tools(
                 session, provider_config.api_key, target_model, provider_config.base_url
             )
-        else:
-            raise ValueError(f"Unknown provider: {provider}")
 
         if not tool_calls:
             if text:
@@ -312,7 +329,11 @@ async def stream_response(
                     args = json.loads(tool_call.get("arguments", "{}"))
                 except json.JSONDecodeError:
                     args = {}
-                path = args.get("destination") if tool_name == "move" else args.get("filepath")
+                path = (
+                    args.get("destination")
+                    if tool_name == "move"
+                    else args.get("filepath")
+                )
                 if path:
                     yield {"event": "file_written", "path": path}
         session.add_tool_turn(tool_calls, results)

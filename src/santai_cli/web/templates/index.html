@@ -2788,9 +2788,6 @@
             color: var(--text-primary);
             border-radius: 5px;
             cursor: pointer;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
             transition: background 0.1s;
         }
 
@@ -2822,6 +2819,42 @@
 
         [data-theme="simple"] .chat-custom-select-option:hover {
             background: #f1f3f5;
+        }
+
+        .chat-custom-select-option {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .model-option-label {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .model-star-btn {
+            flex-shrink: 0;
+            background: none;
+            border: none;
+            padding: 0 2px;
+            cursor: pointer;
+            line-height: 0;
+            color: #ccc;
+            opacity: 0;
+            transition: opacity 0.1s, color 0.1s;
+            display: flex;
+            align-items: center;
+        }
+
+        .chat-custom-select-option:hover .model-star-btn {
+            opacity: 1;
+        }
+
+        .model-star-btn.starred {
+            color: #f5a623;
+            opacity: 1;
         }
 
         /* ── Messages area ── */
@@ -5944,26 +5977,93 @@
                     return;
                 }
 
-                let defaultModelLabel = '';
-                modelsData.models.forEach(m => {
-                    const value = JSON.stringify({provider: m.provider, model: m.model});
-                    const label = m.model;
-                    // Hidden select option
-                    const opt = document.createElement('option');
-                    opt.value = value;
-                    opt.textContent = label;
-                    if (m.default) { opt.selected = true; defaultModelLabel = label; }
-                    modelSelect.appendChild(opt);
-                    // Visible list item
-                    const item = document.createElement('div');
-                    item.className = 'chat-custom-select-option' + (m.default ? ' selected' : '');
-                    item.dataset.value = value;
-                    item.textContent = label;
-                    item.title = label;
-                    item.onclick = () => selectChatOption('model', value, label);
-                    modelList.appendChild(item);
-                });
-                modelBtn.textContent = defaultModelLabel || modelsData.models[0].model;
+                // Star/default system: localStorage overrides system default
+                const SYSTEM_DEFAULT_MODEL = 'anthropic-claude-bedrock4.5-haiku';
+                const STAR_KEY = 'santai-starred-model';
+
+                function getStarred() {
+                    try { return JSON.parse(localStorage.getItem(STAR_KEY)); } catch { return null; }
+                }
+                function setStarred(provider, model) {
+                    localStorage.setItem(STAR_KEY, JSON.stringify({provider, model}));
+                }
+                function clearStarred() { localStorage.removeItem(STAR_KEY); }
+
+                function isModelStarred(provider, model) {
+                    const s = getStarred();
+                    return s && s.provider === provider && s.model === model;
+                }
+
+                function getEffectiveDefault() {
+                    const s = getStarred();
+                    if (s) {
+                        const m = modelsData.models.find(m => m.provider === s.provider && m.model === s.model);
+                        if (m) return m;
+                    }
+                    return modelsData.models.find(m => m.model === SYSTEM_DEFAULT_MODEL)
+                        || modelsData.models[0];
+                }
+
+                function rebuildModelOptions() {
+                    modelSelect.innerHTML = '';
+                    modelList.innerHTML = '';
+                    const effectiveDefault = getEffectiveDefault();
+
+                    modelsData.models.forEach(m => {
+                        const value = JSON.stringify({provider: m.provider, model: m.model});
+                        const label = m.display || m.model;
+                        const isDefault = m.provider === effectiveDefault.provider && m.model === effectiveDefault.model;
+                        const starred = isModelStarred(m.provider, m.model);
+
+                        const opt = document.createElement('option');
+                        opt.value = value;
+                        opt.textContent = label;
+                        if (isDefault) opt.selected = true;
+                        modelSelect.appendChild(opt);
+
+                        const item = document.createElement('div');
+                        item.className = 'chat-custom-select-option' + (isDefault ? ' selected' : '');
+                        item.dataset.value = value;
+                        item.title = label;
+
+                        const labelSpan = document.createElement('span');
+                        labelSpan.className = 'model-option-label';
+                        labelSpan.textContent = label;
+
+                        const starSvg = (filled) =>
+                            `<svg width="11" height="11" viewBox="0 0 24 24" fill="${filled ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>`;
+
+                        const starBtn = document.createElement('button');
+                        starBtn.className = 'model-star-btn' + (starred ? ' starred' : '');
+                        starBtn.innerHTML = starSvg(starred);
+                        starBtn.title = starred ? 'Remove as default' : 'Set as default';
+                        starBtn.onclick = (e) => {
+                            e.stopPropagation();
+                            if (isModelStarred(m.provider, m.model)) {
+                                clearStarred();
+                            } else {
+                                setStarred(m.provider, m.model);
+                            }
+                            rebuildModelOptions();
+                            // Update button label to reflect new effective default
+                            const newDefault = getEffectiveDefault();
+                            modelBtn.textContent = newDefault.display || newDefault.model;
+                            const newValue = JSON.stringify({provider: newDefault.provider, model: newDefault.model});
+                            modelSelect.value = newValue;
+                        };
+
+                        item.appendChild(labelSpan);
+                        item.appendChild(starBtn);
+                        item.onclick = () => selectChatOption('model', value, label);
+                        modelList.appendChild(item);
+                    });
+
+                    const def = getEffectiveDefault();
+                    modelBtn.textContent = def.display || def.model;
+                    modelSelect.value = JSON.stringify({provider: def.provider, model: def.model});
+                }
+
+                rebuildModelOptions();
 
                 // Populate agent custom dropdown
                 agentSelect.innerHTML = '';

@@ -685,6 +685,9 @@ def create_app(project: SantaiProject) -> FastAPI:
                         "provider": provider_name,
                         "provider_display": provider_config.name,
                         "model": model_name,
+                        "display": provider_config.display_names.get(
+                            model_name, model_name
+                        ),
                         "default": is_default,
                     }
                 )
@@ -746,7 +749,9 @@ def create_app(project: SantaiProject) -> FastAPI:
                     session, req.provider, provider_config, req.model
                 ):
                     if isinstance(chunk, dict):
-                        data = json.dumps({"type": "file_written", "path": chunk["path"]})
+                        data = json.dumps(
+                            {"type": "file_written", "path": chunk["path"]}
+                        )
                     else:
                         data = json.dumps({"type": "chunk", "content": chunk})
                     yield f"data: {data}\n\n"
@@ -827,8 +832,8 @@ def create_app(project: SantaiProject) -> FastAPI:
             existing["OPENAI_API_KEY"] = req.openai_api_key.strip()
 
         # Ensure defaults are present
-        existing.setdefault("ANTHROPIC_MODEL", "claude-sonnet-4-6")
-        existing.setdefault("OPENAI_MODEL", "gpt-4o")
+        existing.setdefault("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
+        existing.setdefault("OPENAI_MODEL", "gpt-5-large")
 
         # Write .env file — quote all values so special chars are preserved
         lines = [f'{k}="{v}"\n' for k, v in existing.items()]
