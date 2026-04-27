@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="simple">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,11 +11,6 @@
             const params = new URLSearchParams(window.location.search);
             if (params.get('fullscreen') === 'true') {
                 document.documentElement.classList.add('preview-only-mode');
-                // Apply theme immediately
-                const theme = params.get('theme');
-                if (theme) {
-                    document.documentElement.setAttribute('data-theme', theme);
-                }
             }
         })();
     </script>
@@ -180,6 +175,10 @@
             background: #f1f3f5;
         }
 
+        [data-theme="simple"] .graph-panel.fullscreen .graph-fullscreen-btn:hover {
+            background: #f1f3f5;
+        }
+
         [data-theme="simple"] body.preview-open .graph-panel.fullscreen .graph-legend,
         [data-theme="simple"] body.preview-open .graph-panel.fullscreen .graph-fullscreen-btn,
         [data-theme="simple"] body.preview-open .graph-panel.fullscreen .graph-filter-btn,
@@ -189,6 +188,10 @@
 
         [data-theme="simple"] body.preview-open .graph-panel.fullscreen .graph-filter-btn.active {
             background: var(--accent);
+        }
+
+        [data-theme="simple"] body.preview-open .graph-panel.fullscreen .graph-fullscreen-btn:hover {
+            background: #f1f3f5;
         }
 
         [data-theme="simple"] .graph-cluster-clear-btn {
@@ -256,41 +259,6 @@
             font-size: 18px;
             font-weight: 600;
             letter-spacing: 0.02em;
-        }
-
-        .theme-toggle {
-            margin-left: auto;
-            background: var(--fill-subtle);
-            border: none;
-            border-radius: 8px;
-            padding: 6px;
-            cursor: pointer;
-            color: var(--text-secondary);
-            transition: var(--transition-quick);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .theme-toggle:hover {
-            background: var(--fill-hover);
-            color: var(--text-primary);
-        }
-
-        .theme-toggle svg {
-            width: 18px;
-            height: 18px;
-        }
-
-        /* Glass theme active: sparkle is "on" */
-        [data-theme="glass"] .theme-toggle {
-            background: var(--accent-light);
-            color: var(--accent);
-        }
-
-        [data-theme="glass"] .theme-toggle:hover {
-            background: var(--accent-light);
-            color: var(--accent-hover);
         }
 
         .sidebar-section {
@@ -1915,11 +1883,6 @@
             border-radius: 8px;
         }
 
-        /* In glass/themed mode, match the default floating legend position */
-        [data-theme="glass"] .graph-legend.floating-legend {
-            right: 424px;
-        }
-
         [data-theme="simple"] .graph-legend.floating-legend {
             right: 420px;
             background: #ffffff;
@@ -2283,24 +2246,6 @@
             background: #f5f5f7;
         }
 
-        /* Liquid glass theme: keep vivid gradient in the padding gaps, with a glassy white wash over it */
-        [data-theme="glass"] .graph-panel.fullscreen {
-            background:
-                linear-gradient(135deg,
-                    rgba(255, 255, 255, 0.35) 0%,
-                    rgba(255, 255, 255, 0.35) 100%
-                ),
-                linear-gradient(135deg,
-                    rgba(255, 150, 100, 0.4) 0%,
-                    rgba(255, 100, 150, 0.3) 25%,
-                    rgba(150, 100, 255, 0.3) 50%,
-                    rgba(100, 200, 255, 0.4) 75%,
-                    rgba(100, 255, 200, 0.3) 100%
-                ),
-                linear-gradient(45deg, #f8f9fa 0%, #e9ecef 100%);
-            backdrop-filter: none;
-        }
-
         .graph-panel.fullscreen .graph-header {
             background: rgba(255, 255, 255, 0.92);
             backdrop-filter: blur(20px);
@@ -2450,6 +2395,58 @@
                 rgba(255, 100, 150, 0.3) 50%,
                 rgba(150, 100, 255, 0.3) 100%
             );
+        }
+
+        /* Fullscreen graph with side preview: push graph left, float preview on right */
+        body.graph-is-fullscreen.preview-open .graph-panel.fullscreen {
+            right: 420px;
+        }
+
+        body.graph-is-fullscreen.preview-open #preview-panel {
+            position: fixed;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            width: 420px;
+            z-index: 1001;
+            display: flex;
+            border-radius: 0;
+            border-left: 1px solid rgba(0, 0, 0, 0.08);
+            box-shadow: -6px 0 24px rgba(0, 0, 0, 0.08);
+            background: #ffffff;
+        }
+
+        /* Close button for preview panel when shown alongside fullscreen graph */
+        .graph-preview-close-btn {
+            display: none;
+            margin-left: auto;
+            flex-shrink: 0;
+            background: none;
+            border: none;
+            padding: 8px 12px;
+            cursor: pointer;
+            color: var(--text-secondary);
+            transition: color 0.15s;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .graph-preview-close-btn svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .graph-preview-close-btn:hover {
+            color: var(--text-primary);
+        }
+
+        body.graph-is-fullscreen.preview-open .graph-preview-close-btn {
+            display: flex;
+        }
+
+        /* Push floating legend left so it clears the open preview panel */
+        body.graph-is-fullscreen.preview-open .graph-legend.floating-legend {
+            right: 460px;
         }
 
         .graph-zoom-btn {
@@ -3381,11 +3378,6 @@
             <div class="sidebar-header">
                 <img src="/static/logo.png" alt="Santai" onerror="this.style.display='none'" onclick="showDashboard()" style="cursor: pointer;">
                 <h1 onclick="showDashboard()" style="cursor: pointer;">Santai</h1>
-                <button class="theme-toggle" onclick="toggleTheme(event)" title="Toggle theme">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-                    </svg>
-                </button>
             </div>
 
             <!-- Tree View -->
@@ -3554,6 +3546,11 @@
             <div class="right-panel-tabs">
                 <button class="right-panel-tab active" id="tab-chat" onclick="switchRightTab('chat')">AI Chat</button>
                 <button class="right-panel-tab" id="tab-preview" onclick="switchRightTab('preview')">File Preview</button>
+                <button class="graph-preview-close-btn" onclick="closePreview()" title="Close preview">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
             </div>
 
             <!-- Chat pane (default) -->
@@ -3867,26 +3864,6 @@
             });
         }
 
-        // Theme Management - 2 themes: simple (light) and glass
-        function setTheme(theme) {
-            document.documentElement.setAttribute('data-theme', theme);
-            localStorage.setItem('santai-theme', theme);
-        }
-
-        function toggleTheme(event) {
-            event.stopPropagation();
-            const current = document.documentElement.getAttribute('data-theme') || 'simple';
-            setTheme(current === 'glass' ? 'simple' : 'glass');
-        }
-
-        function loadTheme() {
-            const saved = localStorage.getItem('santai-theme') || 'simple';
-            setTheme(saved);
-        }
-
-        // Load theme immediately to prevent flash
-        loadTheme();
-
         let currentPath = '';
         let selectedItem = null;
         let files = [];
@@ -3920,6 +3897,8 @@
 
             // Switch to the preview tab
             switchRightTab('preview');
+            document.body.classList.add('preview-open');
+            resizeGraphIfFullscreen();
             content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
 
             try {
@@ -4015,6 +3994,20 @@
             }
         }
 
+        function resizeGraphIfFullscreen() {
+            const graphPanel = document.querySelector('.graph-panel.fullscreen');
+            if (!graphPanel) return;
+            requestAnimationFrame(() => {
+                const container = document.querySelector('.graph-container');
+                const svg = d3.select('#graph-svg');
+                if (container && svg) {
+                    svg.attr('width', null).attr('height', null);
+                    svg.attr('width', container.clientWidth).attr('height', container.clientHeight);
+                }
+                fitAllNodes(true);
+            });
+        }
+
         function closePreview() {
             // If in preview-only mode (opened via "open in new window"), go to home page
             if (document.documentElement.classList.contains('preview-only-mode')) {
@@ -4025,6 +4018,7 @@
             const panel = document.getElementById('preview-panel');
             panel.classList.remove('fullscreen');
             document.body.classList.remove('preview-open');
+            resizeGraphIfFullscreen();
             previewPath = null;
             previewReturnClusterId = null;
             window.activeClusterId = null;
@@ -4068,11 +4062,6 @@
                 const url = new URL(window.location.href);
                 url.searchParams.set('preview', previewPath);
                 url.searchParams.set('fullscreen', 'true');
-                // Pass current theme
-                const currentTheme = document.documentElement.getAttribute('data-theme');
-                if (currentTheme) {
-                    url.searchParams.set('theme', currentTheme);
-                }
                 window.open(url.toString(), '_blank');
             }
         }
@@ -5480,11 +5469,19 @@
             }
 
             const nodeMap = new Map(data.nodes.map(n => [n.id, n]));
+            // Deduplicate directed edges into undirected pairs (A→B and B→A become one line)
+            const seenEdgePairs = new Set();
             let links = data.edges.map(e => ({
                 source: e.source,
                 target: e.target,
                 link_text: e.link_text
-            })).filter(e => nodeMap.has(e.source) && nodeMap.has(e.target));
+            })).filter(e => {
+                if (!nodeMap.has(e.source) || !nodeMap.has(e.target)) return false;
+                const key = [e.source, e.target].sort().join('\0');
+                if (seenEdgePairs.has(key)) return false;
+                seenEdgePairs.add(key);
+                return true;
+            });
 
             // Add custom links from localStorage
             const existingLinks = new Set(links.map(l => `${l.source}-${l.target}`));
@@ -5607,7 +5604,7 @@
                 return prev ? { ...n, x: prev.x, y: prev.y } : { ...n };
             });
 
-            statsEl.textContent = `${nodes.length} files, ${links.length} links`;
+            statsEl.textContent = `${nodes.length} ${nodes.length === 1 ? 'file' : 'files'}, ${links.length} ${links.length === 1 ? 'link' : 'links'}`;
 
             // Create a group for zoom/pan
             const g = svg.append('g');
@@ -6908,6 +6905,9 @@
             if (linkMode) {
                 deleteMode = false;
                 document.getElementById('delete-mode-btn').classList.remove('active');
+            } else {
+                d3.select('#graph-svg').selectAll('.graph-node circle')
+                    .attr('stroke', null).attr('stroke-width', null);
             }
             document.getElementById('link-mode-btn').classList.toggle('active', linkMode);
             selectedSourceNode = null;
@@ -7085,11 +7085,13 @@
                 // applying the fullscreen styles, preventing a double-layout flash
                 panel.getBoundingClientRect();
                 panel.classList.add('fullscreen');
+                document.body.classList.add('graph-is-fullscreen');
                 expandIcon.style.display = 'none';
                 collapseIcon.style.display = 'block';
             } else {
                 // Exiting fullscreen: remove class first, then restore DOM position — same frame
                 panel.classList.remove('fullscreen');
+                document.body.classList.remove('graph-is-fullscreen');
                 // Move buttons back into the container
                 if (actions && container) container.appendChild(actions);
                 panel.getBoundingClientRect();
@@ -7123,35 +7125,48 @@
             });
         }
 
-        // Close on Escape key
+        // Close on Escape key — handled in priority order
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                e.preventDefault();
-                e.stopPropagation();
+            if (e.key !== 'Escape') return;
 
-                // In preview-only mode, go to home page
-                if (document.documentElement.classList.contains('preview-only-mode')) {
-                    window.location.href = '/';
-                    return;
-                }
-                // Check if preview tab is active and has content — exit fullscreen or close preview
-                const previewPanel = document.getElementById('preview-panel');
-                const previewPaneActive = document.getElementById('pane-preview').classList.contains('active');
-                if (previewPanel && previewPanel.classList.contains('fullscreen')) {
-                    togglePreviewFullscreen();
-                    return;
-                }
-                if (previewPaneActive && previewPath) {
-                    closePreview();
-                    return;
-                }
-                // Then check graph panel fullscreen
-                const graphPanel = document.querySelector('.graph-panel');
-                if (graphPanel && graphPanel.classList.contains('fullscreen')) {
-                    toggleGraphFullscreen();
-                }
+            // In preview-only mode, go to home page
+            if (document.documentElement.classList.contains('preview-only-mode')) {
+                e.preventDefault();
+                window.location.href = '/';
+                return;
             }
-        }, true); // Use capture phase to handle first
+
+            // 1. Close any open modal
+            if (document.querySelector('.modal-overlay.show')) {
+                e.preventDefault();
+                closeModals();
+                return;
+            }
+
+            // 2. Exit preview panel fullscreen (file preview or chat)
+            const previewPanel = document.getElementById('preview-panel');
+            if (previewPanel && previewPanel.classList.contains('fullscreen')) {
+                e.preventDefault();
+                const chatActive = document.getElementById('pane-chat').classList.contains('active');
+                if (chatActive) toggleChatFullscreen(); else togglePreviewFullscreen();
+                return;
+            }
+
+            // 3. Close file preview (side panel alongside graph, or regular preview)
+            const previewPaneActive = document.getElementById('pane-preview').classList.contains('active');
+            if (previewPaneActive && previewPath) {
+                e.preventDefault();
+                closePreview();
+                return;
+            }
+
+            // 4. Exit graph fullscreen
+            const graphPanel = document.querySelector('.graph-panel');
+            if (graphPanel && graphPanel.classList.contains('fullscreen')) {
+                e.preventDefault();
+                toggleGraphFullscreen();
+            }
+        }, true); // Capture phase so it fires before child handlers
 
         // Start initialization
         if (document.readyState === 'loading') {
