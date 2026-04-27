@@ -644,28 +644,41 @@ def create_app(project: SantaiProject) -> FastAPI:
 
     @app.get("/api/chat/models")
     async def chat_models() -> dict[str, Any]:
-        """Return available AI models based on configured API keys."""
-        from santai_cli.core.config import load_config
+        """Return all known models, routing each through an available provider."""
+        from santai_cli.core.config import (
+            AVAILABLE_MODELS,
+            DEFAULT_MODELS,
+            MODEL_DISPLAY_NAMES,
+            load_config,
+        )
 
         config = load_config(project.root)
-        models: list[dict[str, str | bool]] = []
-        for provider_name, provider_config in config.providers.items():
-            model_list = provider_config.available_models or [provider_config.model]
+        if not config.has_any_provider:
+            return {"models": [], "configured": False}
 
-            for model_name in model_list:
-                is_default = model_name == provider_config.model
+        # First configured provider used as fallback for unconfigured ones
+        fallback_provider = next(iter(config.providers))
+
+        models: list[dict[str, str | bool]] = []
+        for logical_provider, model_ids in AVAILABLE_MODELS.items():
+            routing_provider = (
+                logical_provider
+                if logical_provider in config.providers
+                else fallback_provider
+            )
+            provider_config = config.providers[routing_provider]
+            system_default = DEFAULT_MODELS.get(logical_provider, "")
+
+            for model_id in model_ids:
                 models.append(
                     {
-                        "provider": provider_name,
-                        "provider_display": provider_config.name,
-                        "model": model_name,
-                        "display": provider_config.display_names.get(
-                            model_name, model_name
-                        ),
-                        "default": is_default,
+                        "provider": routing_provider,
+                        "model": model_id,
+                        "display": MODEL_DISPLAY_NAMES.get(model_id, model_id),
+                        "default": model_id == system_default,
                     }
                 )
-        return {"models": models, "configured": config.has_any_provider}
+        return {"models": models, "configured": True}
 
     @app.get("/api/chat/agents")
     async def chat_agents() -> dict[str, Any]:
