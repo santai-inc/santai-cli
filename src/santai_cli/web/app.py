@@ -644,39 +644,13 @@ def create_app(project: SantaiProject) -> FastAPI:
 
     @app.get("/api/chat/models")
     async def chat_models() -> dict[str, Any]:
-        """Return available AI models based on configured API keys.
-
-        When a provider has a base_url (e.g. a LiteLLM proxy), fetches the
-        model list dynamically from the proxy's /v1/models endpoint instead
-        of using the hardcoded AVAILABLE_MODELS list.
-        """
-        import httpx
-
+        """Return available AI models based on configured API keys."""
         from santai_cli.core.config import load_config
 
         config = load_config(project.root)
         models: list[dict[str, str | bool]] = []
         for provider_name, provider_config in config.providers.items():
-            if provider_config.base_url:
-                # Fetch model list from proxy
-                proxy_models: list[str] = []
-                try:
-                    base = provider_config.base_url.rstrip("/")
-                    async with httpx.AsyncClient(timeout=5.0) as client:
-                        resp = await client.get(
-                            f"{base}/v1/models",
-                            headers={
-                                "Authorization": f"Bearer {provider_config.api_key}"
-                            },
-                        )
-                        resp.raise_for_status()
-                        data = resp.json()
-                        proxy_models = [m["id"] for m in data.get("data", [])]
-                except Exception:
-                    pass
-                model_list = proxy_models or [provider_config.model]
-            else:
-                model_list = provider_config.available_models
+            model_list = provider_config.available_models or [provider_config.model]
 
             for model_name in model_list:
                 is_default = model_name == provider_config.model
