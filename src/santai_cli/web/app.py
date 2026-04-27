@@ -646,7 +646,6 @@ def create_app(project: SantaiProject) -> FastAPI:
     async def chat_models() -> dict[str, Any]:
         """Return all known models, routing each through an available provider."""
         from santai_cli.core.config import (
-            AVAILABLE_MODELS,
             DEFAULT_MODELS,
             MODEL_DISPLAY_NAMES,
             load_config,
@@ -656,23 +655,13 @@ def create_app(project: SantaiProject) -> FastAPI:
         if not config.has_any_provider:
             return {"models": [], "configured": False}
 
-        # First configured provider used as fallback for unconfigured ones
-        fallback_provider = next(iter(config.providers))
-
         models: list[dict[str, str | bool]] = []
-        for logical_provider, model_ids in AVAILABLE_MODELS.items():
-            routing_provider = (
-                logical_provider
-                if logical_provider in config.providers
-                else fallback_provider
-            )
-            provider_config = config.providers[routing_provider]
-            system_default = DEFAULT_MODELS.get(logical_provider, "")
-
-            for model_id in model_ids:
+        for provider_id, provider_config in config.providers.items():
+            system_default = DEFAULT_MODELS.get(provider_id, "")
+            for model_id in provider_config.available_models:
                 models.append(
                     {
-                        "provider": routing_provider,
+                        "provider": provider_id,
                         "model": model_id,
                         "display": MODEL_DISPLAY_NAMES.get(model_id, model_id),
                         "default": model_id == system_default,

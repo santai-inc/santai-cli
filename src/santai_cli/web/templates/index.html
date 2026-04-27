@@ -2939,6 +2939,7 @@
             margin: 14px 0 6px 0;
             font-weight: 600;
             line-height: 1.3;
+            font-family: inherit;
         }
 
         .chat-msg.assistant h1 { font-size: 15px; }
@@ -3204,16 +3205,17 @@
             align-items: flex-start;
         }
         .chat-thinking-bubble {
-            background: rgba(255,255,255,0.75);
+            background: #fff;
             border: 1px solid rgba(0,0,0,0.08);
-            border-radius: 18px;
+            border-radius: 16px;
             border-bottom-left-radius: 4px;
             padding: 12px 16px;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
             display: flex;
             flex-direction: column;
             gap: 8px;
-            min-width: 120px;
+            min-width: 160px;
+            max-width: 240px;
         }
         .chat-thinking-label {
             display: flex;
@@ -3222,31 +3224,38 @@
             font-size: 11px;
             font-weight: 500;
             color: var(--accent);
+            overflow: hidden;
         }
         .chat-thinking-spinner {
-            width: 12px;
-            height: 12px;
-            border: 2px solid var(--accent-light);
-            border-top-color: var(--accent);
-            border-radius: 50%;
-            animation: chat-spin 0.75s linear infinite;
+            width: 14px;
+            height: 14px;
             flex-shrink: 0;
+            color: var(--accent);
+            animation: chat-spin 0.75s linear infinite;
         }
         @keyframes chat-spin { to { transform: rotate(360deg); } }
+        .chat-thinking-label-text {
+            truncate: ellipsis;
+            overflow: hidden;
+            white-space: nowrap;
+            animation: chat-fadein 0.3s ease;
+        }
+        @keyframes chat-fadein { from { opacity: 0; } to { opacity: 1; } }
         .chat-thinking-lines {
             display: flex;
             flex-direction: column;
             gap: 5px;
+            margin-top: 2px;
         }
         .chat-thinking-line {
             height: 7px;
             border-radius: 999px;
-            background: rgba(0,0,0,0.07);
+            background: rgba(0,0,0,0.08);
             animation: chat-pulse 1.4s ease-in-out infinite;
         }
         @keyframes chat-pulse {
             0%, 100% { opacity: 1; }
-            50% { opacity: 0.4; }
+            50% { opacity: 0.5; }
         }
         .chat-thinking-line:nth-child(1) { width: 88%; animation-delay: 0ms; }
         .chat-thinking-line:nth-child(2) { width: 68%; animation-delay: 120ms; }
@@ -3296,55 +3305,50 @@
             height: 14px;
         }
 
-        /* ── Feature 7: Empty state prompt chips ── */
-        .chat-empty-state {
+        /* ── Suggestion chips (shown below welcome message) ── */
+        .chat-suggestion-chips-wrap {
             display: flex;
             flex-direction: column;
-            gap: 8px;
-            padding: 8px 4px;
-        }
-        .chat-empty-heading {
-            font-size: 11px;
-            font-weight: 600;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.06em;
-            padding: 0 2px 4px 2px;
+            gap: 6px;
+            align-self: flex-end;
+            width: 80%;
+            max-width: 380px;
         }
         .chat-suggestion-chip {
             display: flex;
             align-items: center;
             justify-content: space-between;
             gap: 8px;
-            padding: 10px 14px;
-            border-radius: 14px;
-            background: rgba(255,255,255,0.65);
-            border: 1px solid rgba(0,0,0,0.08);
-            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+            width: 100%;
+            text-align: left;
+            padding: 10px 16px;
+            border-radius: 16px;
+            background: #fff;
+            border: 1px solid rgba(0,0,0,0.09);
+            box-shadow: 0 1px 4px rgba(0,0,0,0.05);
             font-size: 13px;
             color: var(--text-primary);
-            text-align: left;
             cursor: pointer;
-            transition: background 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.1s;
-            width: 100%;
+            transition: border-color 0.15s, background 0.15s, box-shadow 0.15s, transform 0.1s;
         }
         .chat-suggestion-chip:hover {
-            background: rgba(255,255,255,0.9);
-            border-color: var(--accent);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-            transform: translateX(2px);
+            border-color: rgba(62,180,137,0.4);
+            background: rgba(62,180,137,0.05);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
         }
+        .chat-suggestion-chip:active { transform: scale(0.98); }
         .chat-suggestion-chip:hover .chip-arrow {
-            opacity: 1;
+            color: rgba(62,180,137,0.6);
             transform: translateX(2px);
+            opacity: 1;
         }
         .chip-arrow {
             width: 14px;
             height: 14px;
             flex-shrink: 0;
-            opacity: 0.3;
-            color: var(--accent);
-            transition: opacity 0.15s, transform 0.15s;
+            opacity: 0.4;
+            color: var(--text-muted);
+            transition: color 0.15s, opacity 0.15s, transform 0.15s;
         }
 
         /* ── Feature 8: Copy button on code blocks ── */
@@ -3591,7 +3595,7 @@
                 <div class="chat-header">
                     <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
                         <div style="min-width:0; flex:1;">
-                            <h3>AI Coding Assistant</h3>
+                            <h3 id="chat-assistant-title">AI Coding Assistant</h3>
                         </div>
                         <div style="display:flex;align-items:center;gap:5px;">
                             <button class="chat-settings-btn" onclick="showSettingsModal()">
@@ -3625,26 +3629,6 @@
                 <!-- Messages container (position:relative for scroll btn) -->
                 <div style="flex:1;min-height:0;position:relative;display:flex;flex-direction:column;">
                     <div class="chat-messages" id="chat-messages">
-                        <!-- Empty state chips — shown when no real messages exist -->
-                        <div class="chat-empty-state" id="chat-empty-state">
-                            <p class="chat-empty-heading">Try asking…</p>
-                            <button class="chat-suggestion-chip" onclick="sendSuggestion('Explain the selected file')">
-                                <span>Explain the selected file</span>
-                                <svg class="chip-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                            </button>
-                            <button class="chat-suggestion-chip" onclick="sendSuggestion('Summarize this codebase')">
-                                <span>Summarize this codebase</span>
-                                <svg class="chip-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                            </button>
-                            <button class="chat-suggestion-chip" onclick="sendSuggestion('Explore and suggest improvements')">
-                                <span>Explore and suggest improvements</span>
-                                <svg class="chip-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                            </button>
-                            <button class="chat-suggestion-chip" onclick="sendSuggestion('Add documentation to this codebase')">
-                                <span>Add documentation to this codebase</span>
-                                <svg class="chip-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                            </button>
-                        </div>
                     </div>
                     <!-- Scroll-to-bottom button -->
                     <button class="chat-scroll-btn" id="chat-scroll-btn" onclick="chatScrollToBottom()" title="Scroll to bottom">
@@ -5905,6 +5889,7 @@
         let chatMessages = []; // {role, content} array
         let chatConfigured = false;
         let chatStreaming = false;
+        let _chatEpoch = 0; // incremented on clearChat; stale streams compare against this
 
         // ── Custom dropdown helpers ──────────────────────────────────────────
         function toggleChatDropdown(which) {
@@ -5917,6 +5902,67 @@
             if (!isOpen) {
                 list.classList.add('open');
                 btn.classList.add('open');
+            }
+        }
+
+        const CHIP_ARROW_SVG = `<svg class="chip-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`;
+
+        const AGENT_WELCOMES = {
+            '': {
+                title: 'AI Coding Assistant',
+                welcome: "Hi! I'm your AI coding assistant. Ask me to explain, modify, or generate code.",
+                chips: ['Explain the selected file', 'Summarize this codebase', 'Explore and suggest improvements', 'Add documentation to this codebase'],
+            },
+            'documentation': {
+                title: 'AI Documentation Assistant',
+                welcome: "Hi! I'm your documentation assistant. I can create and maintain structured documentation across your project.",
+                chips: ['Generate docs for the selected file', 'Add a README to this project', 'Document all functions', 'Create an API reference'],
+            },
+            'linting': {
+                title: 'AI Linting Assistant',
+                welcome: "Hi! I'm your linting assistant. I can enforce content quality and consistency across your project files.",
+                chips: ['Lint the selected file', 'Check for consistency issues', 'Enforce code style across the project', 'Find quality issues'],
+            },
+            'wiki': {
+                title: 'AI Wiki Assistant',
+                welcome: "Hi! I'm your wiki assistant. I can curate and maintain your wiki for AI agent context.",
+                chips: ['Update the wiki', 'Add an entry for the selected file', 'Summarize recent changes', 'Generate a wiki index'],
+            },
+            'research': {
+                title: 'AI Research Assistant',
+                welcome: "Hi! I'm your research assistant. I can investigate topics and gather context for your knowledge bases.",
+                chips: ['Research this codebase', 'Investigate dependencies', 'Analyze project structure', 'Find relevant context'],
+            },
+            'summarizer': {
+                title: 'AI Summarizer',
+                welcome: "Hi! I'm your summarizer. I can condense project context into clear, actionable summaries.",
+                chips: ['Summarize the selected file', 'Summarize this project', 'Create an executive summary', 'Condense recent changes'],
+            },
+            'food-and-activities': {
+                title: 'AI Activities Assistant',
+                welcome: "Hi! I can help with activity planning, dining, and entertainment recommendations.",
+                chips: ['Recommend nearby restaurants', 'Plan a team outing', 'Find dining options', 'Suggest weekend activities'],
+            },
+        };
+
+        function showAgentWelcome(agentName) {
+            const cfg = AGENT_WELCOMES[agentName] || { title: 'AI Assistant', welcome: "Hi! How can I help?", chips: [] };
+            const titleEl = document.getElementById('chat-assistant-title');
+            if (titleEl) titleEl.textContent = cfg.title;
+            appendChatMessage('assistant', cfg.welcome);
+            if (cfg.chips && cfg.chips.length) {
+                const messagesEl = document.getElementById('chat-messages');
+                const wrap = document.createElement('div');
+                wrap.className = 'chat-suggestion-chips-wrap';
+                wrap.id = 'chat-suggestion-chips';
+                cfg.chips.forEach(text => {
+                    const btn = document.createElement('button');
+                    btn.className = 'chat-suggestion-chip';
+                    btn.innerHTML = `<span>${text}</span>${CHIP_ARROW_SVG}`;
+                    btn.onclick = () => sendSuggestion(text);
+                    wrap.appendChild(btn);
+                });
+                messagesEl.appendChild(wrap);
             }
         }
 
@@ -6103,7 +6149,7 @@
                 inputEl.disabled = false;
                 sendBtn.disabled = false;
                 chatUpdateSendBtn();
-                // Don't add a system message — just leave the suggestion chips visible
+                showAgentWelcome('');
 
             } catch (e) {
                 appendChatMessage('system', 'Failed to load chat configuration.');
@@ -6112,11 +6158,8 @@
         }
 
         function onChatAgentChange() {
-            const agent = document.getElementById('chat-agent-select').value;
-            if (agent) {
-                clearChat();
-                appendChatMessage('system', `Agent switched to: ${agent}`);
-            }
+            if (!chatConfigured) return;
+            clearChat();
         }
 
         // ── Chat helpers ──────────────────────────────────────────────────
@@ -6164,10 +6207,29 @@
             if (el) el.addEventListener('scroll', chatUpdateScrollBtn);
         });
 
-        // Hide the empty-state chips once any real message appears
         function chatHideEmptyState() {
-            const es = document.getElementById('chat-empty-state');
-            if (es) es.style.display = 'none';
+            const chips = document.getElementById('chat-suggestion-chips');
+            if (chips) chips.remove();
+        }
+
+        // Resolve the currently selected/previewed file, fetch its content, and send it to the chat.
+        // prompt(fileName, content) → returns {display, api} strings.
+        async function _sendWithSelectedFile(prompt) {
+            if (!chatConfigured || chatStreaming) return;
+            const filePath = previewPath || (selectedItem && !selectedItem.isDir ? selectedItem.path : null);
+            const fileName = filePath ? filePath.split('/').pop() : null;
+            let fileContent = '';
+            if (filePath) {
+                try {
+                    const res = await fetch(`/api/files/content?path=${encodeURIComponent(filePath)}`);
+                    if (res.ok) { const d = await res.json(); fileContent = d.content ?? ''; }
+                } catch { /* fall through */ }
+            }
+            const { display, api } = prompt(fileName, fileContent);
+            appendChatMessage('user', display);
+            chatMessages.push({ role: 'user', content: api });
+            chatHideEmptyState();
+            await _streamFromMessages();
         }
 
         // Send a suggestion chip message
@@ -6176,32 +6238,57 @@
             if (!inputEl || inputEl.disabled) return;
 
             if (text === 'Explain the selected file') {
-                // Resolve the current file — prefer the open preview, fall back to selected item
-                const filePath = previewPath || (selectedItem && !selectedItem.isDir ? selectedItem.path : null);
-                if (!filePath) {
-                    inputEl.value = 'Explain the selected file';
-                    sendChatMessage();
-                    return;
-                }
-                const fileName = filePath.split('/').pop();
-                let apiContent = `Explain the file: ${fileName}`;
-                try {
-                    const res = await fetch(`/api/files/content?path=${encodeURIComponent(filePath)}`);
-                    if (!res.ok) throw new Error();
-                    const data = await res.json();
-                    const content = data.content ?? '';
-                    if (content) {
-                        apiContent = `Explain the following file (${fileName}):\n\n\`\`\`\n${content}\n\`\`\``;
-                    }
-                } catch { /* fall through to plain filename message */ }
+                await _sendWithSelectedFile((fileName, content) => {
+                    if (!fileName) return { display: 'Explain the selected file', api: 'Explain the selected file' };
+                    return {
+                        display: `Explain "${fileName}"`,
+                        api: content ? `Explain the following file (${fileName}):\n\n\`\`\`\n${content}\n\`\`\`` : `Explain the file: ${fileName}`,
+                    };
+                });
+                return;
+            }
 
-                // Show a clean label in the chat bubble, send full content to the API
-                const displayText = `Explain "${fileName}"`;
-                if (!chatConfigured || chatStreaming) return;
-                appendChatMessage('user', displayText);
-                chatMessages.push({role: 'user', content: apiContent});
-                chatHideEmptyState();
-                await _streamFromMessages();
+            if (text === 'Lint the selected file') {
+                await _sendWithSelectedFile((fileName, content) => {
+                    if (!fileName) return { display: 'Lint the selected file', api: 'Lint the selected file' };
+                    return {
+                        display: `Lint "${fileName}"`,
+                        api: content ? `Lint the following file (${fileName}) for quality, consistency, and style issues:\n\n\`\`\`\n${content}\n\`\`\`` : `Lint the file: ${fileName}`,
+                    };
+                });
+                return;
+            }
+
+            if (text === 'Generate docs for the selected file') {
+                await _sendWithSelectedFile((fileName, content) => {
+                    if (!fileName) return { display: 'Generate docs for the selected file', api: 'Generate docs for the selected file' };
+                    return {
+                        display: `Generate docs for "${fileName}"`,
+                        api: content ? `Generate documentation for the following file (${fileName}):\n\n\`\`\`\n${content}\n\`\`\`` : `Generate documentation for the file: ${fileName}`,
+                    };
+                });
+                return;
+            }
+
+            if (text === 'Add an entry for the selected file') {
+                await _sendWithSelectedFile((fileName, content) => {
+                    if (!fileName) return { display: 'Add a wiki entry for the selected file', api: 'Add a wiki entry for the selected file' };
+                    return {
+                        display: `Add a wiki entry for "${fileName}"`,
+                        api: content ? `Add a wiki entry for the following file (${fileName}):\n\n\`\`\`\n${content}\n\`\`\`` : `Add a wiki entry for the file: ${fileName}`,
+                    };
+                });
+                return;
+            }
+
+            if (text === 'Summarize the selected file') {
+                await _sendWithSelectedFile((fileName, content) => {
+                    if (!fileName) return { display: 'Summarize the selected file', api: 'Summarize the selected file' };
+                    return {
+                        display: `Summarize "${fileName}"`,
+                        api: content ? `Summarize the following file (${fileName}):\n\n\`\`\`\n${content}\n\`\`\`` : `Summarize the file: ${fileName}`,
+                    };
+                });
                 return;
             }
 
@@ -6252,6 +6339,9 @@
 
         // Render markdown content into an element and post-process
         function renderMarkdown(el, content) {
+            // Strip wikilinks: [[path|label]] → label, [[path]] → path
+            content = content.replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, '$2')
+                             .replace(/\[\[([^\]]+)\]\]/g, '$1');
             if (typeof marked !== 'undefined') {
                 el.innerHTML = marked.parse(content);
             } else {
@@ -6303,6 +6393,8 @@
             return msgDiv;
         }
 
+        const THINKING_LABELS = ['Thinking…', 'Analyzing…', 'Reading code…', 'Reasoning…', 'Processing…'];
+
         // Show animated thinking indicator; returns a cleanup function
         function showThinkingIndicator() {
             const messagesEl = document.getElementById('chat-messages');
@@ -6313,8 +6405,11 @@
             row.innerHTML = BOT_AVATAR_HTML + `
                 <div class="chat-thinking-bubble">
                     <div class="chat-thinking-label">
-                        <div class="chat-thinking-spinner"></div>
-                        Thinking…
+                        <svg class="chat-thinking-spinner" viewBox="0 0 24 24" fill="none">
+                            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-opacity="0.25"/>
+                            <path d="M12 2a10 10 0 0110 10" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+                        </svg>
+                        <span class="chat-thinking-label-text" id="chat-thinking-label-text">Thinking…</span>
                     </div>
                     <div class="chat-thinking-lines">
                         <div class="chat-thinking-line"></div>
@@ -6324,21 +6419,34 @@
                 </div>`;
             messagesEl.appendChild(row);
             messagesEl.scrollTop = messagesEl.scrollHeight;
+            // Cycle through thinking labels
+            let labelIdx = 0;
+            const labelInterval = setInterval(() => {
+                labelIdx = (labelIdx + 1) % THINKING_LABELS.length;
+                const el = document.getElementById('chat-thinking-label-text');
+                if (el) { el.textContent = THINKING_LABELS[labelIdx]; el.style.animation = 'none'; el.offsetHeight; el.style.animation = ''; }
+            }, 5000);
             return function() {
+                clearInterval(labelInterval);
                 const r = document.getElementById('chat-thinking-row');
                 if (r) r.remove();
             };
         }
 
         function clearChat() {
+            _chatEpoch++;             // invalidate any in-flight stream
             chatMessages = [];
+            chatStreaming = false;
+            const inputEl = document.getElementById('chat-input');
+            const sendBtn = document.getElementById('chat-send-btn');
+            if (inputEl) inputEl.disabled = false;
+            if (sendBtn) sendBtn.disabled = false;
             const messagesEl = document.getElementById('chat-messages');
-            // Re-show empty state
-            const es = document.getElementById('chat-empty-state');
-            if (es) es.style.display = '';
             messagesEl.innerHTML = '';
-            if (es) messagesEl.appendChild(es);
             chatUpdateScrollBtn();
+            chatUpdateSendBtn();
+            const agent = document.getElementById('chat-agent-select')?.value || '';
+            showAgentWelcome(agent);
         }
 
         // Stream a response using the current chatMessages state and selected model/agent.
@@ -6354,6 +6462,7 @@
             try { selected = JSON.parse(modelValue); } catch { return; }
             const agent = document.getElementById('chat-agent-select').value || null;
 
+            const myEpoch = _chatEpoch;
             chatStreaming = true;
             inputEl.disabled = true;
             sendBtn.disabled = true;
@@ -6362,6 +6471,7 @@
             const removeThinking = showThinkingIndicator();
             let assistantDiv = null;
             let fullResponse = '';
+            let pendingRender = false;
 
             try {
                 const response = await fetch('/api/chat', {
@@ -6402,11 +6512,19 @@
                                         assistantDiv.classList.add('streaming');
                                     }
                                     fullResponse += data.content;
-                                    renderMarkdown(assistantDiv, fullResponse);
-                                    filePills.forEach(pill => assistantDiv.appendChild(pill));
-                                    const messagesEl = document.getElementById('chat-messages');
-                                    messagesEl.scrollTop = messagesEl.scrollHeight;
-                                    chatUpdateScrollBtn();
+                                    // Throttle markdown re-render to once per animation frame (~16ms)
+                                    if (!pendingRender) {
+                                        pendingRender = true;
+                                        requestAnimationFrame(() => {
+                                            if (assistantDiv) {
+                                                renderMarkdown(assistantDiv, fullResponse);
+                                                filePills.forEach(p => assistantDiv.appendChild(p));
+                                                const msgs = document.getElementById('chat-messages');
+                                                if (msgs) { msgs.scrollTop = msgs.scrollHeight; chatUpdateScrollBtn(); }
+                                            }
+                                            pendingRender = false;
+                                        });
+                                    }
                                 } else if (data.type === 'file_written') {
                                     removeThinking();
                                     if (!assistantDiv) {
@@ -6437,12 +6555,23 @@
                 assistantDiv.innerHTML = `<span style="color:#ef4444;">Error: ${e.message}</span>`;
                 console.error('Chat error:', e);
             } finally {
-                if (assistantDiv) assistantDiv.classList.remove('streaming');
-                chatStreaming = false;
-                inputEl.disabled = false;
-                sendBtn.disabled = false;
-                chatUpdateSendBtn();
-                inputEl.focus();
+                removeThinking(); // always clean up — guards against empty/skipped responses
+                if (assistantDiv) {
+                    assistantDiv.classList.remove('streaming');
+                    if (fullResponse) {
+                        renderMarkdown(assistantDiv, fullResponse);
+                        filePills.forEach(p => assistantDiv.appendChild(p));
+                    }
+                }
+                // Only restore UI state if this stream is still the active one;
+                // clearChat() bumps _chatEpoch to invalidate stale streams.
+                if (_chatEpoch === myEpoch) {
+                    chatStreaming = false;
+                    inputEl.disabled = false;
+                    sendBtn.disabled = false;
+                    chatUpdateSendBtn();
+                    inputEl.focus();
+                }
             }
         }
 

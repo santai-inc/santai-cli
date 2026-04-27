@@ -132,6 +132,10 @@ def load_config(project_root: Path | None = None) -> ChatConfig:
         "OPENAI_MODEL",
         base_url_env="OPENAI_API_BASE_URL",
     )
+    # If OpenAI is configured with a custom gateway URL it proxies all providers.
+    if "openai" in config.providers and config.providers["openai"].base_url is not None:
+        all_models = [m for models in AVAILABLE_MODELS.values() for m in models]
+        config.providers["openai"].available_models = all_models
     _register(
         "XAI_API_KEY",
         "xai",
