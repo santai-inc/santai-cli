@@ -79,7 +79,6 @@
         }
 
         /* Simple White Theme */
-        /* Simple White Theme */
         [data-theme="simple"] {
             --glass-bg: #ffffff;
             --glass-border: rgba(0, 0, 0, 0.1);
@@ -5961,6 +5960,7 @@
         let chatConfigured = false;
         let chatStreaming = false;
         let _chatEpoch = 0; // incremented on clearChat; stale streams compare against this
+        let _chatAbortController = null;
 
         // ── Custom dropdown helpers ──────────────────────────────────────────
         function toggleChatDropdown(which) {
@@ -5978,6 +5978,7 @@
 
         const CHIP_ARROW_SVG = `<svg class="chip-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`;
 
+        // Keys must match agent file stems in agents/ directory
         const AGENT_WELCOMES = {
             '': {
                 title: 'AI Coding Assistant',
@@ -6021,6 +6022,7 @@
             const titleEl = document.getElementById('chat-assistant-title');
             if (titleEl) titleEl.textContent = cfg.title;
             appendChatMessage('assistant', cfg.welcome);
+            chatMessages.push({ role: 'assistant', content: cfg.welcome });
             if (cfg.chips && cfg.chips.length) {
                 const messagesEl = document.getElementById('chat-messages');
                 const wrap = document.createElement('div');
@@ -6294,7 +6296,9 @@
                 try {
                     const res = await fetch(`/api/files/content?path=${encodeURIComponent(filePath)}`);
                     if (res.ok) { const d = await res.json(); fileContent = d.content ?? ''; }
-                } catch { /* fall through */ }
+                } catch {
+                    appendChatMessage('system', 'Could not load file content — sending without it.');
+                }
             }
             const { display, api } = prompt(fileName, fileContent);
             appendChatMessage('user', display);
@@ -6505,6 +6509,7 @@
         }
 
         function clearChat() {
+            if (_chatAbortController) { _chatAbortController.abort(); _chatAbortController = null; }
             _chatEpoch++;             // invalidate any in-flight stream
             chatMessages = [];
             chatStreaming = false;
@@ -6544,10 +6549,12 @@
             let fullResponse = '';
             let pendingRender = false;
 
+            _chatAbortController = new AbortController();
             try {
                 const response = await fetch('/api/chat', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
+                    signal: _chatAbortController.signal,
                     body: JSON.stringify({
                         messages: chatMessages,
                         provider: selected.provider,
@@ -6605,13 +6612,22 @@
                                     const url = '/?preview=' + encodeURIComponent(data.path) + '&fullscreen=true';
                                     const pill = document.createElement('div');
                                     pill.className = 'chat-file-pill';
-                                    pill.innerHTML = `<a href="${url}" target="_blank" rel="noopener"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:-1px;margin-right:4px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>${data.path}</a>`;
+                                    const pillA = document.createElement('a');
+                                    pillA.href = url;
+                                    pillA.target = '_blank';
+                                    pillA.rel = 'noopener';
+                                    pillA.insertAdjacentHTML('afterbegin', '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:-1px;margin-right:4px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>');
+                                    pillA.appendChild(document.createTextNode(data.path));
+                                    pill.appendChild(pillA);
                                     filePills.push(pill);
                                     assistantDiv.appendChild(pill);
                                 } else if (data.type === 'error') {
                                     removeThinking();
                                     if (!assistantDiv) assistantDiv = appendChatMessage('assistant', '');
-                                    assistantDiv.innerHTML = `<span style="color:#ef4444;">Error: ${data.content}</span>`;
+                                    const errSpan = document.createElement('span');
+                                    errSpan.style.color = '#ef4444';
+                                    errSpan.textContent = `Error: ${data.content}`;
+                                    assistantDiv.appendChild(errSpan);
                                 }
                             } catch { /* ignore malformed SSE lines */ }
                         }
@@ -6621,11 +6637,16 @@
                 if (fullResponse) chatMessages.push({role: 'assistant', content: fullResponse});
 
             } catch (e) {
+                if (e.name === 'AbortError') return; // intentionally cancelled via clearChat()
                 removeThinking();
                 if (!assistantDiv) assistantDiv = appendChatMessage('assistant', '');
-                assistantDiv.innerHTML = `<span style="color:#ef4444;">Error: ${e.message}</span>`;
+                const catchErrSpan = document.createElement('span');
+                catchErrSpan.style.color = '#ef4444';
+                catchErrSpan.textContent = `Error: ${e.message}`;
+                assistantDiv.appendChild(catchErrSpan);
                 console.error('Chat error:', e);
             } finally {
+                _chatAbortController = null;
                 removeThinking(); // always clean up — guards against empty/skipped responses
                 if (assistantDiv) {
                     assistantDiv.classList.remove('streaming');

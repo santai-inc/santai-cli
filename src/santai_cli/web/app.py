@@ -808,7 +808,7 @@ def create_app(project: SantaiProject) -> FastAPI:
             existing["OPENAI_API_KEY"] = req.openai_api_key.strip()
 
         # Ensure defaults are present
-        existing.setdefault("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
+        existing.setdefault("ANTHROPIC_MODEL", "anthropic-claude-bedrock4.5-haiku")
         existing.setdefault("OPENAI_MODEL", "gpt-5-large")
 
         # Write .env file — quote all values so special chars are preserved
