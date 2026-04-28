@@ -809,7 +809,7 @@ def create_app(project: SantaiProject) -> FastAPI:
 
         # Ensure defaults are present
         existing.setdefault("ANTHROPIC_MODEL", "anthropic-claude-bedrock4.5-haiku")
-        existing.setdefault("OPENAI_MODEL", "gpt-5-large")
+        existing.setdefault("OPENAI_MODEL", "gpt-5big-santai")
 
         # Write .env file — quote all values so special chars are preserved
         lines = [f'{k}="{v}"\n' for k, v in existing.items()]
