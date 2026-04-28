@@ -78,14 +78,20 @@ ENV_EXAMPLE_CONTENT = """\
 # Santai CLI - AI Chatbot Configuration
 # Copy this file to .env and fill in your API keys.
 # At least one provider key is required for `santai chat` to work.
+#
+# Just drop in your API key(s) below — no other configuration is needed
+# to get started with the standard Anthropic or OpenAI endpoints.
 
 # --- Anthropic ---
 ANTHROPIC_API_KEY=your-anthropic-api-key-here
-ANTHROPIC_MODEL=claude-sonnet-4-20250514
+# ANTHROPIC_MODEL=claude-sonnet-4-20250514
 
 # --- OpenAI ---
 OPENAI_API_KEY=your-openai-api-key-here
-OPENAI_MODEL=gpt-4o
+# OPENAI_MODEL=gpt-4o
+# Optional: only set this if you use a custom proxy (e.g. LiteLLM, Azure).
+# If omitted, the standard OpenAI endpoint (https://api.openai.com/v1) is used.
+# OPENAI_API_BASE_URL=https://your-proxy-url.example.com/v1
 """
 
 GITIGNORE_CONTENT = """\
