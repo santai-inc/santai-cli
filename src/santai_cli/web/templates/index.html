@@ -1299,11 +1299,32 @@
             backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation)) brightness(var(--glass-brightness));
         }
 
+
         /* Chat fullscreen: expand messages area */
         .preview-panel.fullscreen .right-panel-pane.chat-pane .chat-messages {
             max-width: 800px;
             width: 100%;
             align-self: center;
+        }
+
+        .preview-panel.fullscreen .chat-msg {
+            font-size: 14px;
+        }
+
+        .preview-panel.fullscreen .chat-msg.assistant h1 { font-size: 18px; }
+        .preview-panel.fullscreen .chat-msg.assistant h2 { font-size: 16px; }
+        .preview-panel.fullscreen .chat-msg.assistant h3 { font-size: 15px; }
+
+        .preview-panel.fullscreen .chat-custom-select-btn {
+            font-size: 13px;
+        }
+
+        .preview-panel.fullscreen .chat-suggestion-chip {
+            font-size: 14px;
+        }
+
+        .preview-panel.fullscreen .chat-suggestion-chips-wrap {
+            max-width: 480px;
         }
 
         .preview-panel.fullscreen .right-panel-pane.chat-pane .chat-input-row {
@@ -1324,6 +1345,20 @@
         .preview-panel.fullscreen .chat-header-controls select,
         .preview-panel.fullscreen .chat-header-controls .chat-ctrl-btn {
             flex: 1;
+            font-size: 13px;
+        }
+
+        .preview-panel.fullscreen .chat-header h3 {
+            font-size: 14px;
+        }
+
+        .preview-panel.fullscreen .chat-settings-btn {
+            font-size: 13px;
+        }
+
+        .preview-panel.fullscreen .chat-settings-btn svg {
+            width: 14px;
+            height: 14px;
         }
 
         /* Chat fullscreen button (matches preview-fullscreen-btn style) */
@@ -1422,6 +1457,26 @@
         .preview-panel.fullscreen .preview-content .preview-image {
             width: 100%;
             max-width: 800px;
+        }
+
+        .preview-panel.fullscreen .preview-content .cluster-preview-header,
+        .preview-panel.fullscreen .preview-content .cluster-file-list {
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .preview-panel.fullscreen .preview-content .cluster-preview-header {
+            font-size: 15px;
+            padding: 16px 24px 12px;
+        }
+
+        .preview-panel.fullscreen .preview-content .cluster-file-list li {
+            font-size: 16px;
+            padding: 10px 24px;
+        }
+
+        .preview-panel.fullscreen .preview-content .cluster-file-dir {
+            font-size: 13px;
         }
 
         .preview-panel.fullscreen .preview-actions {
@@ -4064,11 +4119,24 @@
                 return;
             }
 
+            // Graph fullscreen pins the preview panel via a high-specificity rule that
+            // conflicts with preview fullscreen styling — exit graph fullscreen first,
+            // and remember to restore it when the preview fullscreen is dismissed.
+            if (!isCurrentlyFullscreen && document.body.classList.contains('graph-is-fullscreen')) {
+                toggleGraphFullscreen();
+                _previewFullscreenRestoredGraph = true;
+            }
+
             const expandIcon = document.getElementById('preview-fullscreen-expand');
             const collapseIcon = document.getElementById('preview-fullscreen-collapse');
 
             panel.classList.toggle('fullscreen');
             const isFullscreen = panel.classList.contains('fullscreen');
+
+            if (!isFullscreen && _previewFullscreenRestoredGraph) {
+                _previewFullscreenRestoredGraph = false;
+                toggleGraphFullscreen();
+            }
 
             expandIcon.style.display = isFullscreen ? 'none' : 'block';
             collapseIcon.style.display = isFullscreen ? 'block' : 'none';
@@ -5844,12 +5912,15 @@
             if (isFullscreen) {
                 fitAllNodes(false);
             } else {
-                // Moderate zoom centered on the simulation's gravity center
+                // Moderate zoom centered on the actual node bounding box
+                const _ns = simulation.nodes();
+                const _cx = (_ns.reduce((a, n) => Math.min(a, n.x), Infinity) + _ns.reduce((a, n) => Math.max(a, n.x), -Infinity)) / 2;
+                const _cy = (_ns.reduce((a, n) => Math.min(a, n.y), Infinity) + _ns.reduce((a, n) => Math.max(a, n.y), -Infinity)) / 2;
                 svg.call(zoom.transform,
                     d3.zoomIdentity
                         .translate(width / 2, height / 2)
                         .scale(0.55)
-                        .translate(-width / 2, -height / 2)
+                        .translate(-_cx, -_cy)
                 );
             }
             simulation.restart();
@@ -6595,8 +6666,20 @@
         function toggleChatFullscreen() {
             const panel = document.getElementById('preview-panel');
             const icon = document.getElementById('chat-fullscreen-icon');
+            const isCurrentlyFullscreen = panel.classList.contains('fullscreen');
+
+            if (!isCurrentlyFullscreen && document.body.classList.contains('graph-is-fullscreen')) {
+                toggleGraphFullscreen();
+                _previewFullscreenRestoredGraph = true;
+            }
+
             const isFullscreen = panel.classList.toggle('fullscreen');
-            // Swap icon between expand and compress
+
+            if (!isFullscreen && _previewFullscreenRestoredGraph) {
+                _previewFullscreenRestoredGraph = false;
+                toggleGraphFullscreen();
+            }
+
             if (isFullscreen) {
                 icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />';
             } else {
@@ -6762,38 +6845,118 @@
         }
 
         // Raw suggestion for a single cluster (may duplicate across clusters)
-        function suggestClusterName(clusterId) {
+        const _clusterStopWords = new Set([
+            'the','a','an','and','or','of','in','on','at','to','for','with','by',
+            'from','into','index','main','readme','untitled','file','new','doc',
+            'docs','draft','copy','page','part','section','about','how','what',
+            'overview','summary','introduction','general','misc','other','stuff'
+        ]);
+
+        function _clusterFileWords(clusterId) {
             const nodeIds = clusterNodes.get(clusterId) || [];
-            if (!nodeIds.length) return `Cluster ${clusterId + 1}`;
             const nodeMap = window.lastFullNodeMap || new Map();
             const nodes = nodeIds.map(id => nodeMap.get(id)).filter(Boolean);
-            const dirs = new Set(nodes.map(n => n.directory));
-            if (dirs.size === 1) return [...dirs][0];
-            const names = nodes.slice(0, 2)
-                .map(n => n.name.replace(/\.[^.]+$/, ''))
-                .filter(Boolean);
-            return names.join(' · ').slice(0, 22) || `Cluster ${clusterId + 1}`;
+            const counts = {};
+            nodes.forEach(n => {
+                const stem = n.name.replace(/\.[^.]+$/, '');
+                stem.split(/[\s\-_\.]+/)
+                    .map(w => w.toLowerCase())
+                    .filter(w => w.length > 2 && !_clusterStopWords.has(w) && !/^\d+$/.test(w))
+                    .forEach(w => { counts[w] = (counts[w] || 0) + 1; });
+            });
+            return { nodes, counts };
+        }
+
+        function _topWords(counts, exclude = new Set(), limit = 2) {
+            return Object.entries(counts)
+                .filter(([w]) => !exclude.has(w))
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, limit)
+                .map(([w]) => w.charAt(0).toUpperCase() + w.slice(1));
+        }
+
+        function suggestClusterName(clusterId, excludeWords = new Set()) {
+            const { nodes, counts } = _clusterFileWords(clusterId);
+            if (!nodes.length) return `Cluster ${clusterId + 1}`;
+
+            // 1. Words appearing in at least half the files (lower bar for small clusters)
+            const threshold = nodes.length <= 2 ? 1 : Math.ceil(nodes.length * 0.4);
+            const common = Object.entries(counts)
+                .filter(([w, c]) => c >= threshold && !excludeWords.has(w))
+                .sort((a, b) => b[1] - a[1])
+                .map(([w]) => w.charAt(0).toUpperCase() + w.slice(1));
+            if (common.length) return common.slice(0, 2).join(' ');
+
+            // 2. Any top words at all, excluding requested words
+            const top = _topWords(counts, excludeWords);
+            if (top.length) return top.join(' ');
+
+            // 3. Shared directory (only if not falling back to avoid "notes" × N)
+            const dirs = nodes.map(n => n.directory || '');
+            const dirSet = new Set(dirs.filter(Boolean));
+            if (dirSet.size === 1) return [...dirSet][0];
+
+            // 4. Most common parent directory segment
+            const pathParts = [...dirSet].map(d => d.split('/'));
+            if (pathParts.length > 1) {
+                const minLen = Math.min(...pathParts.map(p => p.length));
+                const shared = [];
+                for (let i = 0; i < minLen; i++) {
+                    if (pathParts.every(p => p[i] === pathParts[0][i])) shared.push(pathParts[0][i]);
+                    else break;
+                }
+                if (shared.length) return shared[shared.length - 1];
+            }
+
+            // 5. First two filenames
+            return nodes.slice(0, 2).map(n => n.name.replace(/\.[^.]+$/, '')).join(' · ').slice(0, 28) || `Cluster ${clusterId + 1}`;
         }
 
         // Build deduped display names for all multi-node clusters at once
         function rebuildClusterDisplayNames() {
             clusterDisplayNames = new Map();
-            const seen = new Map(); // base name -> count of auto-names used
             const ids = [];
             clusterNodes.forEach((nodeIds, cid) => { if (nodeIds.length > 1) ids.push(cid); });
             ids.sort((a, b) => a - b);
+
+            // First pass: assign initial names
+            const nameToIds = new Map();
             for (const cid of ids) {
                 const saved = clusterNames[getClusterKey(cid)];
                 if (saved) { clusterDisplayNames.set(cid, saved); continue; }
-                const base = suggestClusterName(cid);
-                if (!seen.has(base)) {
-                    seen.set(base, 1);
-                    clusterDisplayNames.set(cid, base);
-                } else {
-                    const n = seen.get(base) + 1;
-                    seen.set(base, n);
-                    clusterDisplayNames.set(cid, `${base} ${n}`);
-                }
+                const name = suggestClusterName(cid);
+                clusterDisplayNames.set(cid, name);
+                if (!nameToIds.has(name)) nameToIds.set(name, []);
+                nameToIds.get(name).push(cid);
+            }
+
+            // Second pass: resolve collisions using words unique to each cluster
+            for (const [name, colliding] of nameToIds) {
+                if (colliding.length <= 1) continue;
+
+                // Gather all words from all colliding clusters
+                const allWordMaps = colliding.map(cid => _clusterFileWords(cid).counts);
+                const allWords = new Set(allWordMaps.flatMap(m => Object.keys(m)));
+
+                // Find words that distinguish each cluster (present in this cluster but not others)
+                colliding.forEach((cid, i) => {
+                    const mine = allWordMaps[i];
+                    const otherWords = new Set(
+                        allWordMaps.filter((_, j) => j !== i).flatMap(m => Object.keys(m))
+                    );
+                    const unique = Object.entries(mine)
+                        .filter(([w]) => !otherWords.has(w))
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([w]) => w.charAt(0).toUpperCase() + w.slice(1));
+
+                    if (unique.length) {
+                        // Append the unique word to distinguish
+                        clusterDisplayNames.set(cid, `${name} · ${unique[0]}`);
+                    } else {
+                        // No unique words — fall back to numbered suffix
+                        clusterDisplayNames.set(cid, `${name} ${i + 1}`);
+                    }
+                });
             }
         }
 
@@ -7292,6 +7455,7 @@
         // Track the original parent so we can return the panel on exit
         let _graphPanelOriginalParent = null;
         let _graphPanelNextSibling = null;
+        let _previewFullscreenRestoredGraph = false;
 
         function toggleGraphFullscreen() {
             const panel = document.querySelector('.graph-panel');
