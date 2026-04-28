@@ -7198,6 +7198,12 @@
                 e.preventDefault();
                 e.stopPropagation();
 
+                // Close any open modal first
+                if (document.querySelector('.modal-overlay.show')) {
+                    closeModals();
+                    return;
+                }
+
                 // In preview-only mode, go to home page
                 if (document.documentElement.classList.contains('preview-only-mode')) {
                     window.location.href = '/';
