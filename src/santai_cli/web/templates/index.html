@@ -579,12 +579,16 @@
         }
 
         .actions {
-            display: flex;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
             gap: 8px;
         }
 
+        .actions .btn-upload {
+            grid-column: 1 / -1;
+        }
+
         .actions .btn {
-            flex: 1;
             justify-content: center;
             gap: 6px;
         }
@@ -3409,17 +3413,23 @@
             </nav>
 
             <div class="actions">
-                <button class="btn btn-primary" onclick="triggerUpload()">
+                <button class="btn" onclick="showNewFileModal()">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                     </svg>
-                    Upload
+                    New File
                 </button>
                 <button class="btn" onclick="showNewFolderModal()">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 10.5v6m3-3H9m4.06-7.19l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
                     </svg>
                     New Folder
+                </button>
+                <button class="btn btn-primary btn-upload" onclick="triggerUpload()">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                    </svg>
+                    Upload
                 </button>
             </div>
         </aside>
@@ -3743,6 +3753,18 @@
             <input type="text" class="modal-input" id="folder-input" placeholder="Folder name">
             <div class="modal-actions" style="justify-content: flex-start;">
                 <button class="btn btn-primary" onclick="confirmNewFolder()">Create</button>
+                <button class="btn" onclick="closeModals()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- New File Modal -->
+    <div class="modal-overlay" id="new-file-modal">
+        <div class="modal">
+            <h2>New File</h2>
+            <input type="text" class="modal-input" id="new-file-input" placeholder="File name (e.g. notes.md)">
+            <div class="modal-actions" style="justify-content: flex-start;">
+                <button class="btn btn-primary" onclick="confirmNewFile()">Create</button>
                 <button class="btn" onclick="closeModals()">Cancel</button>
             </div>
         </div>
@@ -4763,6 +4785,39 @@
             }
         }
 
+        function showNewFileModal() {
+            document.getElementById('new-file-input').value = '';
+            document.getElementById('new-file-modal').classList.add('show');
+            document.getElementById('new-file-input').focus();
+        }
+
+        async function confirmNewFile() {
+            const name = document.getElementById('new-file-input').value.trim();
+            if (!name) return;
+
+            try {
+                const res = await fetch('/api/files/touch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: currentPath, name })
+                });
+
+                if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.detail || 'Failed to create file');
+                }
+
+                const data = await res.json();
+                closeModals();
+                showToast('File created');
+                loadFiles(currentPath);
+                loadTree();
+                openFilePreview(data.path);
+            } catch (err) {
+                showToast(err.message, true);
+            }
+        }
+
         // Upload
         function triggerUpload() {
             document.getElementById('file-input').click();
@@ -4921,12 +4976,24 @@
             if (e.key === 'Escape') closeModals();
         });
 
+        document.getElementById('new-file-input').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') confirmNewFile();
+            if (e.key === 'Escape') closeModals();
+        });
+
         document.getElementById('edit-textarea').addEventListener('keydown', (e) => {
             if (e.key === 'Escape') closeModals();
             if (e.key === 's' && (e.ctrlKey || e.metaKey)) {
                 e.preventDefault();
                 saveFileContent();
             }
+        });
+
+        ['anthropic-key-input', 'openai-key-input'].forEach(id => {
+            document.getElementById(id).addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') saveSettings();
+                if (e.key === 'Escape') closeModals();
+            });
         });
 
         // Toast
