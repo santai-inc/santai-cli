@@ -1,0 +1,14 @@
+# Require review from engineering team for sensitive paths
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# CI/CD workflows — changes can affect supply chain security
+.github/ @santai-inc/engineering
+
+# Build configuration and dependencies
+pyproject.toml @santai-inc/engineering
+uv.lock @santai-inc/engineering
+.pre-commit-config.yaml @santai-inc/engineering
+
+# Security-sensitive code
+src/santai_cli/core/config.py @santai-inc/engineering
+src/santai_cli/commands/auth.py @santai-inc/engineering

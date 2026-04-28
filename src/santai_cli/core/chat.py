@@ -175,16 +175,24 @@ class ChatSession:
         self.messages.append(ChatMessage(role="assistant", content=content))
 
     def add_tool_turn(
-        self, tool_calls: list[dict[str, Any]], results: list[tuple[str, dict[str, Any], str]]
+        self,
+        tool_calls: list[dict[str, Any]],
+        results: list[tuple[str, dict[str, Any], str]],
     ) -> None:
         """Record one round of tool calls and their results."""
-        self.tool_turns.append({
-            "calls": tool_calls,
-            "results": [
-                {"tool_name": name, "tool_use_id": inp.get("id", "unknown"), "content": content}
-                for name, inp, content in results
-            ],
-        })
+        self.tool_turns.append(
+            {
+                "calls": tool_calls,
+                "results": [
+                    {
+                        "tool_name": name,
+                        "tool_use_id": inp.get("id", "unknown"),
+                        "content": content,
+                    }
+                    for name, inp, content in results
+                ],
+            }
+        )
 
     def clear(self) -> None:
         """Clear conversation history (keeps system prompt)."""
@@ -200,30 +208,34 @@ class ChatSession:
         ]
         for turn in self.tool_turns:
             # Assistant message containing the tool_use blocks
-            msgs.append({
-                "role": "assistant",
-                "content": [
-                    {
-                        "type": "tool_use",
-                        "id": tc["id"],
-                        "name": tc["name"],
-                        "input": json.loads(tc.get("arguments", "{}") or "{}"),
-                    }
-                    for tc in turn["calls"]
-                ],
-            })
+            msgs.append(
+                {
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": tc["id"],
+                            "name": tc["name"],
+                            "input": json.loads(tc.get("arguments", "{}") or "{}"),
+                        }
+                        for tc in turn["calls"]
+                    ],
+                }
+            )
             # User message containing the tool_result blocks
-            msgs.append({
-                "role": "user",
-                "content": [
-                    {
-                        "type": "tool_result",
-                        "tool_use_id": r["tool_use_id"],
-                        "content": r["content"],
-                    }
-                    for r in turn["results"]
-                ],
-            })
+            msgs.append(
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": r["tool_use_id"],
+                            "content": r["content"],
+                        }
+                        for r in turn["results"]
+                    ],
+                }
+            )
         return msgs
 
     def to_openai_messages(self) -> list[dict[str, Any]]:
@@ -238,26 +250,33 @@ class ChatSession:
         )
         for turn in self.tool_turns:
             # Assistant message with tool_calls array
-            msgs.append({
-                "role": "assistant",
-                "content": None,
-                "tool_calls": [
-                    {
-                        "id": tc["id"],
-                        "type": "function",
-                        "function": {"name": tc["name"], "arguments": tc.get("arguments", "{}") or "{}"},
-                    }
-                    for tc in turn["calls"]
-                ],
-            })
+            msgs.append(
+                {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": tc["id"],
+                            "type": "function",
+                            "function": {
+                                "name": tc["name"],
+                                "arguments": tc.get("arguments", "{}") or "{}",
+                            },
+                        }
+                        for tc in turn["calls"]
+                    ],
+                }
+            )
             # One tool message per result
             for r in turn["results"]:
-                msgs.append({
-                    "role": "tool",
-                    "tool_call_id": r["tool_use_id"],
-                    "name": r["tool_name"],
-                    "content": r["content"],
-                })
+                msgs.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": r["tool_use_id"],
+                        "name": r["tool_name"],
+                        "content": r["content"],
+                    }
+                )
         return msgs
 
 
@@ -312,7 +331,11 @@ async def stream_response(
                     args = json.loads(tool_call.get("arguments", "{}"))
                 except json.JSONDecodeError:
                     args = {}
-                path = args.get("destination") if tool_name == "move" else args.get("filepath")
+                path = (
+                    args.get("destination")
+                    if tool_name == "move"
+                    else args.get("filepath")
+                )
                 if path:
                     yield {"event": "file_written", "path": path}
         session.add_tool_turn(tool_calls, results)
@@ -435,11 +458,26 @@ def execute_tool(tool_call: dict[str, Any], project_root: Path | None) -> str:
     return f"Error: Unknown tool '{tool_name}'"
 
 
+class PathTraversalError(Exception):
+    """Raised when a resolved path escapes the project root."""
+
+
 def _resolve_path(filepath: str, project_root: Path | None) -> Path:
-    """Resolve a filepath relative to project root."""
+    """Resolve a filepath relative to project root.
+
+    Raises PathTraversalError if the resolved path escapes the project root,
+    preventing directory-traversal attacks via AI tool calls.
+    """
     if project_root is None:
         project_root = Path.cwd()
-    return (project_root / filepath).resolve()
+    resolved = (project_root / filepath).resolve()
+    try:
+        resolved.relative_to(project_root.resolve())
+    except ValueError as exc:
+        raise PathTraversalError(
+            f"Access denied: path '{filepath}' resolves outside the project root"
+        ) from exc
+    return resolved
 
 
 def _tool_write_file(tool_call: dict[str, Any], project_root: Path | None) -> str:
@@ -454,7 +492,10 @@ def _tool_write_file(tool_call: dict[str, Any], project_root: Path | None) -> st
     if not filepath:
         return "Error: filepath is required"
 
-    path = _resolve_path(filepath, project_root)
+    try:
+        path = _resolve_path(filepath, project_root)
+    except PathTraversalError as e:
+        return f"Error: {e}"
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
@@ -474,7 +515,10 @@ def _tool_read_file(tool_call: dict[str, Any], project_root: Path | None) -> str
     if not filepath:
         return "Error: filepath is required"
 
-    path = _resolve_path(filepath, project_root)
+    try:
+        path = _resolve_path(filepath, project_root)
+    except PathTraversalError as e:
+        return f"Error: {e}"
     try:
         content = path.read_text(encoding="utf-8")
         max_len = 10000
@@ -498,7 +542,10 @@ def _tool_list_dir(tool_call: dict[str, Any], project_root: Path | None) -> str:
     if not directory:
         directory = "."
 
-    path = _resolve_path(directory, project_root)
+    try:
+        path = _resolve_path(directory, project_root)
+    except PathTraversalError as e:
+        return f"Error: {e}"
     try:
         if not path.is_dir():
             return f"Error: {directory} is not a directory"
@@ -520,7 +567,10 @@ def _tool_mkdir(tool_call: dict[str, Any], project_root: Path | None) -> str:
     if not dir_path:
         return "Error: path is required"
 
-    path = _resolve_path(dir_path, project_root)
+    try:
+        path = _resolve_path(dir_path, project_root)
+    except PathTraversalError as e:
+        return f"Error: {e}"
     try:
         path.mkdir(parents=True, exist_ok=True)
         return f"OK: created directory {dir_path}"
@@ -539,7 +589,10 @@ def _tool_remove_file(tool_call: dict[str, Any], project_root: Path | None) -> s
     if not filepath:
         return "Error: filepath is required"
 
-    path = _resolve_path(filepath, project_root)
+    try:
+        path = _resolve_path(filepath, project_root)
+    except PathTraversalError as e:
+        return f"Error: {e}"
     try:
         path.unlink()
         return f"OK: removed {filepath}"
@@ -561,7 +614,10 @@ def _tool_remove_dir(tool_call: dict[str, Any], project_root: Path | None) -> st
     if not dir_path:
         return "Error: path is required"
 
-    path = _resolve_path(dir_path, project_root)
+    try:
+        path = _resolve_path(dir_path, project_root)
+    except PathTraversalError as e:
+        return f"Error: {e}"
     if not path.is_dir():
         return f"Error: {dir_path} is not a directory"
 
@@ -596,8 +652,11 @@ def _tool_move(tool_call: dict[str, Any], project_root: Path | None) -> str:
     if not source or not destination:
         return "Error: source and destination are required"
 
-    src_path = _resolve_path(source, project_root)
-    dst_path = _resolve_path(destination, project_root)
+    try:
+        src_path = _resolve_path(source, project_root)
+        dst_path = _resolve_path(destination, project_root)
+    except PathTraversalError as e:
+        return f"Error: {e}"
     try:
         dst_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(src_path), str(dst_path))

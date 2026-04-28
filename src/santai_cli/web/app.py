@@ -746,7 +746,9 @@ def create_app(project: SantaiProject) -> FastAPI:
                     session, req.provider, provider_config, req.model
                 ):
                     if isinstance(chunk, dict):
-                        data = json.dumps({"type": "file_written", "path": chunk["path"]})
+                        data = json.dumps(
+                            {"type": "file_written", "path": chunk["path"]}
+                        )
                     else:
                         data = json.dumps({"type": "chunk", "content": chunk})
                     yield f"data: {data}\n\n"
@@ -833,6 +835,7 @@ def create_app(project: SantaiProject) -> FastAPI:
         # Write .env file — quote all values so special chars are preserved
         lines = [f'{k}="{v}"\n' for k, v in existing.items()]
         env_path.write_text("".join(lines), encoding="utf-8")
+        env_path.chmod(0o600)  # restrict to owner-only — contains API keys
 
         # Reload into the running process immediately
         load_dotenv(env_path, override=True)

@@ -3841,6 +3841,8 @@
 
     <!-- Marked.js for Markdown rendering -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- DOMPurify for sanitizing rendered HTML (XSS prevention) -->
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.min.js"></script>
     <!-- highlight.js for syntax highlighting in code blocks -->
     <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/highlight.min.js"></script>
 
@@ -3865,6 +3867,15 @@
                     return hljs.highlightAuto(code).value;
                 }
             });
+        }
+
+        /**
+         * Render markdown to sanitized HTML string. All marked.parse() output is
+         * passed through DOMPurify to prevent XSS from untrusted content.
+         */
+        function safeMarkdown(md) {
+            const raw = (typeof marked !== 'undefined') ? marked.parse(md) : md;
+            return (typeof DOMPurify !== 'undefined') ? DOMPurify.sanitize(raw) : raw;
         }
 
         // Theme Management - 2 themes: simple (light) and glass
@@ -3944,13 +3955,8 @@
                     // Check if it's a markdown file
                     const ext = data.name.split('.').pop().toLowerCase();
                     if (['md', 'markdown'].includes(ext) && typeof marked !== 'undefined') {
-                        // Configure marked for security
-                        marked.setOptions({
-                            breaks: true,
-                            gfm: true
-                        });
-                        // Render markdown
-                        const rendered = marked.parse(data.content);
+                        // Render markdown (sanitized via DOMPurify)
+                        const rendered = safeMarkdown(data.content);
                         content.innerHTML = `<div class="preview-markdown">${rendered}</div>`;
 
                         // Handle link clicks in markdown
@@ -6156,7 +6162,8 @@
         // Render markdown content into an element and post-process
         function renderMarkdown(el, content) {
             if (typeof marked !== 'undefined') {
-                el.innerHTML = marked.parse(content);
+                const raw = marked.parse(content);
+                el.innerHTML = (typeof DOMPurify !== 'undefined') ? DOMPurify.sanitize(raw) : raw;
             } else {
                 el.textContent = content;
             }
@@ -6325,7 +6332,11 @@
                                 } else if (data.type === 'error') {
                                     removeThinking();
                                     if (!assistantDiv) assistantDiv = appendChatMessage('assistant', '');
-                                    assistantDiv.innerHTML = `<span style="color:#ef4444;">Error: ${data.content}</span>`;
+                                    const errSpan = document.createElement('span');
+                                    errSpan.style.color = '#ef4444';
+                                    errSpan.textContent = 'Error: ' + data.content;
+                                    assistantDiv.innerHTML = '';
+                                    assistantDiv.appendChild(errSpan);
                                 }
                             } catch { /* ignore malformed SSE lines */ }
                         }
