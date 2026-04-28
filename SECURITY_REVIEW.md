@@ -124,13 +124,12 @@ These items were identified during the audit and addressed in this branch:
 
 ### 10. GitHub Actions pinned to commit SHAs
 
-**Files:** `.github/workflows/claude.yml`, `.github/workflows/opencode.yml`,
-`.github/workflows/ci.yml`
+**Files:** `.github/workflows/claude.yml`, `.github/workflows/opencode.yml`
 
-All three workflows (`actions/checkout`, `anthropics/claude-code-action`,
-`anomalyco/opencode/github`, `astral-sh/setup-uv`) are now pinned to
-immutable full commit SHAs with version comments. Previously, `@latest` was
-used for opencode (floating tag) and `@v6`/`@v1` for others (mutable tags).
+All actions (`actions/checkout`, `anthropics/claude-code-action`,
+`anomalyco/opencode/github`) are now pinned to immutable full commit SHAs
+with version comments. Previously, `@latest` was used for opencode (floating
+tag) and `@v6`/`@v1` for others (mutable tags).
 
 ### 11. CI workflows restricted to repo members
 
@@ -158,15 +157,6 @@ Requires review from `@santai-inc/engineering` for changes to:
 Configured weekly automated dependency update PRs for both Python packages
 (pip ecosystem) and GitHub Actions.
 
-### 14. CI quality gate added
-
-**File:** `.github/workflows/ci.yml`
-
-New workflow runs on PRs and pushes to `main`:
-- `ruff format --check` (formatting)
-- `ruff check` (linting)
-- `ty check src/` (type checking)
-
 ---
 
 ## Remaining Items (Manual Configuration Required)
@@ -177,6 +167,7 @@ repository settings:
 | Item | Severity | Action Required |
 |------|----------|-----------------|
 | Branch protection rules | High | Configure required reviews and status checks on `main` in Settings > Branches |
+| CI quality gate | Medium | Add ruff/ty/test workflow that runs on PRs |
 | Enable Dependabot alerts | Medium | Enable in Settings > Code security > Dependabot alerts |
 | PyPI publish workflow | Medium | Set up Trusted Publishing (OIDC) workflow for tagged releases when ready |
 | API key preview exposure | Low | Consider reducing `GET /api/settings` key preview to boolean or last-4-only |
