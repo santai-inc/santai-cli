@@ -35,6 +35,11 @@ class MkdirRequest(BaseModel):
     name: str
 
 
+class TouchRequest(BaseModel):
+    path: str
+    name: str
+
+
 class FileContentRequest(BaseModel):
     content: str
 
@@ -404,6 +409,28 @@ def create_app(project: SantaiProject) -> FastAPI:
         return {
             "message": "Directory created",
             "path": str(new_dir.relative_to(root_dir)),
+        }
+
+    @app.post("/api/files/touch")
+    async def touch_file(req: TouchRequest) -> dict[str, str]:
+        """Create a new empty file."""
+        parent = safe_path(req.path)
+        if not parent.is_dir():
+            raise HTTPException(
+                status_code=400, detail="Parent path is not a directory"
+            )
+
+        new_file = parent / req.name
+        safe_path(str(new_file.relative_to(root_dir)))
+        if new_file.exists():
+            raise HTTPException(
+                status_code=409, detail="A file with that name already exists"
+            )
+
+        new_file.touch()
+        return {
+            "message": "File created",
+            "path": str(new_file.relative_to(root_dir)),
         }
 
     @app.post("/api/files/move")
