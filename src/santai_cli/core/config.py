@@ -42,7 +42,7 @@ class ProviderConfig:
     """Configuration for a single AI provider."""
 
     name: str
-    api_key: str
+    api_key: str = field(repr=False)
     model: str
     available_models: list[str] = field(default_factory=list)
     base_url: str | None = None

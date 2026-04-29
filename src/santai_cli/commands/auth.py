@@ -66,7 +66,11 @@ def login(
     ] = None,
     port: Annotated[
         int | None,
-        typer.Option("--port", "-p", help="Fixed port for callback server (useful for SSH tunneling)"),
+        typer.Option(
+            "--port",
+            "-p",
+            help="Fixed port for callback server (useful for SSH tunneling)",
+        ),
     ] = None,
 ) -> None:
     """Authenticate with Santai Hub via the browser."""
@@ -127,7 +131,7 @@ def login(
     server_ready.wait()
 
     auth_url = f"{hub}/auth/cli?callback_port={port}"
-    console.print(f"Opening browser to authenticate...")
+    console.print("Opening browser to authenticate...")
     console.print(f"  [dim]{auth_url}[/dim]\n")
     webbrowser.open(auth_url)
     console.print("Waiting for authentication (press Ctrl+C to cancel)...")
@@ -165,8 +169,8 @@ def logout() -> None:
 
 def whoami() -> None:
     """Show the currently authenticated user."""
-    import urllib.request
     import urllib.error
+    import urllib.request
 
     creds = load_credentials()
     if not creds:
@@ -185,7 +189,9 @@ def whoami() -> None:
             data = json.loads(resp.read())
             user = data.get("user", {})
             session = data.get("session", {})
-            console.print(f"Logged in as [bold]{user.get('username', creds.get('username', 'unknown'))}[/bold]")
+            console.print(
+                f"Logged in as [bold]{user.get('username', creds.get('username', 'unknown'))}[/bold]"
+            )
             console.print(f"  Name:  {user.get('name', 'N/A')}")
             console.print(f"  Email: {user.get('email', 'N/A')}")
             console.print(f"  Hub:   [dim]{hub}[/dim]")
@@ -193,11 +199,15 @@ def whoami() -> None:
                 console.print(f"  Expires: [dim]{session['expiresAt']}[/dim]")
     except urllib.error.HTTPError as e:
         if e.code == 401:
-            console.print("[yellow]Session expired. Run [bold]santai login[/bold] to re-authenticate.[/yellow]")
+            console.print(
+                "[yellow]Session expired. Run [bold]santai login[/bold] to re-authenticate.[/yellow]"
+            )
             _clear_credentials()
             raise typer.Exit(1)
         console.print(f"[red]Failed to verify session: HTTP {e.code}[/red]")
         raise typer.Exit(1)
     except (urllib.error.URLError, TimeoutError):
-        console.print(f"Logged in as [bold]{creds.get('username', 'unknown')}[/bold]  [dim](offline — could not reach hub)[/dim]")
+        console.print(
+            f"Logged in as [bold]{creds.get('username', 'unknown')}[/bold]  [dim](offline — could not reach hub)[/dim]"
+        )
         console.print(f"  Hub: [dim]{hub}[/dim]")

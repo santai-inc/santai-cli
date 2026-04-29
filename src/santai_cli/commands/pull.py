@@ -102,13 +102,30 @@ def pull(
         dest_path.mkdir(parents=True, exist_ok=True)
 
         with zipfile.ZipFile(tmp_path, "r") as zf:
+            # Validate all members before extracting to prevent zip-slip attacks
+            for member in zf.infolist():
+                member_path = (dest_path / member.filename).resolve()
+                try:
+                    member_path.relative_to(dest_path.resolve())
+                except ValueError:
+                    console.print(
+                        "[red]Error: Zip contains unsafe path "
+                        f"'{member.filename}'[/red]"
+                    )
+                    raise typer.Exit(1)
+                # Reject symlinks (type_flag 'l' via external_attr or compress_type)
+                if member.external_attr >> 28 == 0xA:
+                    console.print(
+                        f"[red]Error: Zip contains symlink '{member.filename}'[/red]"
+                    )
+                    raise typer.Exit(1)
             zf.extractall(dest_path)
 
-        console.print(
-            f"[green]Pulled [bold]{name}[/bold] to {dest_path}[/green]"
-        )
+        console.print(f"[green]Pulled [bold]{name}[/bold] to {dest_path}[/green]")
     except (urllib.error.URLError, TimeoutError):
-        console.print("[red]Download failed. The URL may have expired — try again.[/red]")
+        console.print(
+            "[red]Download failed. The URL may have expired — try again.[/red]"
+        )
         if dest_path.exists() and not any(dest_path.iterdir()):
             dest_path.rmdir()
         raise typer.Exit(1)

@@ -3,6 +3,7 @@
 import os
 import shutil
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
 from typing import Annotated
 
@@ -22,10 +23,23 @@ IGNORED_DIRECTORIES = {
     ".venv",
 }
 
+# Files excluded by default (secrets, credentials).
+# Users can opt-in to include .env via --include-env.
+SENSITIVE_FILES = {
+    ".env",
+    "credentials.json",
+}
 
-def _ignore_patterns(directory: str, files: list[str]) -> set[str]:
-    """Return set of files/directories to ignore during copy."""
-    return {f for f in files if f in IGNORED_DIRECTORIES}
+
+def _make_ignore_fn(
+    ignored_files: set[str],
+) -> Callable[[str, list[str]], set[str]]:
+    """Return an ignore function for shutil.copytree."""
+
+    def _ignore(directory: str, files: list[str]) -> set[str]:
+        return {f for f in files if f in IGNORED_DIRECTORIES or f in ignored_files}
+
+    return _ignore
 
 
 def _run_command(cmd: list[str], cwd: Path) -> bool:
@@ -49,7 +63,9 @@ def _run_command(cmd: list[str], cwd: Path) -> bool:
         return False
 
 
-def _merge_tree(source: Path, destination: Path) -> tuple[int, int]:
+def _merge_tree(
+    source: Path, destination: Path, ignored_files: set[str]
+) -> tuple[int, int]:
     """Merge files from source into destination, skipping existing files.
 
     Walks the source directory tree, copying files into the corresponding
@@ -73,6 +89,9 @@ def _merge_tree(source: Path, destination: Path) -> tuple[int, int]:
         dest_dir.mkdir(parents=True, exist_ok=True)
 
         for filename in filenames:
+            if filename in ignored_files:
+                skipped += 1
+                continue
             src_file = Path(dirpath) / filename
             dest_file = dest_dir / filename
 
@@ -126,6 +145,13 @@ def merge(
         str,
         typer.Argument(help="Destination directory name for the merged project"),
     ],
+    include_env: Annotated[
+        bool,
+        typer.Option(
+            "--include-env",
+            help="Include .env files in the merge (may contain API keys)",
+        ),
+    ] = False,
 ) -> None:
     """Merge two Santai projects into a new combined project.
 
@@ -149,6 +175,18 @@ def merge(
 
     project_name = dest_path.name
 
+    # Determine which files to exclude
+    ignored_files = set(SENSITIVE_FILES)
+    has_env = (source1_path / ".env").is_file() or (source2_path / ".env").is_file()
+    if not include_env and has_env:
+        include_env = typer.confirm(
+            "A .env file was found in one or both source projects "
+            "(may contain API keys). Include it in the merge?",
+            default=False,
+        )
+    if include_env:
+        ignored_files.discard(".env")
+
     # Step 1: Copy primary project to destination
     console.print(
         f"Merging Santai projects into '{destination}'...",
@@ -159,7 +197,7 @@ def merge(
     )
 
     try:
-        shutil.copytree(source1_path, dest_path, ignore=_ignore_patterns)
+        shutil.copytree(source1_path, dest_path, ignore=_make_ignore_fn(ignored_files))
     except Exception as e:
         console.print(f"[red]Error copying primary project: {e}[/red]")
         raise typer.Exit(1) from e
@@ -168,7 +206,7 @@ def merge(
     console.print(f"Merging files from secondary project '{source2}'...")
 
     try:
-        copied, skipped = _merge_tree(source2_path, dest_path)
+        copied, skipped = _merge_tree(source2_path, dest_path, ignored_files)
     except Exception as e:
         console.print(f"[red]Error merging secondary project: {e}[/red]")
         raise typer.Exit(1) from e
