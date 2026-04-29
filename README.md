@@ -23,6 +23,14 @@ uv sync
 uv run santai --help
 ```
 
+> **Picking up local changes:** `uv tool install` copies the package into an isolated venv, so edits or branch switches in your clone won't affect the global `santai` until you reinstall. For active development, use an editable install instead:
+>
+> ```bash
+> uv tool install --editable --from . santai-cli --force
+> ```
+>
+> Otherwise, re-run `uv tool install --from . santai-cli --force` after each change (the `--force` is required — without it, `uv` treats an already-installed package as a no-op). To track a different branch in a separate directory, use `git worktree add` and point the editable install at that path.
+
 ## Quick Start
 
 ```bash
