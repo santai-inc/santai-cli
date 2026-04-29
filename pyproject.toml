@@ -1,7 +1,7 @@
 [project]
 name = "santai-cli"
 version = "0.1.0"
-description = "Santai project management CLI"
+description = "A CLI Collaborative Knowledge Base Management System"
 readme = "README.md"
 authors = [
     { name = "Santai Engineering", email = "engineering@sant.ai" }
