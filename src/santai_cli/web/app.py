@@ -1,6 +1,8 @@
 """FastAPI web application for Santai."""
 
+import os
 import shutil
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -834,8 +836,17 @@ def create_app(project: SantaiProject) -> FastAPI:
 
         # Write .env file — quote all values so special chars are preserved
         lines = [f'{k}="{v}"\n' for k, v in existing.items()]
-        env_path.write_text("".join(lines), encoding="utf-8")
-        env_path.chmod(0o600)  # restrict to owner-only — contains API keys
+        # Atomic write: create temp file with restricted permissions, then
+        # rename into place so .env is never world-readable even briefly.
+        fd, tmp = tempfile.mkstemp(dir=env_path.parent)
+        try:
+            with os.fdopen(fd, "w") as f:
+                f.write("".join(lines))
+            os.chmod(tmp, 0o600)
+            os.replace(tmp, env_path)
+        except Exception:
+            os.unlink(tmp)
+            raise
 
         # Reload into the running process immediately
         load_dotenv(env_path, override=True)

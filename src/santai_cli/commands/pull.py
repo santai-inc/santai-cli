@@ -105,7 +105,9 @@ def pull(
             # Validate all members before extracting to prevent zip-slip attacks
             for member in zf.infolist():
                 member_path = (dest_path / member.filename).resolve()
-                if not str(member_path).startswith(str(dest_path.resolve())):
+                try:
+                    member_path.relative_to(dest_path.resolve())
+                except ValueError:
                     console.print(
                         "[red]Error: Zip contains unsafe path "
                         f"'{member.filename}'[/red]"
