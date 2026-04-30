@@ -1,10 +1,22 @@
 [project]
 name = "santai-cli"
 version = "0.1.0"
-description = "Santai project management CLI"
+description = "A CLI Collaborative Knowledge Base Management System"
 readme = "README.md"
 authors = [
     { name = "Santai Engineering", email = "engineering@sant.ai" }
+]
+license = { text = "MIT" }
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Topic :: Utilities",
 ]
 requires-python = ">=3.12"
 dependencies = [
@@ -30,6 +42,11 @@ dev = [
 
 [project.scripts]
 santai = "santai_cli.cli:app"
+
+[project.urls]
+Homepage = "https://github.com/santai-inc/santai-cli"
+Repository = "https://github.com/santai-inc/santai-cli"
+Issues = "https://github.com/santai-inc/santai-cli/issues"
 
 [build-system]
 requires = ["hatchling"]
