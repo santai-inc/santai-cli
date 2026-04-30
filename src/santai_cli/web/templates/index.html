@@ -3961,6 +3961,15 @@
             });
         }
 
+        /**
+         * Render markdown to sanitized HTML string. All marked.parse() output is
+         * passed through DOMPurify to prevent XSS from untrusted content.
+         */
+        function safeMarkdown(md) {
+            const raw = (typeof marked !== 'undefined') ? marked.parse(md) : md;
+            return (typeof DOMPurify !== 'undefined') ? DOMPurify.sanitize(raw) : raw.replace(/<[^>]*>/g, '');
+        }
+        
         let currentPath = '';
         let selectedItem = null;
         let files = [];
