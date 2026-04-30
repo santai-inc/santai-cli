@@ -26,11 +26,21 @@ IGNORED_DIRECTORIES = {
     "node_modules",
 }
 
+# Files excluded by default (secrets, credentials).
+# Users can opt-in to include .env via --include-env.
+SENSITIVE_FILES = {
+    ".env",
+    "credentials.json",
+}
+
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 
 
-def _should_include(path: Path) -> bool:
-    return not any(part in IGNORED_DIRECTORIES for part in path.parts)
+def _should_include(path: Path, ignored_files: set[str]) -> bool:
+    return (
+        not any(part in IGNORED_DIRECTORIES for part in path.parts)
+        and path.name not in ignored_files
+    )
 
 
 def _get_backend_url(hub_url: str) -> str:
@@ -50,6 +60,13 @@ def push(
         str | None,
         typer.Argument(help="Project name (defaults to directory name)"),
     ] = None,
+    include_env: Annotated[
+        bool,
+        typer.Option(
+            "--include-env",
+            help="Include .env file in the upload (contains API keys)",
+        ),
+    ] = False,
 ) -> None:
     """Push the current Santai project to the cloud."""
     import urllib.error
@@ -70,6 +87,17 @@ def push(
         console.print("Not logged in. Run [bold]santai login[/bold] first.")
         raise typer.Exit(1)
 
+    # Determine which files to exclude
+    ignored_files = set(SENSITIVE_FILES)
+    env_path = project_dir / ".env"
+    if not include_env and env_path.is_file():
+        include_env = typer.confirm(
+            "A .env file was found (may contain API keys). Include it in the upload?",
+            default=False,
+        )
+    if include_env:
+        ignored_files.discard(".env")
+
     project_name = name or project_dir.name
     hub = creds.get("hub_url", DEFAULT_HUB_URL)
     backend = _get_backend_url(hub)
@@ -85,7 +113,7 @@ def push(
                 if not file_path.is_file():
                     continue
                 rel = file_path.relative_to(project_dir)
-                if not _should_include(rel):
+                if not _should_include(rel, ignored_files):
                     continue
                 zf.write(file_path, rel)
 
@@ -115,9 +143,7 @@ def push(
         body_parts.append(b"\r\n")
 
         body_parts.append(f"--{boundary}\r\n".encode())
-        body_parts.append(
-            b'Content-Disposition: form-data; name="repoName"\r\n\r\n'
-        )
+        body_parts.append(b'Content-Disposition: form-data; name="repoName"\r\n\r\n')
         body_parts.append(project_name.encode())
         body_parts.append(b"\r\n")
 

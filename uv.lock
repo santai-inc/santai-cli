@@ -339,6 +339,9 @@ wheels = [
 linkify = [
     { name = "linkify-it-py" },
 ]
+plugins = [
+    { name = "mdit-py-plugins" },
+]
 
 [[package]]
 name = "markupsafe"
@@ -694,6 +697,7 @@ source = { editable = "." }
 dependencies = [
     { name = "anthropic" },
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "jinja2" },
     { name = "openai" },
     { name = "python-dotenv" },
@@ -713,16 +717,17 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "anthropic", specifier = ">=0.42.0" },
-    { name = "fastapi", specifier = ">=0.110.0" },
-    { name = "jinja2", specifier = ">=3.1.0" },
-    { name = "openai", specifier = ">=1.60.0" },
-    { name = "python-dotenv", specifier = ">=1.0.0" },
-    { name = "python-multipart", specifier = ">=0.0.9" },
-    { name = "rich", specifier = ">=13.0.0" },
-    { name = "textual", specifier = ">=0.50.0" },
-    { name = "typer", specifier = ">=0.12.0" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.27.0" },
+    { name = "anthropic", specifier = ">=0.42.0,<1.0" },
+    { name = "fastapi", specifier = ">=0.110.0,<1.0" },
+    { name = "httpx", specifier = ">=0.27.0,<1.0" },
+    { name = "jinja2", specifier = ">=3.1.0,<4.0" },
+    { name = "openai", specifier = ">=1.60.0,<3.0" },
+    { name = "python-dotenv", specifier = ">=1.0.0,<2.0" },
+    { name = "python-multipart", specifier = ">=0.0.9,<1.0" },
+    { name = "rich", specifier = ">=13.0.0,<15.0" },
+    { name = "textual", specifier = ">=0.50.0,<4.0" },
+    { name = "typer", specifier = ">=0.12.0,<1.0" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.27.0,<1.0" },
 ]
 
 [package.metadata.requires-dev]
@@ -765,19 +770,17 @@ wheels = [
 
 [[package]]
 name = "textual"
-version = "8.2.3"
+version = "3.7.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "markdown-it-py", extra = ["linkify"] },
-    { name = "mdit-py-plugins" },
+    { name = "markdown-it-py", extra = ["linkify", "plugins"] },
     { name = "platformdirs" },
-    { name = "pygments" },
     { name = "rich" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/cf/2f/d44f0f12b3ddb1f0b88f7775652e99c6b5a43fd733badf4ce064bdbfef4a/textual-8.2.3.tar.gz", hash = "sha256:beea7b86b03b03558a2224f0cc35252e60ef8b0c4353b117b2f40972902d976a", size = 1848738, upload-time = "2026-04-05T09:12:45.338Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/af/83/c99c252c3fad2f7010ceb476a31af042eec71da441ffeef75bb590bc2e9e/textual-3.7.1.tar.gz", hash = "sha256:a76ba0c8a6c194ef24fd5c3681ebfddca55e7127c064a014128c84fbd7f5d271", size = 1604038, upload-time = "2025-07-09T09:04:45.477Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0e/28/a81d6ce9f4804818bd1231a9a6e4d56ea84ebbe8385c49591444f0234fa2/textual-8.2.3-py3-none-any.whl", hash = "sha256:5008ac581bebf1f6fa0520404261844a231e5715fdbddd10ca73916a3af48ca2", size = 724231, upload-time = "2026-04-05T09:12:48.747Z" },
+    { url = "https://files.pythonhosted.org/packages/15/f1/8929fcce6dc983f7a260d0f3ddd2a69b74ba17383dbe57a7e0a9e085e8be/textual-3.7.1-py3-none-any.whl", hash = "sha256:ab5d153f4f65e77017977fa150d0376409e0acf5f1d2e25e2e4ab9de6c0d61ff", size = 691472, upload-time = "2025-07-09T09:04:43.626Z" },
 ]
 
 [[package]]

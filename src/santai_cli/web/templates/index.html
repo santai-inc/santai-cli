@@ -3932,9 +3932,11 @@
     <input type="file" id="file-input" multiple onchange="handleFileSelect(event)">
 
     <!-- Marked.js for Markdown rendering -->
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@15.0.12/marked.min.js" integrity="sha384-948ahk4ZmxYVYOc+rxN1H2gM1EJ2Duhp7uHtZ4WSLkV4Vtx5MUqnV+l7u9B+jFv+" crossorigin="anonymous"></script>
+    <!-- DOMPurify for sanitizing rendered HTML (XSS prevention) -->
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.min.js" integrity="sha384-eEu5CTj3qGvu9PdJuS+YlkNi7d2XxQROAFYOr59zgObtlcux1ae1Il3u7jvdCSWu" crossorigin="anonymous"></script>
     <!-- highlight.js for syntax highlighting in code blocks -->
-    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/highlight.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/highlight.min.js" integrity="sha384-ugCFWYMWO87Y80o3yB42kOL+W58l7+Dstl/FLrHb1HyrMIrJGcPBTLqUJo5kX1gB" crossorigin="anonymous"></script>
 
     <script>
         // Configure marked for security and proper rendering
@@ -4018,13 +4020,8 @@
                     // Check if it's a markdown file
                     const ext = data.name.split('.').pop().toLowerCase();
                     if (['md', 'markdown'].includes(ext) && typeof marked !== 'undefined') {
-                        // Configure marked for security
-                        marked.setOptions({
-                            breaks: true,
-                            gfm: true
-                        });
-                        // Render markdown
-                        const rendered = marked.parse(data.content);
+                        // Render markdown (sanitized via DOMPurify)
+                        const rendered = safeMarkdown(data.content);
                         content.innerHTML = `<div class="preview-markdown">${rendered}</div>`;
 
                         // Handle link clicks in markdown
@@ -6487,7 +6484,8 @@
             content = content.replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, '$2')
                              .replace(/\[\[([^\]]+)\]\]/g, '$1');
             if (typeof marked !== 'undefined') {
-                el.innerHTML = marked.parse(content);
+                const raw = marked.parse(content);
+                el.innerHTML = (typeof DOMPurify !== 'undefined') ? DOMPurify.sanitize(raw) : raw.replace(/<[^>]*>/g, '');
             } else {
                 el.textContent = content;
             }
@@ -6696,6 +6694,7 @@
                                     const errSpan = document.createElement('span');
                                     errSpan.style.color = '#ef4444';
                                     errSpan.textContent = `Error: ${data.content}`;
+                                    assistantDiv.innerHTML = '';
                                     assistantDiv.appendChild(errSpan);
                                 }
                             } catch { /* ignore malformed SSE lines */ }
