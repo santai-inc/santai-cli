@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Annotated
 
 import typer
 import uvicorn
 from rich.console import Console
 
-from santai_cli.core.project import get_project
 from santai_cli.server.app import create_server_app
 
 console = Console()
@@ -35,17 +33,9 @@ def server(
     project operations. OpenAPI docs available at /docs.
     Press Ctrl+C to stop the server.
     """
-    project = get_project(Path.cwd())
-    if project is None:
-        console.print(
-            "[red]Error: Not a Santai project. "
-            "Run 'santai init' to initialize a project.[/red]"
-        )
-        raise typer.Exit(1)
+    app = create_server_app(token=token)
 
-    app = create_server_app(project, token=token)
-
-    console.print(f"[green]Starting Santai API server for: {project.name}[/green]")
+    console.print("[green]Starting Santai API server[/green]")
     console.print(f"[blue]Server running at: http://{host}:{port}[/blue]")
     console.print(f"[blue]API docs at: http://{host}:{port}/docs[/blue]")
     console.print("[dim]Press Ctrl+C to stop[/dim]")
