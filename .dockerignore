@@ -1,0 +1,12 @@
+# No source is copied into the image (installed from PyPI),
+# but keep this file to avoid accidentally sending large context
+# if the build context is ever referenced.
+.git
+.venv
+__pycache__
+*.pyc
+.env
+*.egg-info
+dist/
+build/
+.ruff_cache/
