@@ -1,0 +1,43 @@
+# Santai CLI - Docker Compose
+# Usage:
+#   docker compose up santai-web          # Start the web dashboard on port 8000
+#   docker compose run santai-cli --help  # Run any santai CLI command
+#
+# Environment:
+#   Copy .env.example to .env and fill in your API keys before running.
+
+services:
+  # ── CLI service (one-off commands) ─────────────────────────────────
+  santai-cli:
+    build: .
+    image: santai-cli:latest
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - santai-data:/data
+    # Override entrypoint args via: docker compose run santai-cli <command>
+    # Examples:
+    #   docker compose run santai-cli init myproject
+    #   docker compose run santai-cli --help
+    stdin_open: true
+    tty: true
+
+  # ── Web dashboard service ──────────────────────────────────────────
+  santai-web:
+    build: .
+    image: santai-cli:latest
+    env_file:
+      - path: .env
+        required: false
+    ports:
+      - "8000:8000"
+    volumes:
+      - santai-data:/data
+    # Start the web dashboard bound to 0.0.0.0 so it is reachable
+    # from outside the container, and skip auto-opening a browser.
+    command: ["web", "--host", "0.0.0.0", "--port", "8000", "--no-open"]
+
+volumes:
+  santai-data:
+    driver: local
