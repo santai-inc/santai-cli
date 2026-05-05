@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from typing import Annotated
 
 import typer
@@ -24,7 +25,12 @@ def server(
     ] = 8080,
     token: Annotated[
         str | None,
-        typer.Option("--token", "-t", help="Bearer token for API authentication"),
+        typer.Option(
+            "--token",
+            "-t",
+            help="Bearer token for API authentication "
+            "(overrides SANTAI_SERVER_TOKEN env var)",
+        ),
     ] = None,
 ) -> None:
     """Launch the headless API server.
@@ -33,11 +39,16 @@ def server(
     project operations. OpenAPI docs available at /docs.
     Press Ctrl+C to stop the server.
     """
-    app = create_server_app(token=token)
+    # Resolve token: CLI flag takes precedence over env var
+    resolved_token = token or os.environ.get("SANTAI_SERVER_TOKEN") or None
+
+    app = create_server_app(token=resolved_token, host=host)
 
     console.print("[green]Starting Santai API server[/green]")
     console.print(f"[blue]Server running at: http://{host}:{port}[/blue]")
     console.print(f"[blue]API docs at: http://{host}:{port}/docs[/blue]")
+    if resolved_token:
+        console.print("[yellow]Authentication enabled[/yellow]")
     console.print("[dim]Press Ctrl+C to stop[/dim]")
     console.print()
 
