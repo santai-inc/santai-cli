@@ -15,10 +15,20 @@
         })();
     </script>
     <style>
-        /* Hide main content when in preview-only mode */
-        html.preview-only-mode .container,
-        html.preview-only-mode .sidebar {
+        /* Hide the regular app shell when rendering a standalone preview window */
+        html.preview-only-mode .sidebar,
+        html.preview-only-mode .right-rail,
+        html.preview-only-mode .main-workspace {
             display: none !important;
+        }
+        html.preview-only-mode .app {
+            padding: 0;
+            gap: 0;
+        }
+        html.preview-only-mode .main {
+            width: 100vw;
+            max-width: none;
+            border-radius: 0;
         }
         /* Ensure body has gradient background for glass effect in preview-only mode */
         html.preview-only-mode body {
@@ -38,10 +48,8 @@
         /* Just ensure preview panel is visible - let .fullscreen class handle the rest */
         html.preview-only-mode .preview-panel {
             display: flex !important;
-        }
-        /* Hide tab bar in preview-only mode so AI Chat tab isn't shown */
-        html.preview-only-mode .right-panel-tabs {
-            display: none !important;
+            min-height: 100vh;
+            border-radius: 0;
         }
         :root {
             /* Liquid Glass Core - Light mode for Apple-style vibrancy */
@@ -231,6 +239,7 @@
             height: 100vh;
             padding: 12px;
             gap: 12px;
+            min-height: 0;
         }
 
         /* Sidebar */
@@ -615,6 +624,29 @@
             display: flex;
             flex-direction: column;
             min-width: 0;
+            overflow: hidden;
+        }
+
+        .main-workspace {
+            display: flex;
+            flex: 1;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        .main-preview-shell {
+            display: none;
+            flex: 1;
+            min-height: 0;
+            padding: 12px;
+        }
+
+        .main.preview-open .main-workspace {
+            display: none;
+        }
+
+        .main.preview-open .main-preview-shell {
+            display: flex;
         }
 
         .content {
@@ -978,57 +1010,40 @@
             justify-content: flex-end;
         }
 
-        /* File Preview Panel */
-        .preview-panel {
-            width: 400px;
+        .right-rail {
+            width: 380px;
+            min-width: 320px;
+            max-width: 420px;
             flex-shrink: 0;
             display: flex;
             flex-direction: column;
+            min-height: 0;
+        }
+
+        .chat-panel,
+        .preview-panel {
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
             overflow: hidden;
         }
 
-        /* Tab bar */
-        /* Right panel tab bar */
-        .right-panel-tabs {
-            display: flex;
-            flex-shrink: 0;
-            border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-        }
-
-        .right-panel-tab {
+        .chat-panel {
             flex: 1;
-            padding: 11px 8px;
-            font-size: 13px;
-            font-weight: 500;
-            background: none;
-            border: none;
-            border-bottom: 2px solid transparent;
-            cursor: pointer;
-            color: var(--text-secondary);
-            transition: color 0.15s, border-color 0.15s;
-            white-space: nowrap;
+            min-height: 0;
         }
 
-        .right-panel-tab.active {
-            color: var(--text-primary);
-            border-bottom-color: var(--accent, rgba(0, 122, 255, 0.8));
+        .preview-panel {
+            flex: 1 1 auto;
+            min-height: 240px;
         }
 
-        .right-panel-tab:hover:not(.active) {
-            color: var(--text-primary);
-        }
-
-        /* Pane content visibility */
         .right-panel-pane {
-            display: none;
+            display: flex;
             flex-direction: column;
             flex: 1;
             overflow: hidden;
             min-height: 0;
-        }
-
-        .right-panel-pane.active {
-            display: flex;
         }
 
         /* Empty preview state */
@@ -1081,6 +1096,13 @@
             display: block;
         }
 
+        .preview-header-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
         .preview-open-new-window {
             background: none;
             border: none;
@@ -1115,15 +1137,20 @@
             backdrop-filter: blur(8px);
             border: none;
             border-radius: 8px;
-            width: 32px;
+            min-width: 32px;
             height: 32px;
+            padding: 0 10px;
             display: flex;
             align-items: center;
             justify-content: center;
+            gap: 6px;
             cursor: pointer;
             transition: var(--transition-quick);
             flex-shrink: 0;
             margin-right: 4px;
+            color: var(--text-primary);
+            font-size: 12px;
+            font-weight: 600;
         }
 
         .preview-back-btn:hover {
@@ -1134,8 +1161,8 @@
         }
 
         .preview-back-btn svg {
-            width: 18px;
-            height: 18px;
+            width: 16px;
+            height: 16px;
             stroke-width: 2;
         }
 
@@ -1288,8 +1315,9 @@
             background: #f1f3f5;
         }
 
-        /* Preview Panel Fullscreen Mode */
-        .preview-panel.fullscreen {
+        /* Preview / Chat Fullscreen Modes */
+        .preview-panel.fullscreen,
+        .chat-panel.fullscreen {
             position: fixed;
             top: 0;
             left: 0;
@@ -1306,40 +1334,40 @@
 
 
         /* Chat fullscreen: expand messages area */
-        .preview-panel.fullscreen .right-panel-pane.chat-pane .chat-messages {
+        .chat-panel.fullscreen .right-panel-pane.chat-pane .chat-messages {
             max-width: 800px;
             width: 100%;
             align-self: center;
         }
 
-        .preview-panel.fullscreen .chat-msg {
+        .chat-panel.fullscreen .chat-msg {
             font-size: 14px;
         }
 
-        .preview-panel.fullscreen .chat-msg.assistant h1 { font-size: 18px; }
-        .preview-panel.fullscreen .chat-msg.assistant h2 { font-size: 16px; }
-        .preview-panel.fullscreen .chat-msg.assistant h3 { font-size: 15px; }
+        .chat-panel.fullscreen .chat-msg.assistant h1 { font-size: 18px; }
+        .chat-panel.fullscreen .chat-msg.assistant h2 { font-size: 16px; }
+        .chat-panel.fullscreen .chat-msg.assistant h3 { font-size: 15px; }
 
-        .preview-panel.fullscreen .chat-custom-select-btn {
+        .chat-panel.fullscreen .chat-custom-select-btn {
             font-size: 13px;
         }
 
-        .preview-panel.fullscreen .chat-suggestion-chip {
+        .chat-panel.fullscreen .chat-suggestion-chip {
             font-size: 14px;
         }
 
-        .preview-panel.fullscreen .chat-suggestion-chips-wrap {
+        .chat-panel.fullscreen .chat-suggestion-chips-wrap {
             max-width: 480px;
         }
 
-        .preview-panel.fullscreen .right-panel-pane.chat-pane .chat-input-row {
+        .chat-panel.fullscreen .right-panel-pane.chat-pane .chat-input-row {
             max-width: 800px;
             width: 100%;
             align-self: center;
         }
 
         /* In fullscreen, center the header and constrain to same width as messages */
-        .preview-panel.fullscreen .right-panel-pane.chat-pane .chat-header {
+        .chat-panel.fullscreen .right-panel-pane.chat-pane .chat-header {
             max-width: 800px;
             width: 100%;
             align-self: center;
@@ -1347,21 +1375,21 @@
         }
 
         /* Make the three controls equal-width and fill the full 800px */
-        .preview-panel.fullscreen .chat-header-controls select,
-        .preview-panel.fullscreen .chat-header-controls .chat-ctrl-btn {
+        .chat-panel.fullscreen .chat-header-controls select,
+        .chat-panel.fullscreen .chat-header-controls .chat-ctrl-btn {
             flex: 1;
             font-size: 13px;
         }
 
-        .preview-panel.fullscreen .chat-header h3 {
+        .chat-panel.fullscreen .chat-header h3 {
             font-size: 14px;
         }
 
-        .preview-panel.fullscreen .chat-settings-btn {
+        .chat-panel.fullscreen .chat-settings-btn {
             font-size: 13px;
         }
 
-        .preview-panel.fullscreen .chat-settings-btn svg {
+        .chat-panel.fullscreen .chat-settings-btn svg {
             width: 14px;
             height: 14px;
         }
@@ -1496,7 +1524,8 @@
             min-width: 120px;
         }
 
-        [data-theme="simple"] .preview-panel.fullscreen {
+        [data-theme="simple"] .preview-panel.fullscreen,
+        [data-theme="simple"] .chat-panel.fullscreen {
             background: #ffffff;
             backdrop-filter: none;
         }
@@ -3466,6 +3495,55 @@
         .hljs-variable, .hljs-params { color: #374151; }
         .hljs-type, .hljs-class { color: #0891b2; }
         .hljs-meta { color: #6b7280; }
+
+        @media (max-width: 1100px) {
+            .app {
+                flex-direction: column;
+                height: auto;
+                min-height: 100vh;
+            }
+
+            .sidebar,
+            .right-rail {
+                width: 100%;
+                min-width: 0;
+                max-width: none;
+            }
+
+            .sidebar {
+                max-height: 38vh;
+            }
+
+            .main {
+                min-height: 55vh;
+            }
+
+            .chat-panel,
+            .preview-panel {
+                min-height: 320px;
+            }
+
+            body.graph-is-fullscreen.preview-open #preview-panel {
+                width: 100%;
+            }
+
+            body.graph-is-fullscreen.preview-open .graph-panel.fullscreen,
+            body.graph-is-fullscreen.preview-open .graph-legend.floating-legend {
+                right: 0;
+            }
+        }
+
+        @media (max-width: 700px) {
+            .app {
+                padding: 8px;
+                gap: 8px;
+            }
+
+            .preview-panel.fullscreen .preview-content {
+                padding-left: 18px;
+                padding-right: 18px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -3520,7 +3598,8 @@
         </aside>
 
         <!-- Main Content -->
-        <main class="main glass">
+        <main class="main glass" id="main">
+            <div class="main-workspace" id="main-workspace">
             <!-- Dashboard View (default) -->
             <div class="dashboard-view" id="dashboard-view">
             <div class="dashboard" id="dashboard">
@@ -3640,23 +3719,86 @@
                     </div>
                 </div>
             </div>
-        </main>
-
-        <!-- File Preview Panel -->
-        <aside class="preview-panel glass" id="preview-panel">
-
-            <!-- Tab bar -->
-            <div class="right-panel-tabs">
-                <button class="right-panel-tab active" id="tab-chat" onclick="switchRightTab('chat')">AI Chat</button>
-                <button class="right-panel-tab" id="tab-preview" onclick="switchRightTab('preview')">File Preview</button>
-                <button class="graph-preview-close-btn" onclick="closePreview()" title="Close preview">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
             </div>
 
-            <!-- Chat pane (default) -->
+            <div class="main-preview-shell" id="main-preview-shell">
+            <section class="preview-panel glass" id="preview-panel">
+            <div class="right-panel-pane preview-pane active" id="pane-preview">
+                <!-- Empty state -->
+                <div class="preview-empty" id="preview-empty-state">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                    </svg>
+                    <span>Select a file to preview</span>
+                </div>
+                <!-- Preview header (hidden until a file is loaded) -->
+                <div class="preview-header" id="preview-file-header" style="display:none;">
+                    <button class="preview-back-btn" id="preview-back-btn" onclick="goBackFromPreview()" style="display:none;" title="Back">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                        </svg>
+                        <span>Back</span>
+                    </button>
+                    <div class="preview-title">
+                        <h2 id="preview-filename">filename.txt</h2>
+                        <span id="preview-size">0 KB</span>
+                    </div>
+                    <div class="preview-header-actions">
+                        <button class="preview-open-new-window" id="preview-open-new-window-btn" onclick="openPreviewInNewTab()" title="Open in new window">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                            </svg>
+                        </button>
+                        <button class="preview-open-new-window" id="preview-cluster-rename-btn" onclick="startClusterRename()" title="Rename cluster" style="display:none;">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                            </svg>
+                        </button>
+                        <button class="preview-close" onclick="closePreview()" title="Close preview">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                        <button class="preview-fullscreen-btn" onclick="togglePreviewFullscreen()" title="Toggle fullscreen">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" id="preview-fullscreen-expand">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+                            </svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" id="preview-fullscreen-collapse" style="display: none;">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="preview-content" id="preview-content">
+                    <!-- Content loaded dynamically -->
+                </div>
+                <div class="preview-actions" id="preview-actions" style="display:none;">
+                    <button class="btn" id="preview-edit" onclick="editPreviewFile()">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                        </svg>
+                        Edit
+                    </button>
+                    <button class="btn btn-primary" id="preview-download" onclick="downloadPreviewFile()">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                        </svg>
+                        Download
+                    </button>
+                    <button class="btn btn-danger" id="preview-delete" onclick="deletePreviewFile()">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                        </svg>
+                        Delete
+                    </button>
+                </div>
+            </div>
+            </section>
+            </div>
+        </main>
+
+        <aside class="right-rail" id="right-rail">
+            <section class="chat-panel glass" id="chat-panel">
             <div class="right-panel-pane chat-pane active" id="pane-chat">
                 <div class="chat-header">
                     <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
@@ -3709,70 +3851,7 @@
                 </div>
                 <div class="chat-input-hint">Enter to send &middot; Shift+Enter for new line</div>
             </div>
-
-            <!-- File Preview pane -->
-            <div class="right-panel-pane preview-pane" id="pane-preview">
-                <!-- Empty state -->
-                <div class="preview-empty" id="preview-empty-state">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                    </svg>
-                    <span>Select a file to preview</span>
-                </div>
-                <!-- Preview header (hidden until a file is loaded) -->
-                <div class="preview-header" id="preview-file-header" style="display:none;">
-                    <button class="preview-back-btn" id="preview-back-btn" onclick="goBackToCluster()" style="display:none;" title="Back to cluster">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-                        </svg>
-                    </button>
-                    <div class="preview-title">
-                        <h2 id="preview-filename">filename.txt</h2>
-                        <button class="preview-open-new-window" id="preview-open-new-window-btn" onclick="openPreviewInNewTab()" title="Open in new window">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-                            </svg>
-                        </button>
-                        <button class="preview-open-new-window" id="preview-cluster-rename-btn" onclick="startClusterRename()" title="Rename cluster" style="display:none;">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                            </svg>
-                        </button>
-                        <span id="preview-size">0 KB</span>
-                    </div>
-                    <button class="preview-fullscreen-btn" onclick="togglePreviewFullscreen()" title="Toggle fullscreen">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" id="preview-fullscreen-expand">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
-                        </svg>
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" id="preview-fullscreen-collapse" style="display: none;">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
-                        </svg>
-                    </button>
-                </div>
-                <div class="preview-content" id="preview-content">
-                    <!-- Content loaded dynamically -->
-                </div>
-                <div class="preview-actions" id="preview-actions" style="display:none;">
-                    <button class="btn" id="preview-edit" onclick="editPreviewFile()">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
-                        </svg>
-                        Edit
-                    </button>
-                    <button class="btn btn-primary" id="preview-download" onclick="downloadPreviewFile()">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                        </svg>
-                        Download
-                    </button>
-                    <button class="btn btn-danger" id="preview-delete" onclick="deletePreviewFile()">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                        </svg>
-                        Delete
-                    </button>
-                </div>
-            </div>
+            </section>
         </aside>
     </div>
 
@@ -3975,23 +4054,36 @@
         let files = [];
         let previewPath = null;
         let previewReturnClusterId = null; // set when a file is opened from a cluster list
+        function hasPreviewContent() {
+            const header = document.getElementById('preview-file-header');
+            return Boolean(header) && header.style.display !== 'none';
+        }
 
-        // Right Panel Tab Switching
-        function switchRightTab(tab) {
-            document.getElementById('tab-chat').classList.toggle('active', tab === 'chat');
-            document.getElementById('tab-preview').classList.toggle('active', tab === 'preview');
-            document.getElementById('pane-chat').classList.toggle('active', tab === 'chat');
-            document.getElementById('pane-preview').classList.toggle('active', tab === 'preview');
+        function showPreviewPanel() {
+            const main = document.getElementById('main');
+            if (main) main.classList.add('preview-open');
+            document.body.classList.toggle('preview-open', hasPreviewContent());
+            resizeGraphIfFullscreen();
+        }
+
+        function hidePreviewPanel() {
+            const main = document.getElementById('main');
+            if (main) main.classList.remove('preview-open');
+            document.body.classList.remove('preview-open');
+            resizeGraphIfFullscreen();
         }
 
         // File Preview Functions
         async function openFilePreview(path) {
+            if (document.body.classList.contains('graph-is-fullscreen')) {
+                toggleGraphFullscreen();
+            }
             previewPath = path;
+            window.activeClusterId = null;
             const content = document.getElementById('preview-content');
 
-            // Show or hide the back-to-cluster button
-            document.getElementById('preview-back-btn').style.display =
-                previewReturnClusterId !== null ? 'flex' : 'none';
+            // Always show a clear back action in the middle preview panel.
+            document.getElementById('preview-back-btn').style.display = 'flex';
             // File previews use the new-window button; cluster previews use pencil
             document.getElementById('preview-open-new-window-btn').style.display = '';
             document.getElementById('preview-cluster-rename-btn').style.display = 'none';
@@ -4001,10 +4093,7 @@
             // Hide empty state
             document.getElementById('preview-empty-state').style.display = 'none';
 
-            // Switch to the preview tab
-            switchRightTab('preview');
-            document.body.classList.add('preview-open');
-            resizeGraphIfFullscreen();
+            showPreviewPanel();
             content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
 
             try {
@@ -4109,6 +4198,26 @@
             });
         }
 
+        function resetPreviewState() {
+            previewPath = null;
+            previewReturnClusterId = null;
+            window.activeClusterId = null;
+            document.getElementById('preview-back-btn').style.display = 'none';
+            document.getElementById('preview-open-new-window-btn').style.display = '';
+            document.getElementById('preview-cluster-rename-btn').style.display = 'none';
+            document.getElementById('preview-fullscreen-expand').style.display = 'block';
+            document.getElementById('preview-fullscreen-collapse').style.display = 'none';
+            document.getElementById('preview-file-header').style.display = 'none';
+            document.getElementById('preview-actions').style.display = 'none';
+            document.getElementById('preview-empty-state').style.display = '';
+            document.getElementById('preview-content').innerHTML = '';
+        }
+
+        function previewReferencesPath(path, isDir = false) {
+            if (!previewPath) return false;
+            return isDir ? previewPath === path || previewPath.startsWith(`${path}/`) : previewPath === path;
+        }
+
         function closePreview() {
             // If in preview-only mode (opened via "open in new window"), go to home page
             if (document.documentElement.classList.contains('preview-only-mode')) {
@@ -4117,25 +4226,9 @@
             }
 
             const panel = document.getElementById('preview-panel');
-            panel.classList.remove('fullscreen');
-            document.body.classList.remove('preview-open');
-            resizeGraphIfFullscreen();
-            previewPath = null;
-            previewReturnClusterId = null;
-            window.activeClusterId = null;
-            document.getElementById('preview-back-btn').style.display = 'none';
-            document.getElementById('preview-open-new-window-btn').style.display = '';
-            document.getElementById('preview-cluster-rename-btn').style.display = 'none';
-            // Reset fullscreen icons
-            document.getElementById('preview-fullscreen-expand').style.display = 'block';
-            document.getElementById('preview-fullscreen-collapse').style.display = 'none';
-            // Reset preview pane to empty state
-            document.getElementById('preview-file-header').style.display = 'none';
-            document.getElementById('preview-actions').style.display = 'none';
-            document.getElementById('preview-empty-state').style.display = '';
-            document.getElementById('preview-content').innerHTML = '';
-            // Switch back to chat tab
-            switchRightTab('chat');
+            if (panel) panel.classList.remove('fullscreen');
+            resetPreviewState();
+            hidePreviewPanel();
         }
 
         function togglePreviewFullscreen() {
@@ -4600,19 +4693,12 @@
             }
         }
 
-        // Open item (navigate or fullscreen preview)
+        // Open item (navigate or preview)
         function openItem(path, isDir) {
             if (isDir) {
                 loadFiles(path);
             } else {
-                // Open file preview in fullscreen mode
                 openFilePreview(path);
-                setTimeout(() => {
-                    const panel = document.getElementById('preview-panel');
-                    if (panel && !panel.classList.contains('fullscreen')) {
-                        togglePreviewFullscreen();
-                    }
-                }, 50);
             }
         }
 
@@ -4690,6 +4776,7 @@
                     throw new Error(err.detail || 'Failed to delete');
                 }
 
+                if (previewReferencesPath(path, isDir)) closePreview();
                 showToast('Deleted successfully');
                 loadFiles(currentPath);
                 loadTree();
@@ -4826,6 +4913,7 @@
                     throw new Error(err.detail || 'Failed to delete');
                 }
 
+                if (previewReferencesPath(selectedItem.path, Boolean(selectedItem.is_dir))) closePreview();
                 showToast('Deleted successfully');
                 loadFiles(currentPath);
                 loadTree();
@@ -5367,22 +5455,14 @@
             }
         }
 
-        // Handle tree item double click (navigate to file browser for folders, fullscreen preview for files)
+        // Handle tree item double click (navigate to file browser for folders, preview files)
         function handleTreeDblClick(event, path, isDir) {
             if (isDir) {
                 expandedPaths.add(path);
                 showFileBrowser(path);
                 renderTree();
             } else {
-                // For files, open preview in fullscreen mode
                 openFilePreview(path);
-                // Small delay to ensure panel is shown before toggling fullscreen
-                setTimeout(() => {
-                    const panel = document.getElementById('preview-panel');
-                    if (panel && !panel.classList.contains('fullscreen')) {
-                        togglePreviewFullscreen();
-                    }
-                }, 50);
             }
         }
 
@@ -5402,6 +5482,8 @@
 
         function showDashboard() {
             currentView = 'dashboard';
+            resetPreviewState();
+            hidePreviewPanel();
             document.getElementById('dashboard-view').style.display = 'flex';
             document.getElementById('content').style.display = 'none';
             currentPath = '';
@@ -5417,6 +5499,8 @@
 
         function showFileBrowser(path) {
             currentView = 'browser';
+            resetPreviewState();
+            hidePreviewPanel();
             document.getElementById('dashboard-view').style.display = 'none';
             document.getElementById('content').style.display = 'block';
             // Reset navigation state when entering file browser
@@ -6762,7 +6846,7 @@
         }
 
         function toggleChatFullscreen() {
-            const panel = document.getElementById('preview-panel');
+            const panel = document.getElementById('chat-panel');
             const icon = document.getElementById('chat-fullscreen-icon');
             const isCurrentlyFullscreen = panel.classList.contains('fullscreen');
 
@@ -6843,15 +6927,6 @@
 
                 // Open the file preview
                 openFilePreview(previewFilePath);
-
-                // For non-fullscreen mode, still toggle after delay
-                if (!isFullscreenMode) {
-                    setTimeout(() => {
-                        if (panel && !panel.classList.contains('fullscreen')) {
-                            togglePreviewFullscreen();
-                        }
-                    }, 100);
-                }
 
                 // Clean up URL without reloading
                 window.history.replaceState({}, '', window.location.pathname);
@@ -7322,16 +7397,19 @@
 
         function openClusterPreview(clusterId) {
             if (clusterId === undefined || clusterId === null) return;
+            if (document.body.classList.contains('graph-is-fullscreen')) {
+                toggleGraphFullscreen();
+            }
             const nodeIds = clusterNodes.get(clusterId) || [];
             const nodeMap = window.lastFullNodeMap || new Map();
-            const panel = document.getElementById('preview-panel');
             const content = document.getElementById('preview-content');
             const color = clusterColors[clusterId] || '#64748b';
             const isIsolated = nodeIds.length === 1;
+            previewPath = null;
 
-            // Showing the cluster list — no "back" context
+            // Showing the cluster list returns to the prior workspace.
             previewReturnClusterId = null;
-            document.getElementById('preview-back-btn').style.display = 'none';
+            document.getElementById('preview-back-btn').style.display = 'flex';
             // Cluster list gets pencil (rename), not new-window
             document.getElementById('preview-open-new-window-btn').style.display = 'none';
             document.getElementById('preview-cluster-rename-btn').style.display =
@@ -7344,8 +7422,7 @@
             // Store active cluster id for rename function
             window.activeClusterId = isIsolated ? null : clusterId;
 
-            switchRightTab('preview');
-            document.body.classList.add('preview-open');
+            showPreviewPanel();
 
             const savedName = getClusterDisplayName(clusterId);
             document.getElementById('preview-filename').textContent =
@@ -7382,10 +7459,14 @@
             openFilePreview(path);
         }
 
-        function goBackToCluster() {
-            const id = previewReturnClusterId;
-            previewReturnClusterId = null;
-            openClusterPreview(id);
+        function goBackFromPreview() {
+            if (previewReturnClusterId !== null) {
+                const id = previewReturnClusterId;
+                previewReturnClusterId = null;
+                openClusterPreview(id);
+                return;
+            }
+            closePreview();
         }
 
         // ──────────────────────────────────────────────────────────────────────────
@@ -7634,18 +7715,24 @@
                 return;
             }
 
-            // Exit preview panel fullscreen (file preview or chat)
-            const previewPanel = document.getElementById('preview-panel');
-            if (previewPanel && previewPanel.classList.contains('fullscreen')) {
+            // Exit chat fullscreen first
+            const chatPanel = document.getElementById('chat-panel');
+            if (chatPanel && chatPanel.classList.contains('fullscreen')) {
                 e.preventDefault();
-                const chatActive = document.getElementById('pane-chat').classList.contains('active');
-                if (chatActive) toggleChatFullscreen(); else togglePreviewFullscreen();
+                toggleChatFullscreen();
                 return;
             }
 
-            // Close file preview (side panel alongside graph, or regular preview)
-            const previewPaneActive = document.getElementById('pane-preview').classList.contains('active');
-            if (previewPaneActive && previewPath) {
+            // Exit preview panel fullscreen
+            const previewPanel = document.getElementById('preview-panel');
+            if (previewPanel && previewPanel.classList.contains('fullscreen')) {
+                e.preventDefault();
+                togglePreviewFullscreen();
+                return;
+            }
+
+            // Close the middle preview panel when it is active
+            if (document.getElementById('main')?.classList.contains('preview-open') && hasPreviewContent()) {
                 e.preventDefault();
                 closePreview();
                 return;
