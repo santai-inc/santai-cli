@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="simple">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,19 +11,24 @@
             const params = new URLSearchParams(window.location.search);
             if (params.get('fullscreen') === 'true') {
                 document.documentElement.classList.add('preview-only-mode');
-                // Apply theme immediately
-                const theme = params.get('theme');
-                if (theme) {
-                    document.documentElement.setAttribute('data-theme', theme);
-                }
             }
         })();
     </script>
     <style>
-        /* Hide main content when in preview-only mode */
-        html.preview-only-mode .container,
-        html.preview-only-mode .sidebar {
+        /* Hide the regular app shell when rendering a standalone preview window */
+        html.preview-only-mode .sidebar,
+        html.preview-only-mode .right-rail,
+        html.preview-only-mode .main-workspace {
             display: none !important;
+        }
+        html.preview-only-mode .app {
+            padding: 0;
+            gap: 0;
+        }
+        html.preview-only-mode .main {
+            width: 100vw;
+            max-width: none;
+            border-radius: 0;
         }
         /* Ensure body has gradient background for glass effect in preview-only mode */
         html.preview-only-mode body {
@@ -43,10 +48,8 @@
         /* Just ensure preview panel is visible - let .fullscreen class handle the rest */
         html.preview-only-mode .preview-panel {
             display: flex !important;
-        }
-        /* Hide tab bar in preview-only mode so AI Chat tab isn't shown */
-        html.preview-only-mode .right-panel-tabs {
-            display: none !important;
+            min-height: 100vh;
+            border-radius: 0;
         }
         :root {
             /* Liquid Glass Core - Light mode for Apple-style vibrancy */
@@ -83,7 +86,6 @@
             --text-muted: rgba(0, 0, 0, 0.35);
         }
 
-        /* Simple White Theme */
         /* Simple White Theme */
         [data-theme="simple"] {
             --glass-bg: #ffffff;
@@ -180,6 +182,10 @@
             background: #f1f3f5;
         }
 
+        [data-theme="simple"] .graph-panel.fullscreen .graph-fullscreen-btn:hover {
+            background: #f1f3f5;
+        }
+
         [data-theme="simple"] body.preview-open .graph-panel.fullscreen .graph-legend,
         [data-theme="simple"] body.preview-open .graph-panel.fullscreen .graph-fullscreen-btn,
         [data-theme="simple"] body.preview-open .graph-panel.fullscreen .graph-filter-btn,
@@ -189,6 +195,10 @@
 
         [data-theme="simple"] body.preview-open .graph-panel.fullscreen .graph-filter-btn.active {
             background: var(--accent);
+        }
+
+        [data-theme="simple"] body.preview-open .graph-panel.fullscreen .graph-fullscreen-btn:hover {
+            background: #f1f3f5;
         }
 
         [data-theme="simple"] .graph-cluster-clear-btn {
@@ -229,6 +239,7 @@
             height: 100vh;
             padding: 12px;
             gap: 12px;
+            min-height: 0;
         }
 
         /* Sidebar */
@@ -256,41 +267,6 @@
             font-size: 18px;
             font-weight: 600;
             letter-spacing: 0.02em;
-        }
-
-        .theme-toggle {
-            margin-left: auto;
-            background: var(--fill-subtle);
-            border: none;
-            border-radius: 8px;
-            padding: 6px;
-            cursor: pointer;
-            color: var(--text-secondary);
-            transition: var(--transition-quick);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .theme-toggle:hover {
-            background: var(--fill-hover);
-            color: var(--text-primary);
-        }
-
-        .theme-toggle svg {
-            width: 18px;
-            height: 18px;
-        }
-
-        /* Glass theme active: sparkle is "on" */
-        [data-theme="glass"] .theme-toggle {
-            background: var(--accent-light);
-            color: var(--accent);
-        }
-
-        [data-theme="glass"] .theme-toggle:hover {
-            background: var(--accent-light);
-            color: var(--accent-hover);
         }
 
         .sidebar-section {
@@ -648,6 +624,29 @@
             display: flex;
             flex-direction: column;
             min-width: 0;
+            overflow: hidden;
+        }
+
+        .main-workspace {
+            display: flex;
+            flex: 1;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        .main-preview-shell {
+            display: none;
+            flex: 1;
+            min-height: 0;
+            padding: 12px;
+        }
+
+        .main.preview-open .main-workspace {
+            display: none;
+        }
+
+        .main.preview-open .main-preview-shell {
+            display: flex;
         }
 
         .content {
@@ -1011,57 +1010,40 @@
             justify-content: flex-end;
         }
 
-        /* File Preview Panel */
-        .preview-panel {
-            width: 400px;
+        .right-rail {
+            width: 380px;
+            min-width: 320px;
+            max-width: 420px;
             flex-shrink: 0;
             display: flex;
             flex-direction: column;
+            min-height: 0;
+        }
+
+        .chat-panel,
+        .preview-panel {
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
             overflow: hidden;
         }
 
-        /* Tab bar */
-        /* Right panel tab bar */
-        .right-panel-tabs {
-            display: flex;
-            flex-shrink: 0;
-            border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-        }
-
-        .right-panel-tab {
+        .chat-panel {
             flex: 1;
-            padding: 11px 8px;
-            font-size: 13px;
-            font-weight: 500;
-            background: none;
-            border: none;
-            border-bottom: 2px solid transparent;
-            cursor: pointer;
-            color: var(--text-secondary);
-            transition: color 0.15s, border-color 0.15s;
-            white-space: nowrap;
+            min-height: 0;
         }
 
-        .right-panel-tab.active {
-            color: var(--text-primary);
-            border-bottom-color: var(--accent, rgba(0, 122, 255, 0.8));
+        .preview-panel {
+            flex: 1 1 auto;
+            min-height: 240px;
         }
 
-        .right-panel-tab:hover:not(.active) {
-            color: var(--text-primary);
-        }
-
-        /* Pane content visibility */
         .right-panel-pane {
-            display: none;
+            display: flex;
             flex-direction: column;
             flex: 1;
             overflow: hidden;
             min-height: 0;
-        }
-
-        .right-panel-pane.active {
-            display: flex;
         }
 
         /* Empty preview state */
@@ -1114,6 +1096,13 @@
             display: block;
         }
 
+        .preview-header-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
         .preview-open-new-window {
             background: none;
             border: none;
@@ -1148,15 +1137,20 @@
             backdrop-filter: blur(8px);
             border: none;
             border-radius: 8px;
-            width: 32px;
+            min-width: 32px;
             height: 32px;
+            padding: 0 10px;
             display: flex;
             align-items: center;
             justify-content: center;
+            gap: 6px;
             cursor: pointer;
             transition: var(--transition-quick);
             flex-shrink: 0;
             margin-right: 4px;
+            color: var(--text-primary);
+            font-size: 12px;
+            font-weight: 600;
         }
 
         .preview-back-btn:hover {
@@ -1167,8 +1161,8 @@
         }
 
         .preview-back-btn svg {
-            width: 18px;
-            height: 18px;
+            width: 16px;
+            height: 16px;
             stroke-width: 2;
         }
 
@@ -1321,8 +1315,9 @@
             background: #f1f3f5;
         }
 
-        /* Preview Panel Fullscreen Mode */
-        .preview-panel.fullscreen {
+        /* Preview / Chat Fullscreen Modes */
+        .preview-panel.fullscreen,
+        .chat-panel.fullscreen {
             position: fixed;
             top: 0;
             left: 0;
@@ -1337,21 +1332,42 @@
             backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation)) brightness(var(--glass-brightness));
         }
 
+
         /* Chat fullscreen: expand messages area */
-        .preview-panel.fullscreen .right-panel-pane.chat-pane .chat-messages {
+        .chat-panel.fullscreen .right-panel-pane.chat-pane .chat-messages {
             max-width: 800px;
             width: 100%;
             align-self: center;
         }
 
-        .preview-panel.fullscreen .right-panel-pane.chat-pane .chat-input-row {
+        .chat-panel.fullscreen .chat-msg {
+            font-size: 14px;
+        }
+
+        .chat-panel.fullscreen .chat-msg.assistant h1 { font-size: 18px; }
+        .chat-panel.fullscreen .chat-msg.assistant h2 { font-size: 16px; }
+        .chat-panel.fullscreen .chat-msg.assistant h3 { font-size: 15px; }
+
+        .chat-panel.fullscreen .chat-custom-select-btn {
+            font-size: 13px;
+        }
+
+        .chat-panel.fullscreen .chat-suggestion-chip {
+            font-size: 14px;
+        }
+
+        .chat-panel.fullscreen .chat-suggestion-chips-wrap {
+            max-width: 480px;
+        }
+
+        .chat-panel.fullscreen .right-panel-pane.chat-pane .chat-input-row {
             max-width: 800px;
             width: 100%;
             align-self: center;
         }
 
         /* In fullscreen, center the header and constrain to same width as messages */
-        .preview-panel.fullscreen .right-panel-pane.chat-pane .chat-header {
+        .chat-panel.fullscreen .right-panel-pane.chat-pane .chat-header {
             max-width: 800px;
             width: 100%;
             align-self: center;
@@ -1359,9 +1375,23 @@
         }
 
         /* Make the three controls equal-width and fill the full 800px */
-        .preview-panel.fullscreen .chat-header-controls select,
-        .preview-panel.fullscreen .chat-header-controls .chat-ctrl-btn {
+        .chat-panel.fullscreen .chat-header-controls select,
+        .chat-panel.fullscreen .chat-header-controls .chat-ctrl-btn {
             flex: 1;
+            font-size: 13px;
+        }
+
+        .chat-panel.fullscreen .chat-header h3 {
+            font-size: 14px;
+        }
+
+        .chat-panel.fullscreen .chat-settings-btn {
+            font-size: 13px;
+        }
+
+        .chat-panel.fullscreen .chat-settings-btn svg {
+            width: 14px;
+            height: 14px;
         }
 
         /* Chat fullscreen button (matches preview-fullscreen-btn style) */
@@ -1462,6 +1492,26 @@
             max-width: 800px;
         }
 
+        .preview-panel.fullscreen .preview-content .cluster-preview-header,
+        .preview-panel.fullscreen .preview-content .cluster-file-list {
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .preview-panel.fullscreen .preview-content .cluster-preview-header {
+            font-size: 15px;
+            padding: 16px 24px 12px;
+        }
+
+        .preview-panel.fullscreen .preview-content .cluster-file-list li {
+            font-size: 16px;
+            padding: 10px 24px;
+        }
+
+        .preview-panel.fullscreen .preview-content .cluster-file-dir {
+            font-size: 13px;
+        }
+
         .preview-panel.fullscreen .preview-actions {
             padding: 16px 24px;
             background: rgba(255, 255, 255, 0.6);
@@ -1474,7 +1524,8 @@
             min-width: 120px;
         }
 
-        [data-theme="simple"] .preview-panel.fullscreen {
+        [data-theme="simple"] .preview-panel.fullscreen,
+        [data-theme="simple"] .chat-panel.fullscreen {
             background: #ffffff;
             backdrop-filter: none;
         }
@@ -1921,11 +1972,6 @@
             border-radius: 8px;
         }
 
-        /* In glass/themed mode, match the default floating legend position */
-        [data-theme="glass"] .graph-legend.floating-legend {
-            right: 424px;
-        }
-
         [data-theme="simple"] .graph-legend.floating-legend {
             right: 420px;
             background: #ffffff;
@@ -2289,24 +2335,6 @@
             background: #f5f5f7;
         }
 
-        /* Liquid glass theme: keep vivid gradient in the padding gaps, with a glassy white wash over it */
-        [data-theme="glass"] .graph-panel.fullscreen {
-            background:
-                linear-gradient(135deg,
-                    rgba(255, 255, 255, 0.35) 0%,
-                    rgba(255, 255, 255, 0.35) 100%
-                ),
-                linear-gradient(135deg,
-                    rgba(255, 150, 100, 0.4) 0%,
-                    rgba(255, 100, 150, 0.3) 25%,
-                    rgba(150, 100, 255, 0.3) 50%,
-                    rgba(100, 200, 255, 0.4) 75%,
-                    rgba(100, 255, 200, 0.3) 100%
-                ),
-                linear-gradient(45deg, #f8f9fa 0%, #e9ecef 100%);
-            backdrop-filter: none;
-        }
-
         .graph-panel.fullscreen .graph-header {
             background: rgba(255, 255, 255, 0.92);
             backdrop-filter: blur(20px);
@@ -2456,6 +2484,58 @@
                 rgba(255, 100, 150, 0.3) 50%,
                 rgba(150, 100, 255, 0.3) 100%
             );
+        }
+
+        /* Fullscreen graph with side preview: push graph left, float preview on right */
+        body.graph-is-fullscreen.preview-open .graph-panel.fullscreen {
+            right: 420px;
+        }
+
+        body.graph-is-fullscreen.preview-open #preview-panel {
+            position: fixed;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            width: 420px;
+            z-index: 1001;
+            display: flex;
+            border-radius: 0;
+            border-left: 1px solid rgba(0, 0, 0, 0.08);
+            box-shadow: -6px 0 24px rgba(0, 0, 0, 0.08);
+            background: #ffffff;
+        }
+
+        /* Close button for preview panel when shown alongside fullscreen graph */
+        .graph-preview-close-btn {
+            display: none;
+            margin-left: auto;
+            flex-shrink: 0;
+            background: none;
+            border: none;
+            padding: 8px 12px;
+            cursor: pointer;
+            color: var(--text-secondary);
+            transition: color 0.15s;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .graph-preview-close-btn svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .graph-preview-close-btn:hover {
+            color: var(--text-primary);
+        }
+
+        body.graph-is-fullscreen.preview-open .graph-preview-close-btn {
+            display: flex;
+        }
+
+        /* Push floating legend left so it clears the open preview panel */
+        body.graph-is-fullscreen.preview-open .graph-legend.floating-legend {
+            right: 460px;
         }
 
         .graph-zoom-btn {
@@ -2797,9 +2877,6 @@
             color: var(--text-primary);
             border-radius: 5px;
             cursor: pointer;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
             transition: background 0.1s;
         }
 
@@ -2831,6 +2908,42 @@
 
         [data-theme="simple"] .chat-custom-select-option:hover {
             background: #f1f3f5;
+        }
+
+        .chat-custom-select-option {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .model-option-label {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .model-star-btn {
+            flex-shrink: 0;
+            background: none;
+            border: none;
+            padding: 0 2px;
+            cursor: pointer;
+            line-height: 0;
+            color: #ccc;
+            opacity: 0;
+            transition: opacity 0.1s, color 0.1s;
+            display: flex;
+            align-items: center;
+        }
+
+        .chat-custom-select-option:hover .model-star-btn {
+            opacity: 1;
+        }
+
+        .model-star-btn.starred {
+            color: var(--accent);
+            opacity: 1;
         }
 
         /* ── Messages area ── */
@@ -2915,6 +3028,7 @@
             margin: 14px 0 6px 0;
             font-weight: 600;
             line-height: 1.3;
+            font-family: inherit;
         }
 
         .chat-msg.assistant h1 { font-size: 15px; }
@@ -3180,16 +3294,17 @@
             align-items: flex-start;
         }
         .chat-thinking-bubble {
-            background: rgba(255,255,255,0.75);
+            background: #fff;
             border: 1px solid rgba(0,0,0,0.08);
-            border-radius: 18px;
+            border-radius: 16px;
             border-bottom-left-radius: 4px;
             padding: 12px 16px;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
             display: flex;
             flex-direction: column;
             gap: 8px;
-            min-width: 120px;
+            min-width: 160px;
+            max-width: 240px;
         }
         .chat-thinking-label {
             display: flex;
@@ -3198,31 +3313,38 @@
             font-size: 11px;
             font-weight: 500;
             color: var(--accent);
+            overflow: hidden;
         }
         .chat-thinking-spinner {
-            width: 12px;
-            height: 12px;
-            border: 2px solid var(--accent-light);
-            border-top-color: var(--accent);
-            border-radius: 50%;
-            animation: chat-spin 0.75s linear infinite;
+            width: 14px;
+            height: 14px;
             flex-shrink: 0;
+            color: var(--accent);
+            animation: chat-spin 0.75s linear infinite;
         }
         @keyframes chat-spin { to { transform: rotate(360deg); } }
+        .chat-thinking-label-text {
+            truncate: ellipsis;
+            overflow: hidden;
+            white-space: nowrap;
+            animation: chat-fadein 0.3s ease;
+        }
+        @keyframes chat-fadein { from { opacity: 0; } to { opacity: 1; } }
         .chat-thinking-lines {
             display: flex;
             flex-direction: column;
             gap: 5px;
+            margin-top: 2px;
         }
         .chat-thinking-line {
             height: 7px;
             border-radius: 999px;
-            background: rgba(0,0,0,0.07);
+            background: rgba(0,0,0,0.08);
             animation: chat-pulse 1.4s ease-in-out infinite;
         }
         @keyframes chat-pulse {
             0%, 100% { opacity: 1; }
-            50% { opacity: 0.4; }
+            50% { opacity: 0.5; }
         }
         .chat-thinking-line:nth-child(1) { width: 88%; animation-delay: 0ms; }
         .chat-thinking-line:nth-child(2) { width: 68%; animation-delay: 120ms; }
@@ -3272,55 +3394,50 @@
             height: 14px;
         }
 
-        /* ── Feature 7: Empty state prompt chips ── */
-        .chat-empty-state {
+        /* ── Suggestion chips (shown below welcome message) ── */
+        .chat-suggestion-chips-wrap {
             display: flex;
             flex-direction: column;
-            gap: 8px;
-            padding: 8px 4px;
-        }
-        .chat-empty-heading {
-            font-size: 11px;
-            font-weight: 600;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.06em;
-            padding: 0 2px 4px 2px;
+            gap: 6px;
+            align-self: flex-end;
+            width: 80%;
+            max-width: 380px;
         }
         .chat-suggestion-chip {
             display: flex;
             align-items: center;
             justify-content: space-between;
             gap: 8px;
-            padding: 10px 14px;
-            border-radius: 14px;
-            background: rgba(255,255,255,0.65);
-            border: 1px solid rgba(0,0,0,0.08);
-            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+            width: 100%;
+            text-align: left;
+            padding: 10px 16px;
+            border-radius: 16px;
+            background: #fff;
+            border: 1px solid rgba(0,0,0,0.09);
+            box-shadow: 0 1px 4px rgba(0,0,0,0.05);
             font-size: 13px;
             color: var(--text-primary);
-            text-align: left;
             cursor: pointer;
-            transition: background 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.1s;
-            width: 100%;
+            transition: border-color 0.15s, background 0.15s, box-shadow 0.15s, transform 0.1s;
         }
         .chat-suggestion-chip:hover {
-            background: rgba(255,255,255,0.9);
-            border-color: var(--accent);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-            transform: translateX(2px);
+            border-color: rgba(62,180,137,0.4);
+            background: rgba(62,180,137,0.05);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
         }
+        .chat-suggestion-chip:active { transform: scale(0.98); }
         .chat-suggestion-chip:hover .chip-arrow {
-            opacity: 1;
+            color: rgba(62,180,137,0.6);
             transform: translateX(2px);
+            opacity: 1;
         }
         .chip-arrow {
             width: 14px;
             height: 14px;
             flex-shrink: 0;
-            opacity: 0.3;
-            color: var(--accent);
-            transition: opacity 0.15s, transform 0.15s;
+            opacity: 0.4;
+            color: var(--text-muted);
+            transition: color 0.15s, opacity 0.15s, transform 0.15s;
         }
 
         /* ── Feature 8: Copy button on code blocks ── */
@@ -3378,6 +3495,55 @@
         .hljs-variable, .hljs-params { color: #374151; }
         .hljs-type, .hljs-class { color: #0891b2; }
         .hljs-meta { color: #6b7280; }
+
+        @media (max-width: 1100px) {
+            .app {
+                flex-direction: column;
+                height: auto;
+                min-height: 100vh;
+            }
+
+            .sidebar,
+            .right-rail {
+                width: 100%;
+                min-width: 0;
+                max-width: none;
+            }
+
+            .sidebar {
+                max-height: 38vh;
+            }
+
+            .main {
+                min-height: 55vh;
+            }
+
+            .chat-panel,
+            .preview-panel {
+                min-height: 320px;
+            }
+
+            body.graph-is-fullscreen.preview-open #preview-panel {
+                width: 100%;
+            }
+
+            body.graph-is-fullscreen.preview-open .graph-panel.fullscreen,
+            body.graph-is-fullscreen.preview-open .graph-legend.floating-legend {
+                right: 0;
+            }
+        }
+
+        @media (max-width: 700px) {
+            .app {
+                padding: 8px;
+                gap: 8px;
+            }
+
+            .preview-panel.fullscreen .preview-content {
+                padding-left: 18px;
+                padding-right: 18px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -3387,11 +3553,6 @@
             <div class="sidebar-header">
                 <img src="/static/logo.png" alt="Santai" onerror="this.style.display='none'" onclick="showDashboard()" style="cursor: pointer;">
                 <h1 onclick="showDashboard()" style="cursor: pointer;">Santai</h1>
-                <button class="theme-toggle" onclick="toggleTheme(event)" title="Toggle theme">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-                    </svg>
-                </button>
             </div>
 
             <!-- Tree View -->
@@ -3437,7 +3598,8 @@
         </aside>
 
         <!-- Main Content -->
-        <main class="main glass">
+        <main class="main glass" id="main">
+            <div class="main-workspace" id="main-workspace">
             <!-- Dashboard View (default) -->
             <div class="dashboard-view" id="dashboard-view">
             <div class="dashboard" id="dashboard">
@@ -3557,23 +3719,91 @@
                     </div>
                 </div>
             </div>
-        </main>
-
-        <!-- File Preview Panel -->
-        <aside class="preview-panel glass" id="preview-panel">
-
-            <!-- Tab bar -->
-            <div class="right-panel-tabs">
-                <button class="right-panel-tab active" id="tab-chat" onclick="switchRightTab('chat')">AI Chat</button>
-                <button class="right-panel-tab" id="tab-preview" onclick="switchRightTab('preview')">File Preview</button>
             </div>
 
-            <!-- Chat pane (default) -->
+            <div class="main-preview-shell" id="main-preview-shell">
+            <section class="preview-panel glass" id="preview-panel">
+            <div class="right-panel-pane preview-pane active" id="pane-preview">
+                <!-- Empty state -->
+                <div class="preview-empty" id="preview-empty-state">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                    </svg>
+                    <span>Select a file to preview</span>
+                </div>
+                <!-- Preview header (hidden until a file is loaded) -->
+                <div class="preview-header" id="preview-file-header" style="display:none;">
+                    <button class="preview-back-btn" id="preview-back-btn" onclick="goBackFromPreview()" style="display:none;" title="Back">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                        </svg>
+                        <span>Back</span>
+                    </button>
+                    <div class="preview-title">
+                        <h2 id="preview-filename">filename.txt</h2>
+                        <span id="preview-size">0 KB</span>
+                    </div>
+                    <div class="preview-header-actions">
+                        <button class="preview-open-new-window" id="preview-open-new-window-btn" onclick="openPreviewInNewTab()" title="Open in new window">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                            </svg>
+                        </button>
+                        <button class="preview-open-new-window" id="preview-cluster-rename-btn" onclick="startClusterRename()" title="Rename cluster" style="display:none;">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                            </svg>
+                        </button>
+                        <button class="preview-close" onclick="closePreview()" title="Close preview">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                        <button class="preview-fullscreen-btn" onclick="togglePreviewFullscreen()" title="Toggle fullscreen">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" id="preview-fullscreen-expand">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+                            </svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" id="preview-fullscreen-collapse" style="display: none;">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="preview-content" id="preview-content">
+                    <!-- Content loaded dynamically -->
+                </div>
+                <div class="preview-actions" id="preview-actions" style="display:none;">
+                    <button class="btn" id="preview-edit" onclick="editPreviewFile()">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                        </svg>
+                        Edit
+                    </button>
+                    <button class="btn btn-primary" id="preview-download" onclick="downloadPreviewFile()">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                        </svg>
+                        Download
+                    </button>
+                    <button class="btn btn-danger" id="preview-delete" onclick="deletePreviewFile()">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                        </svg>
+                        Delete
+                    </button>
+                </div>
+            </div>
+            </section>
+            </div>
+        </main>
+
+        <aside class="right-rail" id="right-rail">
+            <section class="chat-panel glass" id="chat-panel">
             <div class="right-panel-pane chat-pane active" id="pane-chat">
                 <div class="chat-header">
                     <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
                         <div style="min-width:0; flex:1;">
-                            <h3>AI Coding Assistant</h3>
+                            <h3 id="chat-assistant-title">AI Coding Assistant</h3>
                         </div>
                         <div style="display:flex;align-items:center;gap:5px;">
                             <button class="chat-settings-btn" onclick="showSettingsModal()">
@@ -3607,26 +3837,6 @@
                 <!-- Messages container (position:relative for scroll btn) -->
                 <div style="flex:1;min-height:0;position:relative;display:flex;flex-direction:column;">
                     <div class="chat-messages" id="chat-messages">
-                        <!-- Empty state chips — shown when no real messages exist -->
-                        <div class="chat-empty-state" id="chat-empty-state">
-                            <p class="chat-empty-heading">Try asking…</p>
-                            <button class="chat-suggestion-chip" onclick="sendSuggestion('Explain the selected file')">
-                                <span>Explain the selected file</span>
-                                <svg class="chip-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                            </button>
-                            <button class="chat-suggestion-chip" onclick="sendSuggestion('Summarize this codebase')">
-                                <span>Summarize this codebase</span>
-                                <svg class="chip-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                            </button>
-                            <button class="chat-suggestion-chip" onclick="sendSuggestion('Explore and suggest improvements')">
-                                <span>Explore and suggest improvements</span>
-                                <svg class="chip-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                            </button>
-                            <button class="chat-suggestion-chip" onclick="sendSuggestion('Add documentation to this codebase')">
-                                <span>Add documentation to this codebase</span>
-                                <svg class="chip-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                            </button>
-                        </div>
                     </div>
                     <!-- Scroll-to-bottom button -->
                     <button class="chat-scroll-btn" id="chat-scroll-btn" onclick="chatScrollToBottom()" title="Scroll to bottom">
@@ -3641,70 +3851,7 @@
                 </div>
                 <div class="chat-input-hint">Enter to send &middot; Shift+Enter for new line</div>
             </div>
-
-            <!-- File Preview pane -->
-            <div class="right-panel-pane preview-pane" id="pane-preview">
-                <!-- Empty state -->
-                <div class="preview-empty" id="preview-empty-state">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                    </svg>
-                    <span>Select a file to preview</span>
-                </div>
-                <!-- Preview header (hidden until a file is loaded) -->
-                <div class="preview-header" id="preview-file-header" style="display:none;">
-                    <button class="preview-back-btn" id="preview-back-btn" onclick="goBackToCluster()" style="display:none;" title="Back to cluster">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-                        </svg>
-                    </button>
-                    <div class="preview-title">
-                        <h2 id="preview-filename">filename.txt</h2>
-                        <button class="preview-open-new-window" id="preview-open-new-window-btn" onclick="openPreviewInNewTab()" title="Open in new window">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-                            </svg>
-                        </button>
-                        <button class="preview-open-new-window" id="preview-cluster-rename-btn" onclick="startClusterRename()" title="Rename cluster" style="display:none;">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                            </svg>
-                        </button>
-                        <span id="preview-size">0 KB</span>
-                    </div>
-                    <button class="preview-fullscreen-btn" onclick="togglePreviewFullscreen()" title="Toggle fullscreen">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" id="preview-fullscreen-expand">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
-                        </svg>
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" id="preview-fullscreen-collapse" style="display: none;">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
-                        </svg>
-                    </button>
-                </div>
-                <div class="preview-content" id="preview-content">
-                    <!-- Content loaded dynamically -->
-                </div>
-                <div class="preview-actions" id="preview-actions" style="display:none;">
-                    <button class="btn" id="preview-edit" onclick="editPreviewFile()">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
-                        </svg>
-                        Edit
-                    </button>
-                    <button class="btn btn-primary" id="preview-download" onclick="downloadPreviewFile()">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                        </svg>
-                        Download
-                    </button>
-                    <button class="btn btn-danger" id="preview-delete" onclick="deletePreviewFile()">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                        </svg>
-                        Delete
-                    </button>
-                </div>
-            </div>
+            </section>
         </aside>
     </div>
 
@@ -3901,49 +4048,42 @@
             const raw = (typeof marked !== 'undefined') ? marked.parse(md) : md;
             return (typeof DOMPurify !== 'undefined') ? DOMPurify.sanitize(raw) : raw.replace(/<[^>]*>/g, '');
         }
-
-        // Theme Management - 2 themes: simple (light) and glass
-        function setTheme(theme) {
-            document.documentElement.setAttribute('data-theme', theme);
-            localStorage.setItem('santai-theme', theme);
-        }
-
-        function toggleTheme(event) {
-            event.stopPropagation();
-            const current = document.documentElement.getAttribute('data-theme') || 'simple';
-            setTheme(current === 'glass' ? 'simple' : 'glass');
-        }
-
-        function loadTheme() {
-            const saved = localStorage.getItem('santai-theme') || 'simple';
-            setTheme(saved);
-        }
-
-        // Load theme immediately to prevent flash
-        loadTheme();
-
+        
         let currentPath = '';
         let selectedItem = null;
         let files = [];
         let previewPath = null;
         let previewReturnClusterId = null; // set when a file is opened from a cluster list
+        function hasPreviewContent() {
+            const header = document.getElementById('preview-file-header');
+            return Boolean(header) && header.style.display !== 'none';
+        }
 
-        // Right Panel Tab Switching
-        function switchRightTab(tab) {
-            document.getElementById('tab-chat').classList.toggle('active', tab === 'chat');
-            document.getElementById('tab-preview').classList.toggle('active', tab === 'preview');
-            document.getElementById('pane-chat').classList.toggle('active', tab === 'chat');
-            document.getElementById('pane-preview').classList.toggle('active', tab === 'preview');
+        function showPreviewPanel() {
+            const main = document.getElementById('main');
+            if (main) main.classList.add('preview-open');
+            document.body.classList.toggle('preview-open', hasPreviewContent());
+            resizeGraphIfFullscreen();
+        }
+
+        function hidePreviewPanel() {
+            const main = document.getElementById('main');
+            if (main) main.classList.remove('preview-open');
+            document.body.classList.remove('preview-open');
+            resizeGraphIfFullscreen();
         }
 
         // File Preview Functions
         async function openFilePreview(path) {
+            if (document.body.classList.contains('graph-is-fullscreen')) {
+                toggleGraphFullscreen();
+            }
             previewPath = path;
+            window.activeClusterId = null;
             const content = document.getElementById('preview-content');
 
-            // Show or hide the back-to-cluster button
-            document.getElementById('preview-back-btn').style.display =
-                previewReturnClusterId !== null ? 'flex' : 'none';
+            // Always show a clear back action in the middle preview panel.
+            document.getElementById('preview-back-btn').style.display = 'flex';
             // File previews use the new-window button; cluster previews use pencil
             document.getElementById('preview-open-new-window-btn').style.display = '';
             document.getElementById('preview-cluster-rename-btn').style.display = 'none';
@@ -3953,8 +4093,7 @@
             // Hide empty state
             document.getElementById('preview-empty-state').style.display = 'none';
 
-            // Switch to the preview tab
-            switchRightTab('preview');
+            showPreviewPanel();
             content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
 
             try {
@@ -4045,6 +4184,40 @@
             }
         }
 
+        function resizeGraphIfFullscreen() {
+            const graphPanel = document.querySelector('.graph-panel.fullscreen');
+            if (!graphPanel) return;
+            requestAnimationFrame(() => {
+                const container = document.querySelector('.graph-container');
+                const svg = d3.select('#graph-svg');
+                if (container && svg) {
+                    svg.attr('width', null).attr('height', null);
+                    svg.attr('width', container.clientWidth).attr('height', container.clientHeight);
+                }
+                fitAllNodes(true);
+            });
+        }
+
+        function resetPreviewState() {
+            previewPath = null;
+            previewReturnClusterId = null;
+            window.activeClusterId = null;
+            document.getElementById('preview-back-btn').style.display = 'none';
+            document.getElementById('preview-open-new-window-btn').style.display = '';
+            document.getElementById('preview-cluster-rename-btn').style.display = 'none';
+            document.getElementById('preview-fullscreen-expand').style.display = 'block';
+            document.getElementById('preview-fullscreen-collapse').style.display = 'none';
+            document.getElementById('preview-file-header').style.display = 'none';
+            document.getElementById('preview-actions').style.display = 'none';
+            document.getElementById('preview-empty-state').style.display = '';
+            document.getElementById('preview-content').innerHTML = '';
+        }
+
+        function previewReferencesPath(path, isDir = false) {
+            if (!previewPath) return false;
+            return isDir ? previewPath === path || previewPath.startsWith(`${path}/`) : previewPath === path;
+        }
+
         function closePreview() {
             // If in preview-only mode (opened via "open in new window"), go to home page
             if (document.documentElement.classList.contains('preview-only-mode')) {
@@ -4053,24 +4226,9 @@
             }
 
             const panel = document.getElementById('preview-panel');
-            panel.classList.remove('fullscreen');
-            document.body.classList.remove('preview-open');
-            previewPath = null;
-            previewReturnClusterId = null;
-            window.activeClusterId = null;
-            document.getElementById('preview-back-btn').style.display = 'none';
-            document.getElementById('preview-open-new-window-btn').style.display = '';
-            document.getElementById('preview-cluster-rename-btn').style.display = 'none';
-            // Reset fullscreen icons
-            document.getElementById('preview-fullscreen-expand').style.display = 'block';
-            document.getElementById('preview-fullscreen-collapse').style.display = 'none';
-            // Reset preview pane to empty state
-            document.getElementById('preview-file-header').style.display = 'none';
-            document.getElementById('preview-actions').style.display = 'none';
-            document.getElementById('preview-empty-state').style.display = '';
-            document.getElementById('preview-content').innerHTML = '';
-            // Switch back to chat tab
-            switchRightTab('chat');
+            if (panel) panel.classList.remove('fullscreen');
+            resetPreviewState();
+            hidePreviewPanel();
         }
 
         function togglePreviewFullscreen() {
@@ -4083,11 +4241,24 @@
                 return;
             }
 
+            // Graph fullscreen pins the preview panel via a high-specificity rule that
+            // conflicts with preview fullscreen styling — exit graph fullscreen first,
+            // and remember to restore it when the preview fullscreen is dismissed.
+            if (!isCurrentlyFullscreen && document.body.classList.contains('graph-is-fullscreen')) {
+                toggleGraphFullscreen();
+                _previewFullscreenRestoredGraph = true;
+            }
+
             const expandIcon = document.getElementById('preview-fullscreen-expand');
             const collapseIcon = document.getElementById('preview-fullscreen-collapse');
 
             panel.classList.toggle('fullscreen');
             const isFullscreen = panel.classList.contains('fullscreen');
+
+            if (!isFullscreen && _previewFullscreenRestoredGraph) {
+                _previewFullscreenRestoredGraph = false;
+                toggleGraphFullscreen();
+            }
 
             expandIcon.style.display = isFullscreen ? 'none' : 'block';
             collapseIcon.style.display = isFullscreen ? 'block' : 'none';
@@ -4098,11 +4269,6 @@
                 const url = new URL(window.location.href);
                 url.searchParams.set('preview', previewPath);
                 url.searchParams.set('fullscreen', 'true');
-                // Pass current theme
-                const currentTheme = document.documentElement.getAttribute('data-theme');
-                if (currentTheme) {
-                    url.searchParams.set('theme', currentTheme);
-                }
                 window.open(url.toString(), '_blank');
             }
         }
@@ -4527,19 +4693,12 @@
             }
         }
 
-        // Open item (navigate or fullscreen preview)
+        // Open item (navigate or preview)
         function openItem(path, isDir) {
             if (isDir) {
                 loadFiles(path);
             } else {
-                // Open file preview in fullscreen mode
                 openFilePreview(path);
-                setTimeout(() => {
-                    const panel = document.getElementById('preview-panel');
-                    if (panel && !panel.classList.contains('fullscreen')) {
-                        togglePreviewFullscreen();
-                    }
-                }, 50);
             }
         }
 
@@ -4617,6 +4776,7 @@
                     throw new Error(err.detail || 'Failed to delete');
                 }
 
+                if (previewReferencesPath(path, isDir)) closePreview();
                 showToast('Deleted successfully');
                 loadFiles(currentPath);
                 loadTree();
@@ -4753,6 +4913,7 @@
                     throw new Error(err.detail || 'Failed to delete');
                 }
 
+                if (previewReferencesPath(selectedItem.path, Boolean(selectedItem.is_dir))) closePreview();
                 showToast('Deleted successfully');
                 loadFiles(currentPath);
                 loadTree();
@@ -5294,22 +5455,14 @@
             }
         }
 
-        // Handle tree item double click (navigate to file browser for folders, fullscreen preview for files)
+        // Handle tree item double click (navigate to file browser for folders, preview files)
         function handleTreeDblClick(event, path, isDir) {
             if (isDir) {
                 expandedPaths.add(path);
                 showFileBrowser(path);
                 renderTree();
             } else {
-                // For files, open preview in fullscreen mode
                 openFilePreview(path);
-                // Small delay to ensure panel is shown before toggling fullscreen
-                setTimeout(() => {
-                    const panel = document.getElementById('preview-panel');
-                    if (panel && !panel.classList.contains('fullscreen')) {
-                        togglePreviewFullscreen();
-                    }
-                }, 50);
             }
         }
 
@@ -5329,6 +5482,8 @@
 
         function showDashboard() {
             currentView = 'dashboard';
+            resetPreviewState();
+            hidePreviewPanel();
             document.getElementById('dashboard-view').style.display = 'flex';
             document.getElementById('content').style.display = 'none';
             currentPath = '';
@@ -5344,6 +5499,8 @@
 
         function showFileBrowser(path) {
             currentView = 'browser';
+            resetPreviewState();
+            hidePreviewPanel();
             document.getElementById('dashboard-view').style.display = 'none';
             document.getElementById('content').style.display = 'block';
             // Reset navigation state when entering file browser
@@ -5555,11 +5712,19 @@
             }
 
             const nodeMap = new Map(data.nodes.map(n => [n.id, n]));
+            // Deduplicate directed edges into undirected pairs (A→B and B→A become one line)
+            const seenEdgePairs = new Set();
             let links = data.edges.map(e => ({
                 source: e.source,
                 target: e.target,
                 link_text: e.link_text
-            })).filter(e => nodeMap.has(e.source) && nodeMap.has(e.target));
+            })).filter(e => {
+                if (!nodeMap.has(e.source) || !nodeMap.has(e.target)) return false;
+                const key = [e.source, e.target].sort().join('\0');
+                if (seenEdgePairs.has(key)) return false;
+                seenEdgePairs.add(key);
+                return true;
+            });
 
             // Add custom links from localStorage
             const existingLinks = new Set(links.map(l => `${l.source}-${l.target}`));
@@ -5682,7 +5847,7 @@
                 return prev ? { ...n, x: prev.x, y: prev.y } : { ...n };
             });
 
-            statsEl.textContent = `${nodes.length} files, ${links.length} links`;
+            statsEl.textContent = `${nodes.length} ${nodes.length === 1 ? 'file' : 'files'}, ${links.length} ${links.length === 1 ? 'link' : 'links'}`;
 
             // Create a group for zoom/pan
             const g = svg.append('g');
@@ -5905,12 +6070,15 @@
             if (isFullscreen) {
                 fitAllNodes(false);
             } else {
-                // Moderate zoom centered on the simulation's gravity center
+                // Moderate zoom centered on the actual node bounding box
+                const _ns = simulation.nodes();
+                const _cx = (_ns.reduce((a, n) => Math.min(a, n.x), Infinity) + _ns.reduce((a, n) => Math.max(a, n.x), -Infinity)) / 2;
+                const _cy = (_ns.reduce((a, n) => Math.min(a, n.y), Infinity) + _ns.reduce((a, n) => Math.max(a, n.y), -Infinity)) / 2;
                 svg.call(zoom.transform,
                     d3.zoomIdentity
                         .translate(width / 2, height / 2)
                         .scale(0.55)
-                        .translate(-width / 2, -height / 2)
+                        .translate(-_cx, -_cy)
                 );
             }
             simulation.restart();
@@ -5950,6 +6118,8 @@
         let chatMessages = []; // {role, content} array
         let chatConfigured = false;
         let chatStreaming = false;
+        let _chatEpoch = 0; // incremented on clearChat; stale streams compare against this
+        let _chatAbortController = null;
 
         // ── Custom dropdown helpers ──────────────────────────────────────────
         function toggleChatDropdown(which) {
@@ -5962,6 +6132,69 @@
             if (!isOpen) {
                 list.classList.add('open');
                 btn.classList.add('open');
+            }
+        }
+
+        const CHIP_ARROW_SVG = `<svg class="chip-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`;
+
+        // Keys must match agent file stems in agents/ directory
+        const AGENT_WELCOMES = {
+            '': {
+                title: 'AI Coding Assistant',
+                welcome: "Hi! I'm your AI coding assistant. Ask me to explain, modify, or generate code.",
+                chips: ['Explain the selected file', 'Summarize this codebase', 'Explore and suggest improvements', 'Add documentation to this codebase'],
+            },
+            'documentation': {
+                title: 'AI Documentation Assistant',
+                welcome: "Hi! I'm your documentation assistant. I can create and maintain structured documentation across your project.",
+                chips: ['Generate docs for the selected file', 'Add a README to this project', 'Document all functions', 'Create an API reference'],
+            },
+            'linting': {
+                title: 'AI Linting Assistant',
+                welcome: "Hi! I'm your linting assistant. I can enforce content quality and consistency across your project files.",
+                chips: ['Lint the selected file', 'Check for consistency issues', 'Enforce code style across the project', 'Find quality issues'],
+            },
+            'wiki': {
+                title: 'AI Wiki Assistant',
+                welcome: "Hi! I'm your wiki assistant. I can curate and maintain your wiki for AI agent context.",
+                chips: ['Update the wiki', 'Add an entry for the selected file', 'Summarize recent changes', 'Generate a wiki index'],
+            },
+            'research': {
+                title: 'AI Research Assistant',
+                welcome: "Hi! I'm your research assistant. I can investigate topics and gather context for your knowledge bases.",
+                chips: ['Research this codebase', 'Investigate dependencies', 'Analyze project structure', 'Find relevant context'],
+            },
+            'summarizer': {
+                title: 'AI Summarizer',
+                welcome: "Hi! I'm your summarizer. I can condense project context into clear, actionable summaries.",
+                chips: ['Summarize the selected file', 'Summarize this project', 'Create an executive summary', 'Condense recent changes'],
+            },
+            'food-and-activities': {
+                title: 'AI Activities Assistant',
+                welcome: "Hi! I can help with activity planning, dining, and entertainment recommendations.",
+                chips: ['Recommend nearby restaurants', 'Plan a team outing', 'Find dining options', 'Suggest weekend activities'],
+            },
+        };
+
+        function showAgentWelcome(agentName) {
+            const cfg = AGENT_WELCOMES[agentName] || { title: 'AI Assistant', welcome: "Hi! How can I help?", chips: [] };
+            const titleEl = document.getElementById('chat-assistant-title');
+            if (titleEl) titleEl.textContent = cfg.title;
+            appendChatMessage('assistant', cfg.welcome);
+            chatMessages.push({ role: 'assistant', content: cfg.welcome });
+            if (cfg.chips && cfg.chips.length) {
+                const messagesEl = document.getElementById('chat-messages');
+                const wrap = document.createElement('div');
+                wrap.className = 'chat-suggestion-chips-wrap';
+                wrap.id = 'chat-suggestion-chips';
+                cfg.chips.forEach(text => {
+                    const btn = document.createElement('button');
+                    btn.className = 'chat-suggestion-chip';
+                    btn.innerHTML = `<span>${text}</span>${CHIP_ARROW_SVG}`;
+                    btn.onclick = () => sendSuggestion(text);
+                    wrap.appendChild(btn);
+                });
+                messagesEl.appendChild(wrap);
             }
         }
 
@@ -6022,26 +6255,93 @@
                     return;
                 }
 
-                let defaultModelLabel = '';
-                modelsData.models.forEach(m => {
-                    const value = JSON.stringify({provider: m.provider, model: m.model});
-                    const label = m.model;
-                    // Hidden select option
-                    const opt = document.createElement('option');
-                    opt.value = value;
-                    opt.textContent = label;
-                    if (m.default) { opt.selected = true; defaultModelLabel = label; }
-                    modelSelect.appendChild(opt);
-                    // Visible list item
-                    const item = document.createElement('div');
-                    item.className = 'chat-custom-select-option' + (m.default ? ' selected' : '');
-                    item.dataset.value = value;
-                    item.textContent = label;
-                    item.title = label;
-                    item.onclick = () => selectChatOption('model', value, label);
-                    modelList.appendChild(item);
-                });
-                modelBtn.textContent = defaultModelLabel || modelsData.models[0].model;
+                // Star/default system: localStorage overrides system default
+                const SYSTEM_DEFAULT_MODEL = 'anthropic-claude-bedrock4.5-haiku';
+                const STAR_KEY = 'santai-starred-model';
+
+                function getStarred() {
+                    try { return JSON.parse(localStorage.getItem(STAR_KEY)); } catch { return null; }
+                }
+                function setStarred(provider, model) {
+                    localStorage.setItem(STAR_KEY, JSON.stringify({provider, model}));
+                }
+                function clearStarred() { localStorage.removeItem(STAR_KEY); }
+
+                function isModelStarred(provider, model) {
+                    const s = getStarred();
+                    return s && s.provider === provider && s.model === model;
+                }
+
+                function getEffectiveDefault() {
+                    const s = getStarred();
+                    if (s) {
+                        const m = modelsData.models.find(m => m.provider === s.provider && m.model === s.model);
+                        if (m) return m;
+                    }
+                    return modelsData.models.find(m => m.model === SYSTEM_DEFAULT_MODEL)
+                        || modelsData.models[0];
+                }
+
+                function rebuildModelOptions() {
+                    modelSelect.innerHTML = '';
+                    modelList.innerHTML = '';
+                    const effectiveDefault = getEffectiveDefault();
+
+                    modelsData.models.forEach(m => {
+                        const value = JSON.stringify({provider: m.provider, model: m.model});
+                        const label = m.display || m.model;
+                        const isDefault = m.provider === effectiveDefault.provider && m.model === effectiveDefault.model;
+                        const starred = isModelStarred(m.provider, m.model);
+
+                        const opt = document.createElement('option');
+                        opt.value = value;
+                        opt.textContent = label;
+                        if (isDefault) opt.selected = true;
+                        modelSelect.appendChild(opt);
+
+                        const item = document.createElement('div');
+                        item.className = 'chat-custom-select-option' + (isDefault ? ' selected' : '');
+                        item.dataset.value = value;
+                        item.title = label;
+
+                        const labelSpan = document.createElement('span');
+                        labelSpan.className = 'model-option-label';
+                        labelSpan.textContent = label;
+
+                        const starSvg = (filled) =>
+                            `<svg width="11" height="11" viewBox="0 0 24 24" fill="${filled ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>`;
+
+                        const starBtn = document.createElement('button');
+                        starBtn.className = 'model-star-btn' + (starred ? ' starred' : '');
+                        starBtn.innerHTML = starSvg(starred);
+                        starBtn.title = starred ? 'Remove as default' : 'Set as default';
+                        starBtn.onclick = (e) => {
+                            e.stopPropagation();
+                            if (isModelStarred(m.provider, m.model)) {
+                                clearStarred();
+                            } else {
+                                setStarred(m.provider, m.model);
+                            }
+                            rebuildModelOptions();
+                            // Update button label to reflect new effective default
+                            const newDefault = getEffectiveDefault();
+                            modelBtn.textContent = newDefault.display || newDefault.model;
+                            const newValue = JSON.stringify({provider: newDefault.provider, model: newDefault.model});
+                            modelSelect.value = newValue;
+                        };
+
+                        item.appendChild(labelSpan);
+                        item.appendChild(starBtn);
+                        item.onclick = () => selectChatOption('model', value, label);
+                        modelList.appendChild(item);
+                    });
+
+                    const def = getEffectiveDefault();
+                    modelBtn.textContent = def.display || def.model;
+                    modelSelect.value = JSON.stringify({provider: def.provider, model: def.model});
+                }
+
+                rebuildModelOptions();
 
                 // Populate agent custom dropdown
                 agentSelect.innerHTML = '';
@@ -6081,7 +6381,7 @@
                 inputEl.disabled = false;
                 sendBtn.disabled = false;
                 chatUpdateSendBtn();
-                // Don't add a system message — just leave the suggestion chips visible
+                showAgentWelcome('');
 
             } catch (e) {
                 appendChatMessage('system', 'Failed to load chat configuration.');
@@ -6090,11 +6390,8 @@
         }
 
         function onChatAgentChange() {
-            const agent = document.getElementById('chat-agent-select').value;
-            if (agent) {
-                clearChat();
-                appendChatMessage('system', `Agent switched to: ${agent}`);
-            }
+            if (!chatConfigured) return;
+            clearChat();
         }
 
         // ── Chat helpers ──────────────────────────────────────────────────
@@ -6142,10 +6439,31 @@
             if (el) el.addEventListener('scroll', chatUpdateScrollBtn);
         });
 
-        // Hide the empty-state chips once any real message appears
         function chatHideEmptyState() {
-            const es = document.getElementById('chat-empty-state');
-            if (es) es.style.display = 'none';
+            const chips = document.getElementById('chat-suggestion-chips');
+            if (chips) chips.remove();
+        }
+
+        // Resolve the currently selected/previewed file, fetch its content, and send it to the chat.
+        // prompt(fileName, content) → returns {display, api} strings.
+        async function _sendWithSelectedFile(prompt) {
+            if (!chatConfigured || chatStreaming) return;
+            const filePath = previewPath || (selectedItem && !selectedItem.isDir ? selectedItem.path : null);
+            const fileName = filePath ? filePath.split('/').pop() : null;
+            let fileContent = '';
+            if (filePath) {
+                try {
+                    const res = await fetch(`/api/files/content?path=${encodeURIComponent(filePath)}`);
+                    if (res.ok) { const d = await res.json(); fileContent = d.content ?? ''; }
+                } catch {
+                    appendChatMessage('system', 'Could not load file content — sending without it.');
+                }
+            }
+            const { display, api } = prompt(fileName, fileContent);
+            appendChatMessage('user', display);
+            chatMessages.push({ role: 'user', content: api });
+            chatHideEmptyState();
+            await _streamFromMessages();
         }
 
         // Send a suggestion chip message
@@ -6154,32 +6472,57 @@
             if (!inputEl || inputEl.disabled) return;
 
             if (text === 'Explain the selected file') {
-                // Resolve the current file — prefer the open preview, fall back to selected item
-                const filePath = previewPath || (selectedItem && !selectedItem.isDir ? selectedItem.path : null);
-                if (!filePath) {
-                    inputEl.value = 'Explain the selected file';
-                    sendChatMessage();
-                    return;
-                }
-                const fileName = filePath.split('/').pop();
-                let apiContent = `Explain the file: ${fileName}`;
-                try {
-                    const res = await fetch(`/api/files/content?path=${encodeURIComponent(filePath)}`);
-                    if (!res.ok) throw new Error();
-                    const data = await res.json();
-                    const content = data.content ?? '';
-                    if (content) {
-                        apiContent = `Explain the following file (${fileName}):\n\n\`\`\`\n${content}\n\`\`\``;
-                    }
-                } catch { /* fall through to plain filename message */ }
+                await _sendWithSelectedFile((fileName, content) => {
+                    if (!fileName) return { display: 'Explain the selected file', api: 'Explain the selected file' };
+                    return {
+                        display: `Explain "${fileName}"`,
+                        api: content ? `Explain the following file (${fileName}):\n\n\`\`\`\n${content}\n\`\`\`` : `Explain the file: ${fileName}`,
+                    };
+                });
+                return;
+            }
 
-                // Show a clean label in the chat bubble, send full content to the API
-                const displayText = `Explain "${fileName}"`;
-                if (!chatConfigured || chatStreaming) return;
-                appendChatMessage('user', displayText);
-                chatMessages.push({role: 'user', content: apiContent});
-                chatHideEmptyState();
-                await _streamFromMessages();
+            if (text === 'Lint the selected file') {
+                await _sendWithSelectedFile((fileName, content) => {
+                    if (!fileName) return { display: 'Lint the selected file', api: 'Lint the selected file' };
+                    return {
+                        display: `Lint "${fileName}"`,
+                        api: content ? `Lint the following file (${fileName}) for quality, consistency, and style issues:\n\n\`\`\`\n${content}\n\`\`\`` : `Lint the file: ${fileName}`,
+                    };
+                });
+                return;
+            }
+
+            if (text === 'Generate docs for the selected file') {
+                await _sendWithSelectedFile((fileName, content) => {
+                    if (!fileName) return { display: 'Generate docs for the selected file', api: 'Generate docs for the selected file' };
+                    return {
+                        display: `Generate docs for "${fileName}"`,
+                        api: content ? `Generate documentation for the following file (${fileName}):\n\n\`\`\`\n${content}\n\`\`\`` : `Generate documentation for the file: ${fileName}`,
+                    };
+                });
+                return;
+            }
+
+            if (text === 'Add an entry for the selected file') {
+                await _sendWithSelectedFile((fileName, content) => {
+                    if (!fileName) return { display: 'Add a wiki entry for the selected file', api: 'Add a wiki entry for the selected file' };
+                    return {
+                        display: `Add a wiki entry for "${fileName}"`,
+                        api: content ? `Add a wiki entry for the following file (${fileName}):\n\n\`\`\`\n${content}\n\`\`\`` : `Add a wiki entry for the file: ${fileName}`,
+                    };
+                });
+                return;
+            }
+
+            if (text === 'Summarize the selected file') {
+                await _sendWithSelectedFile((fileName, content) => {
+                    if (!fileName) return { display: 'Summarize the selected file', api: 'Summarize the selected file' };
+                    return {
+                        display: `Summarize "${fileName}"`,
+                        api: content ? `Summarize the following file (${fileName}):\n\n\`\`\`\n${content}\n\`\`\`` : `Summarize the file: ${fileName}`,
+                    };
+                });
                 return;
             }
 
@@ -6230,6 +6573,9 @@
 
         // Render markdown content into an element and post-process
         function renderMarkdown(el, content) {
+            // Strip wikilinks: [[path|label]] → label, [[path]] → path
+            content = content.replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, '$2')
+                             .replace(/\[\[([^\]]+)\]\]/g, '$1');
             if (typeof marked !== 'undefined') {
                 const raw = marked.parse(content);
                 el.innerHTML = (typeof DOMPurify !== 'undefined') ? DOMPurify.sanitize(raw) : raw.replace(/<[^>]*>/g, '');
@@ -6282,6 +6628,8 @@
             return msgDiv;
         }
 
+        const THINKING_LABELS = ['Thinking…', 'Analyzing…', 'Reading code…', 'Reasoning…', 'Processing…'];
+
         // Show animated thinking indicator; returns a cleanup function
         function showThinkingIndicator() {
             const messagesEl = document.getElementById('chat-messages');
@@ -6292,8 +6640,11 @@
             row.innerHTML = BOT_AVATAR_HTML + `
                 <div class="chat-thinking-bubble">
                     <div class="chat-thinking-label">
-                        <div class="chat-thinking-spinner"></div>
-                        Thinking…
+                        <svg class="chat-thinking-spinner" viewBox="0 0 24 24" fill="none">
+                            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-opacity="0.25"/>
+                            <path d="M12 2a10 10 0 0110 10" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+                        </svg>
+                        <span class="chat-thinking-label-text" id="chat-thinking-label-text">Thinking…</span>
                     </div>
                     <div class="chat-thinking-lines">
                         <div class="chat-thinking-line"></div>
@@ -6303,21 +6654,35 @@
                 </div>`;
             messagesEl.appendChild(row);
             messagesEl.scrollTop = messagesEl.scrollHeight;
+            // Cycle through thinking labels
+            let labelIdx = 0;
+            const labelInterval = setInterval(() => {
+                labelIdx = (labelIdx + 1) % THINKING_LABELS.length;
+                const el = document.getElementById('chat-thinking-label-text');
+                if (el) { el.textContent = THINKING_LABELS[labelIdx]; el.style.animation = 'none'; el.offsetHeight; el.style.animation = ''; }
+            }, 5000);
             return function() {
+                clearInterval(labelInterval);
                 const r = document.getElementById('chat-thinking-row');
                 if (r) r.remove();
             };
         }
 
         function clearChat() {
+            if (_chatAbortController) { _chatAbortController.abort(); _chatAbortController = null; }
+            _chatEpoch++;             // invalidate any in-flight stream
             chatMessages = [];
+            chatStreaming = false;
+            const inputEl = document.getElementById('chat-input');
+            const sendBtn = document.getElementById('chat-send-btn');
+            if (inputEl) inputEl.disabled = false;
+            if (sendBtn) sendBtn.disabled = false;
             const messagesEl = document.getElementById('chat-messages');
-            // Re-show empty state
-            const es = document.getElementById('chat-empty-state');
-            if (es) es.style.display = '';
             messagesEl.innerHTML = '';
-            if (es) messagesEl.appendChild(es);
             chatUpdateScrollBtn();
+            chatUpdateSendBtn();
+            const agent = document.getElementById('chat-agent-select')?.value || '';
+            showAgentWelcome(agent);
         }
 
         // Stream a response using the current chatMessages state and selected model/agent.
@@ -6333,6 +6698,7 @@
             try { selected = JSON.parse(modelValue); } catch { return; }
             const agent = document.getElementById('chat-agent-select').value || null;
 
+            const myEpoch = _chatEpoch;
             chatStreaming = true;
             inputEl.disabled = true;
             sendBtn.disabled = true;
@@ -6341,11 +6707,14 @@
             const removeThinking = showThinkingIndicator();
             let assistantDiv = null;
             let fullResponse = '';
+            let pendingRender = false;
 
+            _chatAbortController = new AbortController();
             try {
                 const response = await fetch('/api/chat', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
+                    signal: _chatAbortController.signal,
                     body: JSON.stringify({
                         messages: chatMessages,
                         provider: selected.provider,
@@ -6381,11 +6750,19 @@
                                         assistantDiv.classList.add('streaming');
                                     }
                                     fullResponse += data.content;
-                                    renderMarkdown(assistantDiv, fullResponse);
-                                    filePills.forEach(pill => assistantDiv.appendChild(pill));
-                                    const messagesEl = document.getElementById('chat-messages');
-                                    messagesEl.scrollTop = messagesEl.scrollHeight;
-                                    chatUpdateScrollBtn();
+                                    // Throttle markdown re-render to once per animation frame (~16ms)
+                                    if (!pendingRender) {
+                                        pendingRender = true;
+                                        requestAnimationFrame(() => {
+                                            if (assistantDiv) {
+                                                renderMarkdown(assistantDiv, fullResponse);
+                                                filePills.forEach(p => assistantDiv.appendChild(p));
+                                                const msgs = document.getElementById('chat-messages');
+                                                if (msgs) { msgs.scrollTop = msgs.scrollHeight; chatUpdateScrollBtn(); }
+                                            }
+                                            pendingRender = false;
+                                        });
+                                    }
                                 } else if (data.type === 'file_written') {
                                     removeThinking();
                                     if (!assistantDiv) {
@@ -6395,7 +6772,13 @@
                                     const url = '/?preview=' + encodeURIComponent(data.path) + '&fullscreen=true';
                                     const pill = document.createElement('div');
                                     pill.className = 'chat-file-pill';
-                                    pill.innerHTML = `<a href="${url}" target="_blank" rel="noopener"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:-1px;margin-right:4px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>${data.path}</a>`;
+                                    const pillA = document.createElement('a');
+                                    pillA.href = url;
+                                    pillA.target = '_blank';
+                                    pillA.rel = 'noopener';
+                                    pillA.insertAdjacentHTML('afterbegin', '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:-1px;margin-right:4px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>');
+                                    pillA.appendChild(document.createTextNode(data.path));
+                                    pill.appendChild(pillA);
                                     filePills.push(pill);
                                     assistantDiv.appendChild(pill);
                                 } else if (data.type === 'error') {
@@ -6403,7 +6786,7 @@
                                     if (!assistantDiv) assistantDiv = appendChatMessage('assistant', '');
                                     const errSpan = document.createElement('span');
                                     errSpan.style.color = '#ef4444';
-                                    errSpan.textContent = 'Error: ' + data.content;
+                                    errSpan.textContent = `Error: ${data.content}`;
                                     assistantDiv.innerHTML = '';
                                     assistantDiv.appendChild(errSpan);
                                 }
@@ -6415,17 +6798,33 @@
                 if (fullResponse) chatMessages.push({role: 'assistant', content: fullResponse});
 
             } catch (e) {
+                if (e.name === 'AbortError') return; // intentionally cancelled via clearChat()
                 removeThinking();
                 if (!assistantDiv) assistantDiv = appendChatMessage('assistant', '');
-                assistantDiv.innerHTML = `<span style="color:#ef4444;">Error: ${e.message}</span>`;
+                const catchErrSpan = document.createElement('span');
+                catchErrSpan.style.color = '#ef4444';
+                catchErrSpan.textContent = `Error: ${e.message}`;
+                assistantDiv.appendChild(catchErrSpan);
                 console.error('Chat error:', e);
             } finally {
-                if (assistantDiv) assistantDiv.classList.remove('streaming');
-                chatStreaming = false;
-                inputEl.disabled = false;
-                sendBtn.disabled = false;
-                chatUpdateSendBtn();
-                inputEl.focus();
+                _chatAbortController = null;
+                removeThinking(); // always clean up — guards against empty/skipped responses
+                if (assistantDiv) {
+                    assistantDiv.classList.remove('streaming');
+                    if (fullResponse) {
+                        renderMarkdown(assistantDiv, fullResponse);
+                        filePills.forEach(p => assistantDiv.appendChild(p));
+                    }
+                }
+                // Only restore UI state if this stream is still the active one;
+                // clearChat() bumps _chatEpoch to invalidate stale streams.
+                if (_chatEpoch === myEpoch) {
+                    chatStreaming = false;
+                    inputEl.disabled = false;
+                    sendBtn.disabled = false;
+                    chatUpdateSendBtn();
+                    inputEl.focus();
+                }
             }
         }
 
@@ -6447,10 +6846,22 @@
         }
 
         function toggleChatFullscreen() {
-            const panel = document.getElementById('preview-panel');
+            const panel = document.getElementById('chat-panel');
             const icon = document.getElementById('chat-fullscreen-icon');
+            const isCurrentlyFullscreen = panel.classList.contains('fullscreen');
+
+            if (!isCurrentlyFullscreen && document.body.classList.contains('graph-is-fullscreen')) {
+                toggleGraphFullscreen();
+                _previewFullscreenRestoredGraph = true;
+            }
+
             const isFullscreen = panel.classList.toggle('fullscreen');
-            // Swap icon between expand and compress
+
+            if (!isFullscreen && _previewFullscreenRestoredGraph) {
+                _previewFullscreenRestoredGraph = false;
+                toggleGraphFullscreen();
+            }
+
             if (isFullscreen) {
                 icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />';
             } else {
@@ -6516,15 +6927,6 @@
 
                 // Open the file preview
                 openFilePreview(previewFilePath);
-
-                // For non-fullscreen mode, still toggle after delay
-                if (!isFullscreenMode) {
-                    setTimeout(() => {
-                        if (panel && !panel.classList.contains('fullscreen')) {
-                            togglePreviewFullscreen();
-                        }
-                    }, 100);
-                }
 
                 // Clean up URL without reloading
                 window.history.replaceState({}, '', window.location.pathname);
@@ -6616,38 +7018,118 @@
         }
 
         // Raw suggestion for a single cluster (may duplicate across clusters)
-        function suggestClusterName(clusterId) {
+        const _clusterStopWords = new Set([
+            'the','a','an','and','or','of','in','on','at','to','for','with','by',
+            'from','into','index','main','readme','untitled','file','new','doc',
+            'docs','draft','copy','page','part','section','about','how','what',
+            'overview','summary','introduction','general','misc','other','stuff'
+        ]);
+
+        function _clusterFileWords(clusterId) {
             const nodeIds = clusterNodes.get(clusterId) || [];
-            if (!nodeIds.length) return `Cluster ${clusterId + 1}`;
             const nodeMap = window.lastFullNodeMap || new Map();
             const nodes = nodeIds.map(id => nodeMap.get(id)).filter(Boolean);
-            const dirs = new Set(nodes.map(n => n.directory));
-            if (dirs.size === 1) return [...dirs][0];
-            const names = nodes.slice(0, 2)
-                .map(n => n.name.replace(/\.[^.]+$/, ''))
-                .filter(Boolean);
-            return names.join(' · ').slice(0, 22) || `Cluster ${clusterId + 1}`;
+            const counts = {};
+            nodes.forEach(n => {
+                const stem = n.name.replace(/\.[^.]+$/, '');
+                stem.split(/[\s\-_\.]+/)
+                    .map(w => w.toLowerCase())
+                    .filter(w => w.length > 2 && !_clusterStopWords.has(w) && !/^\d+$/.test(w))
+                    .forEach(w => { counts[w] = (counts[w] || 0) + 1; });
+            });
+            return { nodes, counts };
+        }
+
+        function _topWords(counts, exclude = new Set(), limit = 2) {
+            return Object.entries(counts)
+                .filter(([w]) => !exclude.has(w))
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, limit)
+                .map(([w]) => w.charAt(0).toUpperCase() + w.slice(1));
+        }
+
+        function suggestClusterName(clusterId, excludeWords = new Set()) {
+            const { nodes, counts } = _clusterFileWords(clusterId);
+            if (!nodes.length) return `Cluster ${clusterId + 1}`;
+
+            // 1. Words appearing in at least half the files (lower bar for small clusters)
+            const threshold = nodes.length <= 2 ? 1 : Math.ceil(nodes.length * 0.4);
+            const common = Object.entries(counts)
+                .filter(([w, c]) => c >= threshold && !excludeWords.has(w))
+                .sort((a, b) => b[1] - a[1])
+                .map(([w]) => w.charAt(0).toUpperCase() + w.slice(1));
+            if (common.length) return common.slice(0, 2).join(' ');
+
+            // 2. Any top words at all, excluding requested words
+            const top = _topWords(counts, excludeWords);
+            if (top.length) return top.join(' ');
+
+            // 3. Shared directory (only if not falling back to avoid "notes" × N)
+            const dirs = nodes.map(n => n.directory || '');
+            const dirSet = new Set(dirs.filter(Boolean));
+            if (dirSet.size === 1) return [...dirSet][0];
+
+            // 4. Most common parent directory segment
+            const pathParts = [...dirSet].map(d => d.split('/'));
+            if (pathParts.length > 1) {
+                const minLen = Math.min(...pathParts.map(p => p.length));
+                const shared = [];
+                for (let i = 0; i < minLen; i++) {
+                    if (pathParts.every(p => p[i] === pathParts[0][i])) shared.push(pathParts[0][i]);
+                    else break;
+                }
+                if (shared.length) return shared[shared.length - 1];
+            }
+
+            // 5. First two filenames
+            return nodes.slice(0, 2).map(n => n.name.replace(/\.[^.]+$/, '')).join(' · ').slice(0, 28) || `Cluster ${clusterId + 1}`;
         }
 
         // Build deduped display names for all multi-node clusters at once
         function rebuildClusterDisplayNames() {
             clusterDisplayNames = new Map();
-            const seen = new Map(); // base name -> count of auto-names used
             const ids = [];
             clusterNodes.forEach((nodeIds, cid) => { if (nodeIds.length > 1) ids.push(cid); });
             ids.sort((a, b) => a - b);
+
+            // First pass: assign initial names
+            const nameToIds = new Map();
             for (const cid of ids) {
                 const saved = clusterNames[getClusterKey(cid)];
                 if (saved) { clusterDisplayNames.set(cid, saved); continue; }
-                const base = suggestClusterName(cid);
-                if (!seen.has(base)) {
-                    seen.set(base, 1);
-                    clusterDisplayNames.set(cid, base);
-                } else {
-                    const n = seen.get(base) + 1;
-                    seen.set(base, n);
-                    clusterDisplayNames.set(cid, `${base} ${n}`);
-                }
+                const name = suggestClusterName(cid);
+                clusterDisplayNames.set(cid, name);
+                if (!nameToIds.has(name)) nameToIds.set(name, []);
+                nameToIds.get(name).push(cid);
+            }
+
+            // Second pass: resolve collisions using words unique to each cluster
+            for (const [name, colliding] of nameToIds) {
+                if (colliding.length <= 1) continue;
+
+                // Gather all words from all colliding clusters
+                const allWordMaps = colliding.map(cid => _clusterFileWords(cid).counts);
+                const allWords = new Set(allWordMaps.flatMap(m => Object.keys(m)));
+
+                // Find words that distinguish each cluster (present in this cluster but not others)
+                colliding.forEach((cid, i) => {
+                    const mine = allWordMaps[i];
+                    const otherWords = new Set(
+                        allWordMaps.filter((_, j) => j !== i).flatMap(m => Object.keys(m))
+                    );
+                    const unique = Object.entries(mine)
+                        .filter(([w]) => !otherWords.has(w))
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([w]) => w.charAt(0).toUpperCase() + w.slice(1));
+
+                    if (unique.length) {
+                        // Append the unique word to distinguish
+                        clusterDisplayNames.set(cid, `${name} · ${unique[0]}`);
+                    } else {
+                        // No unique words — fall back to numbered suffix
+                        clusterDisplayNames.set(cid, `${name} ${i + 1}`);
+                    }
+                });
             }
         }
 
@@ -6915,16 +7397,19 @@
 
         function openClusterPreview(clusterId) {
             if (clusterId === undefined || clusterId === null) return;
+            if (document.body.classList.contains('graph-is-fullscreen')) {
+                toggleGraphFullscreen();
+            }
             const nodeIds = clusterNodes.get(clusterId) || [];
             const nodeMap = window.lastFullNodeMap || new Map();
-            const panel = document.getElementById('preview-panel');
             const content = document.getElementById('preview-content');
             const color = clusterColors[clusterId] || '#64748b';
             const isIsolated = nodeIds.length === 1;
+            previewPath = null;
 
-            // Showing the cluster list — no "back" context
+            // Showing the cluster list returns to the prior workspace.
             previewReturnClusterId = null;
-            document.getElementById('preview-back-btn').style.display = 'none';
+            document.getElementById('preview-back-btn').style.display = 'flex';
             // Cluster list gets pencil (rename), not new-window
             document.getElementById('preview-open-new-window-btn').style.display = 'none';
             document.getElementById('preview-cluster-rename-btn').style.display =
@@ -6937,8 +7422,7 @@
             // Store active cluster id for rename function
             window.activeClusterId = isIsolated ? null : clusterId;
 
-            switchRightTab('preview');
-            document.body.classList.add('preview-open');
+            showPreviewPanel();
 
             const savedName = getClusterDisplayName(clusterId);
             document.getElementById('preview-filename').textContent =
@@ -6975,10 +7459,14 @@
             openFilePreview(path);
         }
 
-        function goBackToCluster() {
-            const id = previewReturnClusterId;
-            previewReturnClusterId = null;
-            openClusterPreview(id);
+        function goBackFromPreview() {
+            if (previewReturnClusterId !== null) {
+                const id = previewReturnClusterId;
+                previewReturnClusterId = null;
+                openClusterPreview(id);
+                return;
+            }
+            closePreview();
         }
 
         // ──────────────────────────────────────────────────────────────────────────
@@ -6988,6 +7476,9 @@
             if (linkMode) {
                 deleteMode = false;
                 document.getElementById('delete-mode-btn').classList.remove('active');
+            } else {
+                d3.select('#graph-svg').selectAll('.graph-node circle')
+                    .attr('stroke', null).attr('stroke-width', null);
             }
             document.getElementById('link-mode-btn').classList.toggle('active', linkMode);
             selectedSourceNode = null;
@@ -7143,6 +7634,7 @@
         // Track the original parent so we can return the panel on exit
         let _graphPanelOriginalParent = null;
         let _graphPanelNextSibling = null;
+        let _previewFullscreenRestoredGraph = false;
 
         function toggleGraphFullscreen() {
             const panel = document.querySelector('.graph-panel');
@@ -7165,11 +7657,13 @@
                 // applying the fullscreen styles, preventing a double-layout flash
                 panel.getBoundingClientRect();
                 panel.classList.add('fullscreen');
+                document.body.classList.add('graph-is-fullscreen');
                 expandIcon.style.display = 'none';
                 collapseIcon.style.display = 'block';
             } else {
                 // Exiting fullscreen: remove class first, then restore DOM position — same frame
                 panel.classList.remove('fullscreen');
+                document.body.classList.remove('graph-is-fullscreen');
                 // Move buttons back into the container
                 if (actions && container) container.appendChild(actions);
                 panel.getBoundingClientRect();
@@ -7203,41 +7697,54 @@
             });
         }
 
-        // Close on Escape key
+        // Close on Escape key — handled in priority order
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
+            if (e.key !== 'Escape') return;
+
+            // Close any open modal first
+            if (document.querySelector('.modal-overlay.show')) {
                 e.preventDefault();
-                e.stopPropagation();
-
-                // Close any open modal first
-                if (document.querySelector('.modal-overlay.show')) {
-                    closeModals();
-                    return;
-                }
-
-                // In preview-only mode, go to home page
-                if (document.documentElement.classList.contains('preview-only-mode')) {
-                    window.location.href = '/';
-                    return;
-                }
-                // Check if preview tab is active and has content — exit fullscreen or close preview
-                const previewPanel = document.getElementById('preview-panel');
-                const previewPaneActive = document.getElementById('pane-preview').classList.contains('active');
-                if (previewPanel && previewPanel.classList.contains('fullscreen')) {
-                    togglePreviewFullscreen();
-                    return;
-                }
-                if (previewPaneActive && previewPath) {
-                    closePreview();
-                    return;
-                }
-                // Then check graph panel fullscreen
-                const graphPanel = document.querySelector('.graph-panel');
-                if (graphPanel && graphPanel.classList.contains('fullscreen')) {
-                    toggleGraphFullscreen();
-                }
+                closeModals();
+                return;
             }
-        }, true); // Use capture phase to handle first
+
+            // In preview-only mode, go to home page
+            if (document.documentElement.classList.contains('preview-only-mode')) {
+                e.preventDefault();
+                window.location.href = '/';
+                return;
+            }
+
+            // Exit chat fullscreen first
+            const chatPanel = document.getElementById('chat-panel');
+            if (chatPanel && chatPanel.classList.contains('fullscreen')) {
+                e.preventDefault();
+                toggleChatFullscreen();
+                return;
+            }
+
+            // Exit preview panel fullscreen
+            const previewPanel = document.getElementById('preview-panel');
+            if (previewPanel && previewPanel.classList.contains('fullscreen')) {
+                e.preventDefault();
+                togglePreviewFullscreen();
+                return;
+            }
+
+            // Close the middle preview panel when it is active
+            if (document.getElementById('main')?.classList.contains('preview-open') && hasPreviewContent()) {
+                e.preventDefault();
+                closePreview();
+                return;
+            }
+
+            // Exit graph fullscreen
+            const graphPanel = document.querySelector('.graph-panel');
+            if (graphPanel && graphPanel.classList.contains('fullscreen')) {
+                e.preventDefault();
+                toggleGraphFullscreen();
+            }
+        }, true); // Capture phase so it fires before child handlers
 
         // Start initialization
         if (document.readyState === 'loading') {
