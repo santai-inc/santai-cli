@@ -27,8 +27,7 @@ The web dashboard provides:
 - **History browser** — Rendered history entries
 - **Notes viewer** — Browse all notes
 - **File graph** — Interactive visualization of document links
-- **AI chat workspace** — Streaming AI chat in a dedicated right rail with model and agent selection
-- **In-place file preview** — Clicking a file opens it in the main workspace with a clear `Back` control, an `X` to close, and optional fullscreen for focused reading
+- **Chat panel** — Streaming AI chat with model and agent selection
 
 ## API Endpoints
 
