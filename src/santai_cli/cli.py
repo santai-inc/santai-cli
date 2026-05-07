@@ -19,6 +19,7 @@ from santai_cli.commands import (
     merge,
     pull,
     push,
+    server,
     ui,
     web,
 )
@@ -70,6 +71,7 @@ app.command(name="chat")(chat.chat)
 app.command(name="merge")(merge.merge)
 app.command(name="ui")(ui.ui)
 app.command(name="web")(web.web)
+app.command(name="server")(server.server)
 app.command(name="push")(push.push)
 app.command(name="pull")(pull.pull)
 app.command(name="login")(auth.login)
