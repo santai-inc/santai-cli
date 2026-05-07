@@ -3025,15 +3025,12 @@
         .chat-msg.assistant h2,
         .chat-msg.assistant h3,
         .chat-msg.assistant h4 {
-            margin: 14px 0 6px 0;
-            font-weight: 600;
-            line-height: 1.3;
+            margin: 14px 0 4px 0;
+            font-weight: inherit;
+            line-height: 1.4;
             font-family: inherit;
+            font-size: inherit;
         }
-
-        .chat-msg.assistant h1 { font-size: 15px; }
-        .chat-msg.assistant h2 { font-size: 14px; }
-        .chat-msg.assistant h3 { font-size: 13px; }
 
         .chat-msg.assistant ul,
         .chat-msg.assistant ol {
@@ -3216,7 +3213,7 @@
 
         /* Stop button: shown while streaming */
         #chat-send-btn.is-stopping {
-            background: rgba(239, 68, 68, 0.2);
+            background: rgba(0, 0, 0, 0.75);
             cursor: pointer;
             pointer-events: auto;
         }
@@ -3228,7 +3225,7 @@
             background: white;
         }
         #chat-send-btn.is-stopping:hover {
-            background: rgba(239, 68, 68, 0.38);
+            background: rgba(0, 0, 0, 0.9);
             transform: scale(1.07);
         }
 
@@ -6442,6 +6439,7 @@
                 // Enable chat
                 chatConfigured = true;
                 inputEl.disabled = false;
+                sendBtn.disabled = false;
                 chatUpdateSendBtn();
                 // Restore previous conversation or show welcome
                 if (!loadChatHistory()) {
@@ -6769,7 +6767,9 @@
             chatStreaming = false;
             try { localStorage.removeItem('santai-chat-messages'); } catch {}
             const inputEl = document.getElementById('chat-input');
+            const sendBtnEl = document.getElementById('chat-send-btn');
             if (inputEl) inputEl.disabled = false;
+            if (sendBtnEl) sendBtnEl.disabled = false;
             const messagesEl = document.getElementById('chat-messages');
             messagesEl.innerHTML = '';
             chatUpdateScrollBtn();
