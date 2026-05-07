@@ -85,8 +85,7 @@ def _format_wiki_content(project: SantaiProject, max_entries: int = 10) -> str:
         try:
             content = file_path.read_text(encoding="utf-8")
             title = file_path.stem.replace("-", " ").replace("_", " ").title()
-            preview = content[:500] + "..." if len(content) > 500 else content
-            entries.append(f"## {title}\n{preview}\n")
+            entries.append(f"## {title}\n{content}\n")
         except (OSError, UnicodeDecodeError):
             continue
 
@@ -112,8 +111,7 @@ def _format_notes_content(project: SantaiProject, max_entries: int = 10) -> str:
 
     entries = []
     for note in notes[:max_entries]:
-        preview = note.preview if note.preview else note.content[:300]
-        entries.append(f"## {note.title}\n{preview}\n")
+        entries.append(f"## {note.title}\n{note.content}\n")
 
     return f"## Notes\n\n{'=' * 40}\n\n" + "\n\n".join(entries)
 
@@ -134,9 +132,7 @@ def _format_history_content(project: SantaiProject, max_entries: int = 10) -> st
 
     entries = []
     for entry in history[:max_entries]:
-        content = entry.content
-        preview = content[:500] + "..." if len(content) > 500 else content
-        entries.append(f"## {entry.title} ({entry.date})\n{preview}\n")
+        entries.append(f"## {entry.title} ({entry.date})\n{entry.content}\n")
 
     return f"## History\n\n{'=' * 40}\n\n" + "\n\n".join(entries)
 
@@ -243,9 +239,11 @@ def build_repo_context_prompt(context: RepoContext) -> str:
         [
             "",
             "## Important Guidelines",
-            ("- You have full visibility into this project's structure and content."),
-            ("- When answering questions, reference relevant files and content."),
+            "- You have full visibility into this project's structure and content.",
+            "- When answering questions, reference relevant files and content.",
             "- Use [[wikilinks]] or markdown links when referencing project files.",
+            "- IMPORTANT: When a user asks you to summarize, analyze, or answer questions about a specific file, ALWAYS call read_file first to get the full contents. Never answer from memory or the file tree alone — use the tool.",
+            "- IMPORTANT: If a read_file result includes 'truncated: true', the file was cut off. Acknowledge this to the user rather than treating the partial content as complete.",
         ]
     )
 

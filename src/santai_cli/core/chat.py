@@ -17,6 +17,18 @@ import openai
 
 from santai_cli.core.config import ProviderConfig
 
+# Models with output-token limits below the default 16K
+_MAX_TOKENS_BY_MODEL: dict[str, int] = {
+    "claude-3-5-haiku-20241022": 8192,
+    "claude-3-5-sonnet-20241022": 8192,
+}
+_DEFAULT_MAX_TOKENS = 16000
+
+
+def _max_tokens_for_model(model: str) -> int:
+    return _MAX_TOKENS_BY_MODEL.get(model, _DEFAULT_MAX_TOKENS)
+
+
 TOOLS = [
     {
         "name": "write_file",
@@ -356,7 +368,7 @@ async def _stream_anthropic_with_tools(
 
     kwargs: dict = {
         "model": model,
-        "max_tokens": 4096,
+        "max_tokens": _max_tokens_for_model(model),
         "messages": session.to_anthropic_messages(),
         "tools": TOOLS,
     }
@@ -413,7 +425,7 @@ async def _stream_openai_with_tools(
     stream = await client.chat.completions.create(
         model=model,
         messages=session.to_openai_messages(),
-        max_tokens=4096,
+        max_tokens=_max_tokens_for_model(model),
         stream=True,
         tools=TOOLS_OPENAI,  # type: ignore[arg-type]
     )
@@ -521,10 +533,11 @@ def _tool_read_file(tool_call: dict[str, Any], project_root: Path | None) -> str
         return f"Error: {e}"
     try:
         content = path.read_text(encoding="utf-8")
-        max_len = 10000
+        max_len = 100000
         if len(content) > max_len:
             content = (
-                content[:max_len] + f"\n... (truncated, {len(content)} total bytes)"
+                content[:max_len]
+                + f"\n... (truncated: true, showed {max_len} of {len(content)} total bytes — use read_file on a specific section if you need more)"
             )
         return content
     except Exception as e:
