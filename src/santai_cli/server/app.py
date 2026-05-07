@@ -8,6 +8,7 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from santai_cli.server.auth import create_auth_dependency
+from santai_cli.server.routes import router as operations_router
 
 logger = logging.getLogger("santai.server")
 
@@ -55,5 +56,8 @@ def create_server_app(token: str | None = None, host: str = "127.0.0.1") -> Fast
     async def health() -> dict[str, str]:
         """Health check endpoint."""
         return {"status": "ok"}
+
+    # Register project operation routes
+    app.include_router(operations_router)
 
     return app
