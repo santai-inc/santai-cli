@@ -17,12 +17,12 @@ import openai
 
 from santai_cli.core.config import ProviderConfig
 
-# Models with output-token limits below the default 16K
+# Models with output-token limits below the default
 _MAX_TOKENS_BY_MODEL: dict[str, int] = {
     "claude-3-5-haiku-20241022": 8192,
     "claude-3-5-sonnet-20241022": 8192,
 }
-_DEFAULT_MAX_TOKENS = 16000
+_DEFAULT_MAX_TOKENS = 8192
 
 
 def _max_tokens_for_model(model: str) -> int:
@@ -424,13 +424,16 @@ async def _stream_openai_with_tools(
     pending_tools: dict[int, dict[str, Any]] = {}
     full_text = ""
 
-    stream = await client.chat.completions.create(
-        model=model,
-        messages=session.to_openai_messages(),
-        max_tokens=_max_tokens_for_model(model),
-        stream=True,
-        tools=TOOLS_OPENAI,  # type: ignore[arg-type]
-    )
+    create_kwargs: dict = {
+        "model": model,
+        "messages": session.to_openai_messages(),
+        "stream": True,
+        "tools": TOOLS_OPENAI,
+    }
+    # Don't impose a max_tokens cap for proxy providers — they enforce their own limits.
+    if not base_url:
+        create_kwargs["max_tokens"] = _max_tokens_for_model(model)
+    stream = await client.chat.completions.create(**create_kwargs)  # type: ignore[arg-type]
 
     async for chunk in stream:
         if chunk.choices and chunk.choices[0].delta:

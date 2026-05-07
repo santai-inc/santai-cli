@@ -6132,6 +6132,8 @@
             if (!isOpen) {
                 list.classList.add('open');
                 btn.classList.add('open');
+                const selected = list.querySelector('.chat-custom-select-option.selected');
+                if (selected) list.scrollTop = selected.offsetTop - 4;
             }
         }
 
