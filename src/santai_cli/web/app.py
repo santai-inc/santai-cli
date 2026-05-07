@@ -851,9 +851,9 @@ def create_app(project: SantaiProject) -> FastAPI:
         deduped: list[dict[str, str | bool]] = []
         for m in models:
             if m["display"] not in seen:
-                seen.add(str(m["display"]))
+                seen.add(m["display"])
                 deduped.append(m)
-        deduped.sort(key=lambda m: str(m["display"]).lower())
+        deduped.sort(key=lambda m: m["display"].lower())
         return {"models": deduped, "configured": config.has_any_provider}
 
     @app.get("/api/chat/agents")

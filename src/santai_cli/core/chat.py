@@ -544,7 +544,7 @@ def _tool_read_file(tool_call: dict[str, Any], project_root: Path | None) -> str
         if len(content) > max_len:
             content = (
                 content[:max_len]
-                + f"\n... (truncated: true, showed {max_len} of {len(content)} total bytes — use read_file on a specific section if you need more)"
+                + f"\n... (truncated: true, showed {max_len} of {len(content)} total bytes — use read_file with start_line/end_line to read a specific range)"
             )
         return content
     except Exception as e:
