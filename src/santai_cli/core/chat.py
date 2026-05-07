@@ -326,7 +326,9 @@ async def stream_response(
                 session, provider_config.api_key, target_model, provider_config.base_url
             )
         else:
-            raise ValueError(f"Unknown provider: {provider}")
+            text, tool_calls = await _stream_openai_with_tools(
+                session, provider_config.api_key, target_model, provider_config.base_url
+            )
 
         if not tool_calls:
             if text:
@@ -709,48 +711,3 @@ def get_response_sync(
 ) -> str:
     """Synchronous wrapper around get_response for non-async contexts."""
     return asyncio.run(get_response(session, provider, provider_config, model))
-
-
-async def _stream_anthropic(
-    session: ChatSession,
-    api_key: str,
-    model: str,
-) -> AsyncGenerator[str, None]:
-    """Stream a response from the Anthropic API (legacy, unused)."""
-    client = anthropic.AsyncAnthropic(api_key=api_key)
-
-    kwargs: dict = {
-        "model": model,
-        "max_tokens": 4096,
-        "messages": session.to_anthropic_messages(),
-    }
-    if session.system_prompt:
-        kwargs["system"] = session.system_prompt
-
-    async with client.messages.stream(**kwargs) as stream:  # type: ignore[union-attr]
-        async for text in stream.text_stream:  # type: ignore[union-attr]
-            yield text
-
-
-async def _stream_openai(
-    session: ChatSession,
-    api_key: str,
-    model: str,
-    base_url: str | None = None,
-) -> AsyncGenerator[str, None]:
-    """Stream a response from the OpenAI API (legacy, unused)."""
-    client_kwargs: dict = {"api_key": api_key}
-    if base_url:
-        client_kwargs["base_url"] = base_url
-    client = openai.AsyncOpenAI(**client_kwargs)  # type: ignore[arg-type]
-
-    stream = await client.chat.completions.create(  # type: ignore[call-overload]
-        model=model,
-        messages=session.to_openai_messages(),
-        max_tokens=4096,
-        stream=True,
-    )
-
-    async for chunk in stream:
-        if chunk.choices and chunk.choices[0].delta.content:
-            yield chunk.choices[0].delta.content

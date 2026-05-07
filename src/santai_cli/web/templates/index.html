@@ -6181,7 +6181,6 @@
             const titleEl = document.getElementById('chat-assistant-title');
             if (titleEl) titleEl.textContent = cfg.title;
             appendChatMessage('assistant', cfg.welcome);
-            chatMessages.push({ role: 'assistant', content: cfg.welcome });
             if (cfg.chips && cfg.chips.length) {
                 const messagesEl = document.getElementById('chat-messages');
                 const wrap = document.createElement('div');
@@ -6808,15 +6807,7 @@
                 console.error('Chat error:', e);
             } finally {
                 _chatAbortController = null;
-                removeThinking(); // always clean up — guards against empty/skipped responses
-                if (assistantDiv) {
-                    assistantDiv.classList.remove('streaming');
-                    if (fullResponse) {
-                        renderMarkdown(assistantDiv, fullResponse);
-                        filePills.forEach(p => assistantDiv.appendChild(p));
-                    }
-                }
-                // Only restore UI state if this stream is still the active one;
+                // Restore UI state first — rendering errors below must not block this.
                 // clearChat() bumps _chatEpoch to invalidate stale streams.
                 if (_chatEpoch === myEpoch) {
                     chatStreaming = false;
@@ -6824,6 +6815,14 @@
                     sendBtn.disabled = false;
                     chatUpdateSendBtn();
                     inputEl.focus();
+                }
+                removeThinking(); // always clean up — guards against empty/skipped responses
+                if (assistantDiv) {
+                    assistantDiv.classList.remove('streaming');
+                    if (fullResponse) {
+                        renderMarkdown(assistantDiv, fullResponse);
+                        filePills.forEach(p => assistantDiv.appendChild(p));
+                    }
                 }
             }
         }

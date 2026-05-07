@@ -671,6 +671,21 @@ def create_app(project: SantaiProject) -> FastAPI:
 
     # === Chat API Endpoints ===
 
+    _MODEL_DISPLAY_NAMES: dict[str, str] = {
+        "claude-opus-4-7": "Claude Opus 4.7",
+        "claude-sonnet-4-6": "Claude Sonnet 4.6",
+        "claude-haiku-4-5-20251001": "Claude Haiku 4.5",
+        "claude-3-7-sonnet-20250219": "Claude 3.7 Sonnet",
+        "claude-3-5-sonnet-20241022": "Claude 3.5 Sonnet",
+        "claude-3-5-haiku-20241022": "Claude 3.5 Haiku",
+        "gpt-4o": "GPT-4o",
+        "gpt-4o-mini": "GPT-4o mini",
+        "gpt-4.1": "GPT-4.1",
+        "gpt-4.1-mini": "GPT-4.1 mini",
+        "gpt-4.1-nano": "GPT-4.1 nano",
+        "o3-mini": "o3-mini",
+    }
+
     @app.get("/api/chat/models")
     async def chat_models() -> dict[str, Any]:
         """Return available AI models based on configured API keys.
@@ -714,6 +729,7 @@ def create_app(project: SantaiProject) -> FastAPI:
                         "provider": provider_name,
                         "provider_display": provider_config.name,
                         "model": model_name,
+                        "display": _MODEL_DISPLAY_NAMES.get(model_name),
                         "default": is_default,
                     }
                 )
