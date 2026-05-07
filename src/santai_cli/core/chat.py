@@ -337,8 +337,10 @@ async def stream_response(
 
         results = []
         for tool_call in tool_calls:
+            tool_name = tool_call.get("name", "unknown")
+            yield {"event": "tool_call", "name": tool_name}
             result = execute_tool(tool_call, session.project_root)
-            results.append((tool_call.get("name", "unknown"), tool_call, result))
+            results.append((tool_name, tool_call, result))
             tool_name = tool_call.get("name", "")
             if tool_name in ("write_file", "move"):
                 try:

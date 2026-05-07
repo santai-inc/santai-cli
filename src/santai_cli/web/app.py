@@ -909,9 +909,17 @@ def create_app(project: SantaiProject) -> FastAPI:
                     session, req.provider, provider_config, req.model
                 ):
                     if isinstance(chunk, dict):
-                        data = json.dumps(
-                            {"type": "file_written", "path": chunk["path"]}
-                        )
+                        evt = chunk.get("event", "")
+                        if evt == "file_written":
+                            data = json.dumps(
+                                {"type": "file_written", "path": chunk["path"]}
+                            )
+                        elif evt == "tool_call":
+                            data = json.dumps(
+                                {"type": "tool_call", "name": chunk["name"]}
+                            )
+                        else:
+                            continue
                     else:
                         data = json.dumps({"type": "chunk", "content": chunk})
                     yield f"data: {data}\n\n"

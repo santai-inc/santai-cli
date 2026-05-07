@@ -3210,10 +3210,26 @@
             transform: scale(1.07);
         }
 
-        #chat-send-btn:disabled {
-            background: rgba(0, 0, 0, 0.18);
-            cursor: not-allowed;
-            transform: none;
+        #chat-send-btn:not(.has-text):not(.is-stopping) {
+            pointer-events: none;
+        }
+
+        /* Stop button: shown while streaming */
+        #chat-send-btn.is-stopping {
+            background: rgba(239, 68, 68, 0.2);
+            cursor: pointer;
+            pointer-events: auto;
+        }
+        #chat-send-btn.is-stopping::after {
+            -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='6' y='6' width='12' height='12' rx='1.5' fill='white'/%3E%3C/svg%3E");
+            mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='6' y='6' width='12' height='12' rx='1.5' fill='white'/%3E%3C/svg%3E");
+            -webkit-mask-size: 52%;
+            mask-size: 52%;
+            background: white;
+        }
+        #chat-send-btn.is-stopping:hover {
+            background: rgba(239, 68, 68, 0.38);
+            transform: scale(1.07);
         }
 
         .chat-no-config {
@@ -3257,10 +3273,33 @@
             display: flex;
             gap: 8px;
             align-items: flex-start;
+            position: relative;
         }
         .chat-msg-row.user-row {
             justify-content: flex-end;
         }
+        .msg-copy-btn {
+            position: absolute;
+            bottom: -8px;
+            right: 0;
+            width: 22px;
+            height: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--glass-bg, #fff);
+            border: 1px solid var(--glass-border, rgba(0,0,0,0.1));
+            border-radius: 6px;
+            cursor: pointer;
+            color: var(--text-muted);
+            font-size: 0;
+            opacity: 0;
+            transition: opacity 0.15s, color 0.15s, background 0.15s;
+        }
+        .msg-copy-btn svg { width: 11px; height: 11px; }
+        .chat-msg-row:hover .msg-copy-btn { opacity: 1; }
+        .msg-copy-btn:hover { color: var(--text-primary); background: var(--fill-hover); }
+        .msg-copy-btn.copied { color: var(--accent); opacity: 1; }
         .chat-bot-avatar {
             width: 24px;
             height: 24px;
@@ -6121,6 +6160,29 @@
         let _chatEpoch = 0; // incremented on clearChat; stale streams compare against this
         let _chatAbortController = null;
 
+        const CHAT_STORAGE_KEY = 'santai-chat-messages';
+
+        function saveChatHistory() {
+            try { localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(chatMessages)); } catch {}
+        }
+
+        function loadChatHistory() {
+            try {
+                const raw = localStorage.getItem(CHAT_STORAGE_KEY);
+                if (!raw) return false;
+                const msgs = JSON.parse(raw);
+                if (!Array.isArray(msgs) || msgs.length === 0) return false;
+                chatMessages = msgs;
+                msgs.forEach(m => {
+                    if (m.role === 'user' || m.role === 'assistant') {
+                        appendChatMessage(m.role, m.content);
+                    }
+                });
+                chatHideEmptyState();
+                return true;
+            } catch { return false; }
+        }
+
         // ── Custom dropdown helpers ──────────────────────────────────────────
         function toggleChatDropdown(which) {
             const btn  = document.getElementById(`chat-${which}-select-btn`);
@@ -6380,9 +6442,11 @@
                 // Enable chat
                 chatConfigured = true;
                 inputEl.disabled = false;
-                sendBtn.disabled = false;
                 chatUpdateSendBtn();
-                showAgentWelcome('');
+                // Restore previous conversation or show welcome
+                if (!loadChatHistory()) {
+                    showAgentWelcome('');
+                }
 
             } catch (e) {
                 appendChatMessage('system', 'Failed to load chat configuration.');
@@ -6408,8 +6472,14 @@
             const inputEl = document.getElementById('chat-input');
             const sendBtn = document.getElementById('chat-send-btn');
             if (!inputEl || !sendBtn) return;
+            if (chatStreaming) {
+                sendBtn.classList.remove('has-text');
+                sendBtn.classList.add('is-stopping');
+                return;
+            }
+            sendBtn.classList.remove('is-stopping');
             const hasText = inputEl.value.trim().length > 0;
-            sendBtn.classList.toggle('has-text', hasText && !sendBtn.disabled);
+            sendBtn.classList.toggle('has-text', hasText && chatConfigured);
         }
 
         // Keyboard: Enter sends, Shift+Enter inserts newline
@@ -6574,6 +6644,7 @@
 
         // Render markdown content into an element and post-process
         function renderMarkdown(el, content) {
+            el._rawContent = content; // stored for copy-message button
             // Strip wikilinks: [[path|label]] → label, [[path]] → path
             content = content.replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, '$2')
                              .replace(/\[\[([^\]]+)\]\]/g, '$1');
@@ -6623,6 +6694,28 @@
             }
 
             row.appendChild(msgDiv);
+
+            if (role === 'assistant') {
+                const SVG_COPY = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>`;
+                const SVG_CHECK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+                const copyBtn = document.createElement('button');
+                copyBtn.className = 'msg-copy-btn';
+                copyBtn.title = 'Copy message';
+                copyBtn.innerHTML = SVG_COPY;
+                copyBtn.addEventListener('click', function() {
+                    const text = msgDiv._rawContent || msgDiv.innerText;
+                    navigator.clipboard.writeText(text).then(function() {
+                        copyBtn.classList.add('copied');
+                        copyBtn.innerHTML = SVG_CHECK;
+                        setTimeout(function() {
+                            copyBtn.classList.remove('copied');
+                            copyBtn.innerHTML = SVG_COPY;
+                        }, 1800);
+                    });
+                });
+                row.appendChild(copyBtn);
+            }
+
             messagesEl.appendChild(row);
             messagesEl.scrollTop = messagesEl.scrollHeight;
             chatUpdateScrollBtn();
@@ -6674,10 +6767,9 @@
             _chatEpoch++;             // invalidate any in-flight stream
             chatMessages = [];
             chatStreaming = false;
+            try { localStorage.removeItem('santai-chat-messages'); } catch {}
             const inputEl = document.getElementById('chat-input');
-            const sendBtn = document.getElementById('chat-send-btn');
             if (inputEl) inputEl.disabled = false;
-            if (sendBtn) sendBtn.disabled = false;
             const messagesEl = document.getElementById('chat-messages');
             messagesEl.innerHTML = '';
             chatUpdateScrollBtn();
@@ -6702,8 +6794,7 @@
             const myEpoch = _chatEpoch;
             chatStreaming = true;
             inputEl.disabled = true;
-            sendBtn.disabled = true;
-            sendBtn.classList.remove('has-text');
+            chatUpdateSendBtn(); // switches button to stop mode
 
             const removeThinking = showThinkingIndicator();
             let assistantDiv = null;
@@ -6782,6 +6873,23 @@
                                     pill.appendChild(pillA);
                                     filePills.push(pill);
                                     assistantDiv.appendChild(pill);
+                                } else if (data.type === 'tool_call') {
+                                    const toolLabels = {
+                                        read_file: 'Reading file…',
+                                        write_file: 'Writing file…',
+                                        list_dir: 'Listing directory…',
+                                        mkdir: 'Creating directory…',
+                                        remove_file: 'Deleting file…',
+                                        remove_dir: 'Deleting directory…',
+                                        move: 'Moving file…',
+                                    };
+                                    const labelEl = document.getElementById('chat-thinking-label-text');
+                                    if (labelEl) {
+                                        labelEl.textContent = toolLabels[data.name] || 'Using tool…';
+                                        labelEl.style.animation = 'none';
+                                        labelEl.offsetHeight;
+                                        labelEl.style.animation = '';
+                                    }
                                 } else if (data.type === 'error') {
                                     removeThinking();
                                     if (!assistantDiv) assistantDiv = appendChatMessage('assistant', '');
@@ -6796,7 +6904,10 @@
                     }
                 }
 
-                if (fullResponse) chatMessages.push({role: 'assistant', content: fullResponse});
+                if (fullResponse) {
+                    chatMessages.push({role: 'assistant', content: fullResponse});
+                    saveChatHistory();
+                }
 
             } catch (e) {
                 if (e.name === 'AbortError') return; // intentionally cancelled via clearChat()
@@ -6814,8 +6925,7 @@
                 if (_chatEpoch === myEpoch) {
                     chatStreaming = false;
                     inputEl.disabled = false;
-                    sendBtn.disabled = false;
-                    chatUpdateSendBtn();
+                    chatUpdateSendBtn(); // removes is-stopping, restores normal state
                     inputEl.focus();
                 }
                 removeThinking(); // always clean up — guards against empty/skipped responses
@@ -6830,7 +6940,11 @@
         }
 
         async function sendChatMessage() {
-            if (!chatConfigured || chatStreaming) return;
+            if (chatStreaming) {
+                if (_chatAbortController) { _chatAbortController.abort(); }
+                return;
+            }
+            if (!chatConfigured) return;
 
             const inputEl = document.getElementById('chat-input');
             const userText = inputEl.value.trim();
@@ -6841,6 +6955,7 @@
             chatInputResize(inputEl);
             appendChatMessage('user', userText);
             chatMessages.push({role: 'user', content: userText});
+            saveChatHistory();
             chatHideEmptyState();
 
             await _streamFromMessages();
