@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="startup-token" content="{{ startup_token }}">
     <title>Santai</title>
     <link rel="icon" type="image/png" href="/static/logo.png">
     <script>
@@ -6158,13 +6159,25 @@
         let _chatAbortController = null;
 
         const CHAT_STORAGE_KEY = 'santai-chat-messages';
+        const CHAT_TOKEN_KEY = 'santai-chat-messages-token';
 
         function saveChatHistory() {
-            try { localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(chatMessages)); } catch {}
+            try {
+                const token = document.querySelector('meta[name="startup-token"]')?.content;
+                localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(chatMessages));
+                if (token) localStorage.setItem(CHAT_TOKEN_KEY, token);
+            } catch {}
         }
 
         function loadChatHistory() {
             try {
+                const currentToken = document.querySelector('meta[name="startup-token"]')?.content;
+                const storedToken = localStorage.getItem(CHAT_TOKEN_KEY);
+                if (currentToken && storedToken !== currentToken) {
+                    localStorage.removeItem(CHAT_STORAGE_KEY);
+                    localStorage.removeItem(CHAT_TOKEN_KEY);
+                    return false;
+                }
                 const raw = localStorage.getItem(CHAT_STORAGE_KEY);
                 if (!raw) return false;
                 const msgs = JSON.parse(raw);
@@ -6242,6 +6255,7 @@
             const titleEl = document.getElementById('chat-assistant-title');
             if (titleEl) titleEl.textContent = cfg.title;
             appendChatMessage('assistant', cfg.welcome);
+            chatMessages.push({ role: 'assistant', content: cfg.welcome });
             if (cfg.chips && cfg.chips.length) {
                 const messagesEl = document.getElementById('chat-messages');
                 const wrap = document.createElement('div');
@@ -6441,7 +6455,6 @@
                 inputEl.disabled = false;
                 sendBtn.disabled = false;
                 chatUpdateSendBtn();
-                // Restore previous conversation or show welcome
                 if (!loadChatHistory()) {
                     showAgentWelcome('');
                 }
@@ -6642,7 +6655,7 @@
 
         // Render markdown content into an element and post-process
         function renderMarkdown(el, content) {
-            el._rawContent = content; // stored for copy-message button
+            el._rawContent = content;
             // Strip wikilinks: [[path|label]] → label, [[path]] → path
             content = content.replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, '$2')
                              .replace(/\[\[([^\]]+)\]\]/g, '$1');
@@ -6765,11 +6778,11 @@
             _chatEpoch++;             // invalidate any in-flight stream
             chatMessages = [];
             chatStreaming = false;
-            try { localStorage.removeItem('santai-chat-messages'); } catch {}
+            try { localStorage.removeItem(CHAT_STORAGE_KEY); localStorage.removeItem(CHAT_TOKEN_KEY); } catch {}
             const inputEl = document.getElementById('chat-input');
-            const sendBtnEl = document.getElementById('chat-send-btn');
+            const sendBtn = document.getElementById('chat-send-btn');
             if (inputEl) inputEl.disabled = false;
-            if (sendBtnEl) sendBtnEl.disabled = false;
+            if (sendBtn) sendBtn.disabled = false;
             const messagesEl = document.getElementById('chat-messages');
             messagesEl.innerHTML = '';
             chatUpdateScrollBtn();
@@ -6920,15 +6933,13 @@
                 console.error('Chat error:', e);
             } finally {
                 _chatAbortController = null;
-                // Restore UI state first — rendering errors below must not block this.
-                // clearChat() bumps _chatEpoch to invalidate stale streams.
                 if (_chatEpoch === myEpoch) {
                     chatStreaming = false;
                     inputEl.disabled = false;
-                    chatUpdateSendBtn(); // removes is-stopping, restores normal state
+                    chatUpdateSendBtn();
                     inputEl.focus();
                 }
-                removeThinking(); // always clean up — guards against empty/skipped responses
+                removeThinking();
                 if (assistantDiv) {
                     assistantDiv.classList.remove('streaming');
                     if (fullResponse) {

@@ -4,6 +4,7 @@ import os
 import re
 import shutil
 import tempfile
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -127,6 +128,7 @@ def get_file_tree(
 
 def create_app(project: SantaiProject) -> FastAPI:
     """Create and configure the FastAPI application."""
+    startup_token = str(uuid.uuid4())
     app = FastAPI(title=f"Santai - {project.name}")
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
     templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
@@ -185,6 +187,7 @@ def create_app(project: SantaiProject) -> FastAPI:
                 "history": history[:5],  # Show last 5 history entries
                 "notes": notes[:5],  # Show last 5 notes
                 "file_tree": file_tree,
+                "startup_token": startup_token,
             },
         )
 
