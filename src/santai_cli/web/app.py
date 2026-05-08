@@ -700,16 +700,9 @@ def create_app(project: SantaiProject) -> FastAPI:
         "novapro-bedrock": "Nova Pro",
         # Meta Llama via Bedrock
         "llama3.3-bedrock": "Llama 3.3",
-        "llama3.2-1B-bedrock": "Llama 3.2",
-        "llama3.1-bedrock": "Llama 3.1",
         # DeepSeek via Bedrock
         "deepseekr1-bedrock": "DeepSeek R1",
-        # Qwen via Bedrock
-        "qwen3-coder-bedrock": "Qwen3 Coder",
-        # AI21 via Bedrock
-        "jamba.2-bedrock": "Jamba Instruct",
         # xAI Grok
-        "grok2-xai": "Grok 2",
         "grok3-xai": "Grok 3",
         # Google Gemini
         "gemini-flash-2": "Gemini 2.0 Flash",

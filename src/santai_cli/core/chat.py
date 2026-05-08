@@ -24,6 +24,15 @@ _MAX_TOKENS_BY_MODEL: dict[str, int] = {
 }
 _DEFAULT_MAX_TOKENS = 8192
 
+# These Bedrock-backed models reject a leading system-role message.
+# We merge the system prompt into the first user message instead.
+_NO_SYSTEM_ROLE_MODELS: set[str] = {
+    "deepseekr1-bedrock",
+    "llama3.3-bedrock",
+    "novapro-bedrock",
+    "us.amazon.nova-pro-v1:0",
+}
+
 
 def _max_tokens_for_model(model: str) -> int:
     return _MAX_TOKENS_BY_MODEL.get(model, _DEFAULT_MAX_TOKENS)
@@ -426,9 +435,17 @@ async def _stream_openai_with_tools(
     pending_tools: dict[int, dict[str, Any]] = {}
     full_text = ""
 
+    messages = session.to_openai_messages()
+    if model in _NO_SYSTEM_ROLE_MODELS and messages and messages[0]["role"] == "system":
+        system_content = messages.pop(0)["content"]
+        for msg in messages:
+            if msg["role"] == "user":
+                msg["content"] = f"{system_content}\n\n{msg['content']}"
+                break
+
     create_kwargs: dict = {
         "model": model,
-        "messages": session.to_openai_messages(),
+        "messages": messages,
         "stream": True,
         "tools": TOOLS_OPENAI,
     }
