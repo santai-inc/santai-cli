@@ -396,6 +396,14 @@
             color: var(--accent-hover);
         }
 
+        .tree-item.tree-selected {
+            background: var(--accent-light);
+        }
+
+        .tree-item.tree-previewing {
+            background: rgba(0, 0, 0, 0.06);
+        }
+
         .tree-toggle {
             width: 16px;
             height: 16px;
@@ -787,14 +795,44 @@
             opacity: 0.5;
         }
 
-        .tree-item.drag-over,
         .file-item.drag-over {
             background: var(--accent-light);
             outline: 2px dashed var(--accent);
             outline-offset: -2px;
         }
 
-        .tree-item.drag-over.invalid,
+        @keyframes march-ants-stroke {
+            to { stroke-dashoffset: -10; }
+        }
+
+        li.drag-drop-target {
+            position: relative;
+            border-radius: 8px;
+            background-color: var(--accent-light);
+        }
+
+        li.drag-drop-target > .drag-group-svg {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: visible;
+        }
+
+        li.drag-drop-target > .drag-group-svg rect {
+            x: 0.75px;
+            y: 0.75px;
+            width: calc(100% - 1.5px);
+            height: calc(100% - 1.5px);
+            rx: 7px;
+            fill: none;
+            stroke: var(--accent);
+            stroke-width: 1.5;
+            stroke-dasharray: 6 4;
+            animation: march-ants-stroke 0.8s linear infinite;
+        }
+
         .file-item.drag-over.invalid {
             background: rgba(239, 68, 68, 0.1);
             outline-color: #ef4444;
@@ -4088,6 +4126,8 @@
         
         let currentPath = '';
         let selectedItem = null;
+        let selectedItems = new Set(); // paths of multi-selected tree items
+        let lastClickedPath = null;    // anchor for shift-range selection
         let files = [];
         let previewPath = null;
         let previewReturnClusterId = null; // set when a file is opened from a cluster list
@@ -4116,6 +4156,7 @@
                 toggleGraphFullscreen();
             }
             previewPath = path;
+            updateTreePreviewState();
             window.activeClusterId = null;
             const content = document.getElementById('preview-content');
 
@@ -4237,6 +4278,7 @@
 
         function resetPreviewState() {
             previewPath = null;
+            updateTreePreviewState();
             previewReturnClusterId = null;
             window.activeClusterId = null;
             document.getElementById('preview-back-btn').style.display = 'none';
@@ -4824,10 +4866,52 @@
 
         // Move item (drag and drop)
         const protectedPaths = ['codebases', 'history', 'notes', 'resources', 'wiki', 'AGENTS.md', 'CLAUDE.md', 'README.md', 'rumdl.toml'];
-        let draggedItem = null;
+        let draggedItems = null;    // array of { path, name, isDir } for current drag
+        let currentDropGroup = null; // <li> currently highlighted as drop target
 
         function isProtectedPath(path) {
             return protectedPaths.includes(path);
+        }
+
+        function getFlatVisibleTreeItems() {
+            return Array.from(document.querySelectorAll('#tree-view .tree-item'));
+        }
+
+        function updateTreeSelection() {
+            const inMultiSelect = selectedItems.size > 0;
+            document.querySelectorAll('#tree-view .tree-item').forEach(el => {
+                el.classList.toggle('tree-selected', selectedItems.has(el.dataset.path));
+                // Suppress the green folder-active highlight while a multi-select is active
+                if (inMultiSelect) {
+                    el.classList.remove('active');
+                } else if (el.dataset.path === currentPath) {
+                    el.classList.add('active');
+                }
+            });
+            updateTreePreviewState();
+        }
+
+        function updateTreePreviewState() {
+            document.querySelectorAll('#tree-view .tree-item').forEach(el => {
+                el.classList.toggle('tree-previewing', el.dataset.path === previewPath && !selectedItems.has(el.dataset.path));
+            });
+        }
+
+        // Returns the <li> that should receive the drag-drop-target highlight.
+        // For folders: the folder's own <li> (wraps header + children).
+        // For files inside a named folder: that folder's <li>.
+        // For root-level files: just the file's own <li>.
+        function findGroupLi(treeItem, isDir) {
+            const li = treeItem.parentElement;
+            if (!li || li.tagName !== 'LI') return null;
+            if (isDir) return li;
+
+            // File: use the parent folder's <li> (including the root <li> for root-level files)
+            const parentUl = li.parentElement;
+            if (!parentUl) return li;
+            const parentLi = parentUl.parentElement;
+            if (!parentLi || parentLi.tagName !== 'LI') return li;
+            return parentLi;
         }
 
         function handleDragStart(event, path, name, isDir) {
@@ -4835,76 +4919,158 @@
                 event.preventDefault();
                 return;
             }
-            draggedItem = { path, name, isDir };
+            // If this item is part of a multi-selection, drag all selected items
+            if (selectedItems.size > 1 && selectedItems.has(path)) {
+                draggedItems = [];
+                getFlatVisibleTreeItems().forEach(el => {
+                    if (selectedItems.has(el.dataset.path)) {
+                        draggedItems.push({
+                            path: el.dataset.path,
+                            name: el.dataset.path.split('/').pop(),
+                            isDir: el.dataset.isDir === 'true'
+                        });
+                    }
+                });
+            } else {
+                draggedItems = [{ path, name, isDir }];
+            }
             event.target.classList.add('dragging');
             event.dataTransfer.effectAllowed = 'move';
             event.dataTransfer.setData('text/plain', path);
         }
 
+        function applyDropGroupHighlight(li) {
+            li.classList.add('drag-drop-target');
+            const svgNS = 'http://www.w3.org/2000/svg';
+            const svg = document.createElementNS(svgNS, 'svg');
+            svg.classList.add('drag-group-svg');
+            svg.appendChild(document.createElementNS(svgNS, 'rect'));
+            li.insertBefore(svg, li.firstChild);
+        }
+
+        function clearDropGroupHighlight() {
+            if (currentDropGroup) {
+                currentDropGroup.classList.remove('drag-drop-target');
+                const svg = currentDropGroup.querySelector(':scope > .drag-group-svg');
+                if (svg) svg.remove();
+                currentDropGroup = null;
+            }
+        }
+
         function handleDragEnd(event) {
             event.target.classList.remove('dragging');
+            clearDropGroupHighlight();
             document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over', 'invalid'));
-            draggedItem = null;
+            draggedItems = null;
         }
 
         function handleDragOver(event, targetPath, targetIsDir) {
             event.preventDefault();
-            if (!draggedItem || !targetIsDir) return;
+            if (!draggedItems) return;
 
-            // Can't drop onto itself
-            if (draggedItem.path === targetPath) return;
-            // Can't drop into the folder it's already in
-            const currentParent = draggedItem.path.split('/').slice(0, -1).join('/');
-            if (currentParent === targetPath) return;
-            // Can't drop a folder into itself or its descendants
-            if (draggedItem.isDir && (targetPath === draggedItem.path || targetPath.startsWith(draggedItem.path + '/'))) return;
+            // For file targets, drop lands in the file's parent folder
+            const dropFolder = targetIsDir ? targetPath : targetPath.split('/').slice(0, -1).join('/');
+
+            const primary = draggedItems[0];
+            const isNoOp = primary.path === dropFolder
+                || (draggedItems.length === 1 && primary.path.split('/').slice(0, -1).join('/') === dropFolder)
+                || (draggedItems.length === 1 && primary.isDir && (dropFolder === primary.path || dropFolder.startsWith(primary.path + '/')));
+
+            if (isNoOp) {
+                clearDropGroupHighlight();
+                return;
+            }
 
             event.dataTransfer.dropEffect = 'move';
-            event.target.closest('.tree-item, .file-item')?.classList.add('drag-over');
+
+            const treeItem = event.target.closest('#tree-view .tree-item');
+            if (!treeItem) return;
+
+            const groupLi = findGroupLi(treeItem, targetIsDir);
+            if (groupLi !== currentDropGroup) {
+                clearDropGroupHighlight();
+                currentDropGroup = groupLi;
+                if (currentDropGroup) applyDropGroupHighlight(currentDropGroup);
+            }
         }
 
         function handleDragLeave(event) {
-            event.target.closest('.tree-item, .file-item')?.classList.remove('drag-over', 'invalid');
+            // Tree group highlighting is managed by handleDragOver / handleDragEnd.
+            // Only clean up .file-item drag-over (file browser panel).
+            const fileItem = event.target.closest('.file-item');
+            if (fileItem) fileItem.classList.remove('drag-over', 'invalid');
         }
 
         async function handleDrop(event, targetPath, targetIsDir) {
             event.preventDefault();
-            event.target.closest('.tree-item, .file-item')?.classList.remove('drag-over', 'invalid');
+            clearDropGroupHighlight();
 
-            if (!draggedItem || !targetIsDir) return;
-            // Can't drop onto itself
-            if (draggedItem.path === targetPath) return;
-            // Can't drop into the folder it's already in
-            const currentParent = draggedItem.path.split('/').slice(0, -1).join('/');
-            if (currentParent === targetPath) return;
-            // Can't drop a folder into itself or its descendants
-            if (draggedItem.isDir && (targetPath === draggedItem.path || targetPath.startsWith(draggedItem.path + '/'))) return;
+            if (!draggedItems) return;
 
-            // Save item data before async operation (draggedItem gets nulled by handleDragEnd)
-            const itemPath = draggedItem.path;
-            const itemName = draggedItem.name;
+            // For file targets, drop lands in the file's parent folder
+            const dropFolder = targetIsDir ? targetPath : targetPath.split('/').slice(0, -1).join('/');
 
-            try {
-                const res = await fetch('/api/files/move', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        source_path: itemPath,
-                        target_folder: targetPath
-                    })
-                });
-
-                if (!res.ok) {
-                    const err = await res.json();
-                    throw new Error(err.detail || 'Failed to move');
-                }
-
-                showToast(`Moved "${itemName}" to ${targetPath || 'root'}`);
-                loadFiles(currentPath);
-                loadTree();
-            } catch (err) {
-                showToast(err.message, true);
+            const primary = draggedItems[0];
+            if (primary.path === dropFolder) return;
+            if (draggedItems.length === 1) {
+                const currentParent = primary.path.split('/').slice(0, -1).join('/');
+                if (currentParent === dropFolder) return;
+                if (primary.isDir && (dropFolder === primary.path || dropFolder.startsWith(primary.path + '/'))) return;
             }
+
+            // Save items before async (draggedItems gets nulled by handleDragEnd)
+            const items = draggedItems.slice();
+
+            // Filter to moveable items — skip protected top-level paths so files
+            // inside locked folders (notes/*, wiki/*, etc.) still move correctly
+            const moveable = items.filter(item => !isProtectedPath(item.path));
+            if (moveable.length === 0) return;
+
+            if (moveable.length === 1) {
+                const item = moveable[0];
+                try {
+                    const res = await fetch('/api/files/move', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ source_path: item.path, target_folder: dropFolder })
+                    });
+                    if (!res.ok) {
+                        const err = await res.json();
+                        throw new Error(err.detail || 'Failed to move');
+                    }
+                    showToast(`Moved "${item.name}" to ${dropFolder || 'root'}`);
+                } catch (err) {
+                    showToast(err.message, true);
+                    return;
+                }
+            } else {
+                const results = await Promise.allSettled(moveable.map(item =>
+                    fetch('/api/files/move', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ source_path: item.path, target_folder: dropFolder })
+                    }).then(async res => {
+                        if (!res.ok) {
+                            const err = await res.json();
+                            throw new Error(err.detail || 'Failed to move');
+                        }
+                        return res;
+                    })
+                ));
+                const succeeded = results.filter(r => r.status === 'fulfilled').length;
+                const failed = results.filter(r => r.status === 'rejected');
+                if (succeeded > 0) {
+                    showToast(`Moved ${succeeded} item${succeeded !== 1 ? 's' : ''} to ${dropFolder || 'root'}`);
+                }
+                if (failed.length > 0) {
+                    showToast(failed[0].reason?.message || 'Some items failed to move', true);
+                }
+            }
+
+            selectedItems.clear();
+            updateTreeSelection();
+            loadFiles(currentPath);
+            loadTree();
         }
 
         async function confirmRename() {
@@ -5064,7 +5230,7 @@
         document.addEventListener('dragover', (e) => {
             e.preventDefault();
             // Only show drop zone for external file drags, not internal moves
-            if (!draggedItem) {
+            if (!draggedItems) {
                 document.getElementById('drop-zone').classList.add('show');
             }
         });
@@ -5080,7 +5246,7 @@
             document.getElementById('drop-zone').classList.remove('show');
 
             // Only handle file uploads if not an internal drag
-            if (!draggedItem && e.dataTransfer.files.length > 0) {
+            if (!draggedItems && e.dataTransfer.files.length > 0) {
                 const files = e.dataTransfer.files;
                 for (const file of files) {
                     await uploadFile(file);
@@ -5333,15 +5499,19 @@
 
             // Tree item
             const canDrag = node.path && !isProtected;
-            html += `<div class="tree-item${isActive ? ' active' : ''}"
+            const isSelected = selectedItems.has(node.path);
+            const isPreviewing = !isSelected && node.path === previewPath;
+            // Suppress folder-active green while a multi-selection is in progress
+            const showActive = isActive && selectedItems.size === 0;
+            html += `<div class="tree-item${showActive ? ' active' : ''}${isSelected ? ' tree-selected' : ''}${isPreviewing ? ' tree-previewing' : ''}"
                          data-path="${node.path}"
                          data-is-dir="${node.is_dir}"
                          ${canDrag ? 'draggable="true"' : ''}
                          ${canDrag ? `ondragstart="handleDragStart(event, '${node.path}', '${node.name}', ${node.is_dir})"` : ''}
                          ondragend="handleDragEnd(event)"
-                         ${node.is_dir ? `ondragover="handleDragOver(event, '${node.path}', true)"` : ''}
-                         ${node.is_dir ? `ondragleave="handleDragLeave(event)"` : ''}
-                         ${node.is_dir ? `ondrop="handleDrop(event, '${node.path}', true)"` : ''}
+                         ondragover="handleDragOver(event, '${node.path}', ${node.is_dir})"
+                         ondragleave="handleDragLeave(event)"
+                         ondrop="handleDrop(event, '${node.path}', ${node.is_dir})"
                          onclick="handleTreeClick(event, '${node.path}', ${node.is_dir}, ${hasChildren})"
                          ondblclick="handleTreeDblClick(event, '${node.path}', ${node.is_dir})">`;
 
@@ -5471,6 +5641,47 @@
             // Don't do anything if clicking on toggle (it handles itself)
             if (event.target.closest('.tree-toggle')) return;
 
+            if (event.shiftKey) {
+                // Use last clicked item as anchor; fall back to the currently-previewed file
+                const anchor = lastClickedPath || previewPath;
+                if (anchor) {
+                    const items = getFlatVisibleTreeItems();
+                    const fromIdx = items.findIndex(el => el.dataset.path === anchor);
+                    const toIdx = items.findIndex(el => el.dataset.path === path);
+                    if (fromIdx !== -1 && toIdx !== -1) {
+                        const [start, end] = fromIdx <= toIdx ? [fromIdx, toIdx] : [toIdx, fromIdx];
+                        selectedItems = new Set(items.slice(start, end + 1).map(el => el.dataset.path));
+                    } else {
+                        selectedItems.add(path);
+                    }
+                } else {
+                    selectedItems.add(path);
+                }
+                updateTreeSelection();
+                return;
+            }
+
+            if (event.metaKey || event.ctrlKey) {
+                // When starting a fresh selection, automatically include the previewed file
+                if (selectedItems.size === 0 && previewPath) {
+                    selectedItems.add(previewPath);
+                }
+                // Toggle the clicked item in/out of selection
+                if (selectedItems.has(path)) {
+                    selectedItems.delete(path);
+                } else {
+                    selectedItems.add(path);
+                }
+                lastClickedPath = path;
+                updateTreeSelection();
+                return;
+            }
+
+            // Regular click: clear multi-selection
+            selectedItems.clear();
+            lastClickedPath = path;
+            updateTreeSelection();
+
             if (isDir) {
                 if (hasChildren) {
                     // Non-empty folder: single click just toggles expand/collapse
@@ -5505,6 +5716,8 @@
 
         // Update tree active state when path changes
         function updateTreeActiveState() {
+            // Don't restore the active indicator while a multi-select is in progress
+            if (selectedItems.size > 0) return;
             document.querySelectorAll('.tree-item').forEach(item => {
                 if (item.dataset.path === currentPath) {
                     item.classList.add('active');
