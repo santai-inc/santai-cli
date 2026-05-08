@@ -8,11 +8,7 @@ of all files and content in the repository.
 from dataclasses import dataclass
 from pathlib import Path
 
-from santai_cli.core.project import (
-    SantaiProject,
-    get_history_entries,
-    get_notes,
-)
+from santai_cli.core.project import SantaiProject
 
 
 @dataclass
@@ -21,9 +17,6 @@ class RepoContext:
 
     project: SantaiProject
     file_tree: str
-    wiki_content: str
-    notes_content: str
-    history_content: str
     resources_summary: str
 
 
@@ -64,77 +57,6 @@ def _build_file_tree(root: Path, max_depth: int = 4) -> str:
 
     lines.extend(_walk(root))
     return "\n".join(lines)
-
-
-def _format_wiki_content(project: SantaiProject, max_entries: int = 10) -> str:
-    """Format wiki entries for context.
-
-    Args:
-        project: The Santai project.
-        max_entries: Maximum number of wiki entries to include.
-
-    Returns:
-        Formatted wiki content string.
-    """
-    wiki_path = project.wiki_path
-    if not wiki_path.is_dir():
-        return ""
-
-    entries = []
-    for file_path in sorted(wiki_path.glob("*.md"))[:max_entries]:
-        try:
-            content = file_path.read_text(encoding="utf-8")
-            title = file_path.stem.replace("-", " ").replace("_", " ").title()
-            entries.append(f"## {title}\n{content}\n")
-        except (OSError, UnicodeDecodeError):
-            continue
-
-    if not entries:
-        return ""
-
-    return f"## Wiki Content\n\n{'=' * 40}\n\n" + "\n\n".join(entries)
-
-
-def _format_notes_content(project: SantaiProject, max_entries: int = 10) -> str:
-    """Format note entries for context.
-
-    Args:
-        project: The Santai project.
-        max_entries: Maximum number of notes to include.
-
-    Returns:
-        Formatted notes content string.
-    """
-    notes = get_notes(project)
-    if not notes:
-        return ""
-
-    entries = []
-    for note in notes[:max_entries]:
-        entries.append(f"## {note.title}\n{note.content}\n")
-
-    return f"## Notes\n\n{'=' * 40}\n\n" + "\n\n".join(entries)
-
-
-def _format_history_content(project: SantaiProject, max_entries: int = 10) -> str:
-    """Format history entries for context.
-
-    Args:
-        project: The Santai project.
-        max_entries: Maximum number of history entries to include.
-
-    Returns:
-        Formatted history content string.
-    """
-    history = get_history_entries(project)
-    if not history:
-        return ""
-
-    entries = []
-    for entry in history[:max_entries]:
-        entries.append(f"## {entry.title} ({entry.date})\n{entry.content}\n")
-
-    return f"## History\n\n{'=' * 40}\n\n" + "\n\n".join(entries)
 
 
 def _get_resources_summary(project: SantaiProject) -> str:
@@ -178,9 +100,6 @@ def build_repo_context(project: SantaiProject) -> RepoContext:
     This function scans the project directory and generates structured
     context including:
     - File tree structure
-    - Wiki content (most recent entries)
-    - Notes content (most recent entries)
-    - History content (most recent entries)
     - Resources summary
 
     Args:
@@ -192,9 +111,6 @@ def build_repo_context(project: SantaiProject) -> RepoContext:
     return RepoContext(
         project=project,
         file_tree=_build_file_tree(project.root),
-        wiki_content=_format_wiki_content(project),
-        notes_content=_format_notes_content(project),
-        history_content=_format_history_content(project),
         resources_summary=_get_resources_summary(project),
     )
 
@@ -216,21 +132,12 @@ def build_repo_context_prompt(context: RepoContext) -> str:
         "",
         (
             "You have access to this Santai project. "
-            "Below is its structure and key content:"
+            "Below is its structure — use read_file to get the contents of any file."
         ),
         "",
         "### File Tree",
         f"```\n{context.file_tree}\n```",
     ]
-
-    if context.wiki_content:
-        sections.extend(["", context.wiki_content])
-
-    if context.notes_content:
-        sections.extend(["", context.notes_content])
-
-    if context.history_content:
-        sections.extend(["", context.history_content])
 
     if context.resources_summary:
         sections.extend(["", context.resources_summary])
@@ -239,10 +146,10 @@ def build_repo_context_prompt(context: RepoContext) -> str:
         [
             "",
             "## Important Guidelines",
-            "- You have full visibility into this project's structure and content.",
-            "- When answering questions, reference relevant files and content.",
+            "- You can see the file tree above, but you do NOT have the file contents in context.",
+            "- IMPORTANT: Whenever a user asks a question that could be answered by a file in this project (notes, wiki, resources, codebases, or any other file), you MUST call read_file to read the relevant file(s) before answering. Never answer knowledge-base questions from memory — always fetch fresh content with the tool.",
+            "- If multiple files might be relevant, read each one before responding.",
             "- Use [[wikilinks]] or markdown links when referencing project files.",
-            "- IMPORTANT: When a user asks you to summarize, analyze, or answer questions about a specific file, ALWAYS call read_file first to get the full contents. Never answer from memory or the file tree alone — use the tool.",
             "- IMPORTANT: If a read_file result includes 'truncated: true', the file was cut off. Acknowledge this to the user rather than treating the partial content as complete.",
         ]
     )
