@@ -27,8 +27,6 @@ _DEFAULT_MAX_TOKENS = 8192
 # These Bedrock-backed models reject a leading system-role message.
 # We merge the system prompt into the first user message instead.
 _NO_SYSTEM_ROLE_MODELS: set[str] = {
-    "deepseekr1-bedrock",
-    "llama3.3-bedrock",
     "novapro-bedrock",
     "us.amazon.nova-pro-v1:0",
 }
@@ -436,12 +434,17 @@ async def _stream_openai_with_tools(
     full_text = ""
 
     messages = session.to_openai_messages()
-    if model in _NO_SYSTEM_ROLE_MODELS and messages and messages[0]["role"] == "system":
-        system_content = messages.pop(0)["content"]
-        for msg in messages:
-            if msg["role"] == "user":
-                msg["content"] = f"{system_content}\n\n{msg['content']}"
-                break
+    if model in _NO_SYSTEM_ROLE_MODELS:
+        # Merge system prompt into first user message
+        if messages and messages[0]["role"] == "system":
+            system_content = messages.pop(0)["content"]
+            for msg in messages:
+                if msg["role"] == "user":
+                    msg["content"] = f"{system_content}\n\n{msg['content']}"
+                    break
+        # Strip any leading non-user messages (e.g. assistant greeting)
+        while messages and messages[0]["role"] != "user":
+            messages.pop(0)
 
     create_kwargs: dict = {
         "model": model,

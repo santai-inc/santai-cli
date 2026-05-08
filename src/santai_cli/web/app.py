@@ -675,6 +675,17 @@ def create_app(project: SantaiProject) -> FastAPI:
 
     # === Chat API Endpoints ===
 
+    # Models to never show in the dropdown regardless of what the proxy returns.
+    _BLOCKED_MODELS: set[str] = {
+        "deepseekr1-bedrock",  # fakes tool calls as plain text
+        "llama3.3-bedrock",  # fakes tool calls as plain text
+        "llama3.1-bedrock",  # no tool use in streaming mode
+        "llama3.2-1B-bedrock",  # no tool use in streaming mode
+        "qwen3-coder-bedrock",  # invalid model identifier
+        "jamba.2-bedrock",  # deprecated
+        "grok2-xai",  # deprecated
+    }
+
     _MODEL_DISPLAY_NAMES: dict[str, str] = {
         # Direct Anthropic models
         "claude-opus-4-7": "Claude Opus 4.7",
@@ -698,10 +709,6 @@ def create_app(project: SantaiProject) -> FastAPI:
         # Amazon
         "us.amazon.nova-pro-v1:0": "Nova Pro",
         "novapro-bedrock": "Nova Pro",
-        # Meta Llama via Bedrock
-        "llama3.3-bedrock": "Llama 3.3",
-        # DeepSeek via Bedrock
-        "deepseekr1-bedrock": "DeepSeek R1",
         # xAI Grok
         "grok3-xai": "Grok 3",
         # Google Gemini
@@ -827,6 +834,8 @@ def create_app(project: SantaiProject) -> FastAPI:
                 model_list = provider_config.available_models
 
             for model_name in model_list:
+                if model_name in _BLOCKED_MODELS:
+                    continue
                 is_default = model_name == provider_config.model
                 models.append(
                     {
