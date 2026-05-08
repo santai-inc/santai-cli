@@ -805,15 +805,29 @@ def create_app(project: SantaiProject) -> FastAPI:
         model list dynamically from the proxy's /v1/models endpoint instead
         of using the hardcoded AVAILABLE_MODELS list.
         """
+        import anthropic as _anthropic
         import httpx
+        import openai as _openai
 
         from santai_cli.core.config import load_config
+
+        # Chat-model prefixes to keep from the OpenAI /v1/models response.
+        # Excludes embeddings, TTS, Whisper, DALL-E, legacy completions, etc.
+        _OPENAI_CHAT_PREFIXES = (
+            "gpt-4",
+            "gpt-3.5-turbo",
+            "o1",
+            "o3",
+            "o4",
+            "chatgpt-4o",
+            "gpt-5",
+        )
 
         config = load_config(project.root)
         models: list[dict[str, str | bool]] = []
         for provider_name, provider_config in config.providers.items():
             if provider_config.base_url:
-                # Fetch model list from proxy
+                # Fetch model list from LiteLLM proxy
                 proxy_models: list[str] = []
                 try:
                     base = provider_config.base_url.rstrip("/")
@@ -830,6 +844,27 @@ def create_app(project: SantaiProject) -> FastAPI:
                 except Exception:
                     pass
                 model_list = proxy_models or [provider_config.model]
+            elif provider_name == "anthropic":
+                try:
+                    ac = _anthropic.AsyncAnthropic(api_key=provider_config.api_key)
+                    page = await ac.models.list(limit=100)
+                    model_list = [m.id for m in page.data]
+                except Exception:
+                    model_list = provider_config.available_models
+            elif provider_name == "openai":
+                try:
+                    oc = _openai.AsyncOpenAI(api_key=provider_config.api_key)
+                    page = await oc.models.list()
+                    model_list = sorted(
+                        [
+                            m.id
+                            for m in page.data
+                            if m.id.startswith(_OPENAI_CHAT_PREFIXES)
+                        ],
+                        reverse=True,
+                    )
+                except Exception:
+                    model_list = provider_config.available_models
             else:
                 model_list = provider_config.available_models
 
