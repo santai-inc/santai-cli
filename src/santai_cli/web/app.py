@@ -691,9 +691,9 @@ def create_app(project: SantaiProject) -> FastAPI:
         "claude-opus-4-7": "Claude Opus 4.7",
         "claude-sonnet-4-6": "Claude Sonnet 4.6",
         "claude-haiku-4-5-20251001": "Claude Haiku 4.5",
-        "claude-3-7-sonnet-20250219": "Claude 3.7 Sonnet",
-        "claude-3-5-sonnet-20241022": "Claude 3.5 Sonnet",
-        "claude-3-5-haiku-20241022": "Claude 3.5 Haiku",
+        "claude-3-7-sonnet-20250219": "Claude Sonnet 3.7",
+        "claude-3-5-sonnet-20241022": "Claude Sonnet 3.5",
+        "claude-3-5-haiku-20241022": "Claude Haiku 3.5",
         # Anthropic via direct API
         "anthropic-4.5": "Claude Sonnet 4.5",
         # Anthropic via Bedrock
@@ -722,7 +722,13 @@ def create_app(project: SantaiProject) -> FastAPI:
         "gpt-4.1": "GPT-4.1",
         "gpt-4.1-mini": "GPT-4.1 mini",
         "gpt-4.1-nano": "GPT-4.1 nano",
+        "chatgpt-4o-latest": "GPT-4o",
+        "o1": "o1",
+        "o1-mini": "o1-mini",
+        "o1-preview": "o1-preview",
+        "o3": "o3",
         "o3-mini": "o3-mini",
+        "o4-mini": "o4-mini",
         # OpenAI (via proxy)
         "gpt-5big-santai": "GPT-5",
         "gpt-5.4-santai": "GPT-5.4",
@@ -740,13 +746,21 @@ def create_app(project: SantaiProject) -> FastAPI:
         """Convert a raw model ID to a human-readable label.
 
         e.g. 'anthropic-claude-bedrock4.5-haiku'  -> 'Claude Haiku 4.5'
-             'anthropic-claude-bedrock4.6opus'     -> 'Claude Opus 4.6'
+             'claude-3-5-haiku-20241022'           -> 'Claude 3.5 Haiku'
+             'claude-3-7-sonnet-20250219'          -> 'Claude 3.7 Sonnet'
              'gemini-2.5-pro'                      -> 'Gemini 2.5 Pro'
              'llama3.1-70b'                        -> 'Llama 3.1 70b'
              'us.amazon.nova-pro-v1:0'             -> 'Nova Pro'
         """
         # Drop trailing revision suffixes like :0
         model_id = re.sub(r":\d+$", "", model_id)
+        # Strip trailing 8-digit release dates (e.g. -20241022, -20250219)
+        model_id = re.sub(r"-\d{8}$", "", model_id)
+        # Strip trailing YYYY-MM-DD dates (e.g. -2024-11-20)
+        model_id = re.sub(r"-\d{4}-\d{2}-\d{2}$", "", model_id)
+        # Strip trailing -latest alias
+        model_id = re.sub(r"-latest$", "", model_id)
+
         # Split on hyphens/underscores, then expand dot-namespaced word segments
         # (e.g. 'us.amazon.nova') but keep decimal versions ('2.5') and
         # alpha+version segments ('llama3.1') intact.
@@ -761,8 +775,26 @@ def create_app(project: SantaiProject) -> FastAPI:
             else:
                 raw_parts.append(seg)
 
+        # Collapse consecutive single-digit numeric tokens into a dotted version.
+        # e.g. ['claude', '3', '5', 'haiku'] -> ['claude', '3.5', 'haiku']
+        collapsed: list[str] = []
+        i = 0
+        while i < len(raw_parts):
+            if (
+                re.fullmatch(r"\d", raw_parts[i])
+                and i + 1 < len(raw_parts)
+                and re.fullmatch(r"\d+", raw_parts[i + 1])
+            ):
+                collapsed.append(f"{raw_parts[i]}.{raw_parts[i + 1]}")
+                i += 2
+            else:
+                collapsed.append(raw_parts[i])
+                i += 1
+        raw_parts = collapsed
+
         words: list[str] = []
         trailing_versions: list[str] = []
+        is_claude = raw_parts and raw_parts[0].lower() == "claude"
         for part in raw_parts:
             if not part:
                 continue
@@ -776,9 +808,13 @@ def create_app(project: SantaiProject) -> FastAPI:
                 if bm.group(2):
                     words.append(bm.group(2).capitalize())
                 continue
-            # Pure version/numeric segment like '4.5', '70b', 'v1' — keep in position
+            # Pure version/numeric segment — for Claude IDs push to end so the
+            # family word comes first: "Claude Haiku 3.5" not "Claude 3.5 Haiku"
             if re.match(r"^v?\d", low):
-                words.append(part)
+                if is_claude:
+                    trailing_versions.append(part)
+                else:
+                    words.append(part)
                 continue
             # Alpha prefix glued to version, e.g. 'llama3.1', 'gpt4o'
             am = re.match(r"^([a-zA-Z]+)(\d.*)$", part)
@@ -860,6 +896,8 @@ def create_app(project: SantaiProject) -> FastAPI:
                             m.id
                             for m in page.data
                             if m.id.startswith(_OPENAI_CHAT_PREFIXES)
+                            # Exclude dated snapshots like gpt-4o-2024-11-20
+                            and not re.search(r"-\d{4}-\d{2}-\d{2}$", m.id)
                         ],
                         reverse=True,
                     )
