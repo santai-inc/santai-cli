@@ -17,6 +17,18 @@ import openai
 
 from santai_cli.core.config import ProviderConfig
 
+# Models with output-token limits below the default
+_MAX_TOKENS_BY_MODEL: dict[str, int] = {
+    "claude-3-5-haiku-20241022": 8192,
+    "claude-3-5-sonnet-20241022": 8192,
+}
+_DEFAULT_MAX_TOKENS = 8192
+
+
+def _max_tokens_for_model(model: str) -> int:
+    return _MAX_TOKENS_BY_MODEL.get(model, _DEFAULT_MAX_TOKENS)
+
+
 TOOLS = [
     {
         "name": "write_file",
@@ -314,7 +326,9 @@ async def stream_response(
                 session, provider_config.api_key, target_model, provider_config.base_url
             )
         else:
-            raise ValueError(f"Unknown provider: {provider}")
+            text, tool_calls = await _stream_openai_with_tools(
+                session, provider_config.api_key, target_model, provider_config.base_url
+            )
 
         if not tool_calls:
             if text:
@@ -323,8 +337,10 @@ async def stream_response(
 
         results = []
         for tool_call in tool_calls:
+            tool_name = tool_call.get("name", "unknown")
+            yield {"event": "tool_call", "name": tool_name}
             result = execute_tool(tool_call, session.project_root)
-            results.append((tool_call.get("name", "unknown"), tool_call, result))
+            results.append((tool_name, tool_call, result))
             tool_name = tool_call.get("name", "")
             if tool_name in ("write_file", "move"):
                 try:
@@ -356,7 +372,7 @@ async def _stream_anthropic_with_tools(
 
     kwargs: dict = {
         "model": model,
-        "max_tokens": 4096,
+        "max_tokens": _max_tokens_for_model(model),
         "messages": session.to_anthropic_messages(),
         "tools": TOOLS,
     }
@@ -410,13 +426,16 @@ async def _stream_openai_with_tools(
     pending_tools: dict[int, dict[str, Any]] = {}
     full_text = ""
 
-    stream = await client.chat.completions.create(
-        model=model,
-        messages=session.to_openai_messages(),
-        max_tokens=4096,
-        stream=True,
-        tools=TOOLS_OPENAI,  # type: ignore[arg-type]
-    )
+    create_kwargs: dict = {
+        "model": model,
+        "messages": session.to_openai_messages(),
+        "stream": True,
+        "tools": TOOLS_OPENAI,
+    }
+    # Don't impose a max_tokens cap for proxy providers — they enforce their own limits.
+    if not base_url:
+        create_kwargs["max_tokens"] = _max_tokens_for_model(model)
+    stream = await client.chat.completions.create(**create_kwargs)  # type: ignore[arg-type]
 
     async for chunk in stream:
         if chunk.choices and chunk.choices[0].delta:
@@ -521,10 +540,11 @@ def _tool_read_file(tool_call: dict[str, Any], project_root: Path | None) -> str
         return f"Error: {e}"
     try:
         content = path.read_text(encoding="utf-8")
-        max_len = 10000
+        max_len = 100000
         if len(content) > max_len:
             content = (
-                content[:max_len] + f"\n... (truncated, {len(content)} total bytes)"
+                content[:max_len]
+                + f"\n... (truncated: true, showed {max_len} of {len(content)} total bytes — use read_file with start_line/end_line to read a specific range)"
             )
         return content
     except Exception as e:
@@ -696,48 +716,3 @@ def get_response_sync(
 ) -> str:
     """Synchronous wrapper around get_response for non-async contexts."""
     return asyncio.run(get_response(session, provider, provider_config, model))
-
-
-async def _stream_anthropic(
-    session: ChatSession,
-    api_key: str,
-    model: str,
-) -> AsyncGenerator[str, None]:
-    """Stream a response from the Anthropic API (legacy, unused)."""
-    client = anthropic.AsyncAnthropic(api_key=api_key)
-
-    kwargs: dict = {
-        "model": model,
-        "max_tokens": 4096,
-        "messages": session.to_anthropic_messages(),
-    }
-    if session.system_prompt:
-        kwargs["system"] = session.system_prompt
-
-    async with client.messages.stream(**kwargs) as stream:  # type: ignore[union-attr]
-        async for text in stream.text_stream:  # type: ignore[union-attr]
-            yield text
-
-
-async def _stream_openai(
-    session: ChatSession,
-    api_key: str,
-    model: str,
-    base_url: str | None = None,
-) -> AsyncGenerator[str, None]:
-    """Stream a response from the OpenAI API (legacy, unused)."""
-    client_kwargs: dict = {"api_key": api_key}
-    if base_url:
-        client_kwargs["base_url"] = base_url
-    client = openai.AsyncOpenAI(**client_kwargs)  # type: ignore[arg-type]
-
-    stream = await client.chat.completions.create(  # type: ignore[call-overload]
-        model=model,
-        messages=session.to_openai_messages(),
-        max_tokens=4096,
-        stream=True,
-    )
-
-    async for chunk in stream:
-        if chunk.choices and chunk.choices[0].delta.content:
-            yield chunk.choices[0].delta.content

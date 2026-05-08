@@ -1,8 +1,10 @@
 """FastAPI web application for Santai."""
 
 import os
+import re
 import shutil
 import tempfile
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -126,6 +128,7 @@ def get_file_tree(
 
 def create_app(project: SantaiProject) -> FastAPI:
     """Create and configure the FastAPI application."""
+    startup_token = str(uuid.uuid4())
     app = FastAPI(title=f"Santai - {project.name}")
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
     templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
@@ -184,6 +187,7 @@ def create_app(project: SantaiProject) -> FastAPI:
                 "history": history[:5],  # Show last 5 history entries
                 "notes": notes[:5],  # Show last 5 notes
                 "file_tree": file_tree,
+                "startup_token": startup_token,
             },
         )
 
@@ -671,6 +675,128 @@ def create_app(project: SantaiProject) -> FastAPI:
 
     # === Chat API Endpoints ===
 
+    _MODEL_DISPLAY_NAMES: dict[str, str] = {
+        # Direct Anthropic models
+        "claude-opus-4-7": "Claude Opus 4.7",
+        "claude-sonnet-4-6": "Claude Sonnet 4.6",
+        "claude-haiku-4-5-20251001": "Claude Haiku 4.5",
+        "claude-3-7-sonnet-20250219": "Claude 3.7 Sonnet",
+        "claude-3-5-sonnet-20241022": "Claude 3.5 Sonnet",
+        "claude-3-5-haiku-20241022": "Claude 3.5 Haiku",
+        # Anthropic via direct API
+        "anthropic-4.5": "Claude Sonnet 4.5",
+        # Anthropic via Bedrock
+        "anthropic-claude-bedrock4.5": "Claude Sonnet 4.5",
+        "anthropic-claude-bedrock4.6": "Claude Sonnet 4.6",
+        "anthropic-claude-bedrock4.6opus": "Claude Opus 4.6",
+        "anthropic-claude-bedrock4.7opus": "Claude Opus 4.7",
+        "anthropic-claude-bedrock4.5-haiku": "Claude Haiku 4.5",
+        "anthropic-claude-opus-4.5-bedrock": "Claude Opus 4.5",
+        # These config names are outdated — both point to Sonnet 4.5 in the proxy
+        "anthropic-claude-bedrock4.0": "Claude Sonnet 4.5",
+        "anthropic-claude-bedrock3.7": "Claude Sonnet 4.5",
+        # Amazon
+        "us.amazon.nova-pro-v1:0": "Nova Pro",
+        "novapro-bedrock": "Nova Pro",
+        # Meta Llama via Bedrock
+        "llama3.3-bedrock": "Llama 3.3",
+        "llama3.2-1B-bedrock": "Llama 3.2",
+        "llama3.1-bedrock": "Llama 3.1",
+        # DeepSeek via Bedrock
+        "deepseekr1-bedrock": "DeepSeek R1",
+        # Qwen via Bedrock
+        "qwen3-coder-bedrock": "Qwen3 Coder",
+        # AI21 via Bedrock
+        "jamba.2-bedrock": "Jamba Instruct",
+        # xAI Grok
+        "grok2-xai": "Grok 2",
+        "grok3-xai": "Grok 3",
+        # Google Gemini
+        "gemini-flash-2": "Gemini 2.0 Flash",
+        "gemini-3": "Gemini 3 Pro Preview",
+        # Moonshot AI
+        "Kimi-K2.5": "Kimi K2.5",
+        # OpenAI (direct)
+        "gpt-4o": "GPT-4o",
+        "gpt-4o-mini": "GPT-4o mini",
+        "gpt-4.1": "GPT-4.1",
+        "gpt-4.1-mini": "GPT-4.1 mini",
+        "gpt-4.1-nano": "GPT-4.1 nano",
+        "o3-mini": "o3-mini",
+        # OpenAI (via proxy)
+        "gpt-5big-santai": "GPT-5",
+        "gpt-5.4-santai": "GPT-5.4",
+        "gpt-5mini-santai": "GPT-5 Mini",
+        "gpt-5.5": "GPT-5.5",
+        "gpt-5.5-pro": "GPT-5.5 Pro",
+    }
+
+    # Words that should render as uppercase acronyms
+    _ACRONYMS = {"gpt", "xai", "ai", "llm", "aws", "us"}
+    # Segments to drop entirely (provider noise)
+    _NOISE = {"anthropic", "bedrock", "amazon"}
+
+    def _prettify_model_id(model_id: str) -> str:
+        """Convert a raw model ID to a human-readable label.
+
+        e.g. 'anthropic-claude-bedrock4.5-haiku'  -> 'Claude Haiku 4.5'
+             'anthropic-claude-bedrock4.6opus'     -> 'Claude Opus 4.6'
+             'gemini-2.5-pro'                      -> 'Gemini 2.5 Pro'
+             'llama3.1-70b'                        -> 'Llama 3.1 70b'
+             'us.amazon.nova-pro-v1:0'             -> 'Nova Pro'
+        """
+        # Drop trailing revision suffixes like :0
+        model_id = re.sub(r":\d+$", "", model_id)
+        # Split on hyphens/underscores, then expand dot-namespaced word segments
+        # (e.g. 'us.amazon.nova') but keep decimal versions ('2.5') and
+        # alpha+version segments ('llama3.1') intact.
+        raw_parts: list[str] = []
+        for seg in re.split(r"[-_]", model_id):
+            if (
+                "." in seg
+                and not re.match(r"^(v?\d|bedrock)", seg, re.IGNORECASE)
+                and not re.search(r"\d\.", seg)  # skip if digit precedes dot (version)
+            ):
+                raw_parts.extend(seg.split("."))
+            else:
+                raw_parts.append(seg)
+
+        words: list[str] = []
+        trailing_versions: list[str] = []
+        for part in raw_parts:
+            if not part:
+                continue
+            low = part.lower()
+            if low in _NOISE:
+                continue
+            # 'bedrock4.5', 'bedrock4.6opus' → trailing version + optional word suffix
+            bm = re.match(r"^bedrock([\d.]+)([a-zA-Z]*)$", part, re.IGNORECASE)
+            if bm:
+                trailing_versions.append(bm.group(1))
+                if bm.group(2):
+                    words.append(bm.group(2).capitalize())
+                continue
+            # Pure version/numeric segment like '4.5', '70b', 'v1' — keep in position
+            if re.match(r"^v?\d", low):
+                words.append(part)
+                continue
+            # Alpha prefix glued to version, e.g. 'llama3.1', 'gpt4o'
+            am = re.match(r"^([a-zA-Z]+)(\d.*)$", part)
+            if am:
+                prefix, ver = am.group(1), am.group(2)
+                words.append(
+                    prefix.upper()
+                    if prefix.lower() in _ACRONYMS
+                    else prefix.capitalize()
+                )
+                words.append(ver)
+                continue
+            if low in _ACRONYMS:
+                words.append(part.upper())
+            else:
+                words.append(part.capitalize())
+        return " ".join(words + trailing_versions)
+
     @app.get("/api/chat/models")
     async def chat_models() -> dict[str, Any]:
         """Return available AI models based on configured API keys.
@@ -714,10 +840,21 @@ def create_app(project: SantaiProject) -> FastAPI:
                         "provider": provider_name,
                         "provider_display": provider_config.name,
                         "model": model_name,
+                        "display": _MODEL_DISPLAY_NAMES.get(model_name)
+                        or _prettify_model_id(model_name),
                         "default": is_default,
                     }
                 )
-        return {"models": models, "configured": config.has_any_provider}
+
+        # Deduplicate by display name — keep the first occurrence of each label.
+        seen: set[str] = set()
+        deduped: list[dict[str, str | bool]] = []
+        for m in models:
+            if m["display"] not in seen:
+                seen.add(m["display"])
+                deduped.append(m)
+        deduped.sort(key=lambda m: m["display"].lower())
+        return {"models": deduped, "configured": config.has_any_provider}
 
     @app.get("/api/chat/agents")
     async def chat_agents() -> dict[str, Any]:
@@ -775,9 +912,17 @@ def create_app(project: SantaiProject) -> FastAPI:
                     session, req.provider, provider_config, req.model
                 ):
                     if isinstance(chunk, dict):
-                        data = json.dumps(
-                            {"type": "file_written", "path": chunk["path"]}
-                        )
+                        evt = chunk.get("event", "")
+                        if evt == "file_written":
+                            data = json.dumps(
+                                {"type": "file_written", "path": chunk["path"]}
+                            )
+                        elif evt == "tool_call":
+                            data = json.dumps(
+                                {"type": "tool_call", "name": chunk["name"]}
+                            )
+                        else:
+                            continue
                     else:
                         data = json.dumps({"type": "chunk", "content": chunk})
                     yield f"data: {data}\n\n"
