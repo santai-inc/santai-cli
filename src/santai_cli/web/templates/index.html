@@ -569,8 +569,75 @@
             gap: 8px;
         }
 
-        .actions .btn-upload {
+        .btn-upload-split {
             grid-column: 1 / -1;
+            position: relative;
+            display: flex;
+            gap: 1px;
+        }
+
+        .btn-upload-split .btn-upload-main {
+            flex: 1;
+            border-radius: 12px 0 0 12px;
+            justify-content: center;
+            transition: border-radius 0.1s;
+        }
+
+        .btn-upload-split .btn-upload-caret {
+            padding: 10px 10px;
+            border-radius: 0 12px 12px 0;
+            border-left: 1px solid rgba(255,255,255,0.3);
+            transition: border-radius 0.1s;
+        }
+
+        .btn-upload-split .btn-upload-caret svg {
+            transition: transform 0.2s ease;
+        }
+
+        .btn-upload-split:has(.upload-popup.open) .btn-upload-caret {
+            border-radius: 0 0 12px 0;
+        }
+
+        .btn-upload-split:has(.upload-popup.open) .btn-upload-caret svg {
+            transform: rotate(180deg);
+        }
+
+        .upload-popup {
+            display: none;
+            position: absolute;
+            bottom: 100%;
+            right: 0;
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            border-bottom: none;
+            border-radius: 12px 12px 0 12px;
+            box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+            z-index: 200;
+            width: max-content;
+        }
+
+        .upload-popup.open {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .upload-popup button {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 16px 7px;
+            background: none;
+            border: none;
+            font-size: 13px;
+            color: #333;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .upload-popup button:hover {
+            background: rgba(0, 0, 0, 0.05);
         }
 
         .actions .btn {
@@ -747,7 +814,7 @@
         .tree-actions {
             display: none;
             gap: 2px;
-            margin-left: auto;
+            flex-shrink: 0;
         }
 
         .tree-item:hover .tree-actions {
@@ -1764,7 +1831,7 @@
         }
 
         /* Hidden file input */
-        #file-input {
+        #file-input, #folder-upload-input {
             display: none;
         }
 
@@ -3663,12 +3730,27 @@
                     </svg>
                     New Folder
                 </button>
-                <button class="btn btn-primary btn-upload" onclick="triggerUpload()">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:16px;height:16px;">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-                    </svg>
-                    Upload
-                </button>
+                <div class="btn-upload-split" id="upload-split">
+                    <button class="btn btn-primary btn-upload-main" onclick="triggerUpload()">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:16px;height:16px;">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                        </svg>
+                        File Upload
+                    </button>
+                    <button class="btn btn-primary btn-upload-caret" onclick="toggleUploadMenu(event)" title="More upload options">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:14px;height:14px;">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
+                        </svg>
+                    </button>
+                    <div class="upload-popup" id="upload-popup">
+                        <button onclick="triggerFolderUpload()">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:16px;height:16px;">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
+                            </svg>
+                            Folder Upload
+                        </button>
+                    </div>
+                </div>
             </div>
         </aside>
 
@@ -4082,8 +4164,9 @@
     <!-- Toast -->
     <div class="toast" id="toast"></div>
 
-    <!-- Hidden file input -->
+    <!-- Hidden file inputs -->
     <input type="file" id="file-input" multiple onchange="handleFileSelect(event)">
+    <input type="file" id="folder-upload-input" webkitdirectory multiple onchange="handleFolderSelect(event)">
 
     <!-- Marked.js for Markdown rendering -->
     <script src="https://cdn.jsdelivr.net/npm/marked@15.0.12/marked.min.js" integrity="sha384-948ahk4ZmxYVYOc+rxN1H2gM1EJ2Duhp7uHtZ4WSLkV4Vtx5MUqnV+l7u9B+jFv+" crossorigin="anonymous"></script>
@@ -5195,6 +5278,50 @@
             document.getElementById('file-input').click();
         }
 
+        function triggerFolderUpload() {
+            closeUploadMenu();
+            document.getElementById('folder-upload-input').click();
+        }
+
+        async function handleFolderSelect(event) {
+            const files = Array.from(event.target.files);
+            event.target.value = '';
+            if (files.length === 0) return;
+            let succeeded = 0, failed = 0;
+            for (const file of files) {
+                try {
+                    const relPath = file.webkitRelativePath;
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    const url = relPath
+                        ? `/api/files?path=${encodeURIComponent(currentPath)}&relative_path=${encodeURIComponent(relPath)}`
+                        : `/api/files?path=${encodeURIComponent(currentPath)}`;
+                    const res = await fetch(url, { method: 'POST', body: formData });
+                    if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
+                    succeeded++;
+                } catch { failed++; }
+            }
+            if (succeeded > 0) showToast(`Uploaded ${succeeded} file${succeeded !== 1 ? 's' : ''}`);
+            if (failed > 0) showToast(`${failed} file${failed !== 1 ? 's' : ''} failed`, true);
+            loadFiles(currentPath);
+            loadTree();
+        }
+
+        function toggleUploadMenu(e) {
+            e.stopPropagation();
+            document.getElementById('upload-popup').classList.toggle('open');
+        }
+
+        function closeUploadMenu() {
+            document.getElementById('upload-popup').classList.remove('open');
+        }
+
+        document.addEventListener('click', (e) => {
+            if (!document.getElementById('upload-split').contains(e.target)) {
+                closeUploadMenu();
+            }
+        });
+
         async function handleFileSelect(event) {
             const files = event.target.files;
             for (const file of files) {
@@ -5203,6 +5330,35 @@
             event.target.value = '';
             loadFiles(currentPath);
             loadTree();
+        }
+
+
+        // Recursively collect all File objects from a FileSystemEntry, with their
+        // paths relative to the dropped item's parent (so the top-level folder name
+        // is preserved as the first path segment).
+        async function collectEntryFiles(entry, relPrefix) {
+            const results = [];
+            if (entry.isFile) {
+                await new Promise(resolve => entry.file(f => {
+                    results.push({ file: f, relPath: relPrefix + f.name });
+                    resolve();
+                }));
+            } else if (entry.isDirectory) {
+                const dirPath = relPrefix + entry.name + '/';
+                const reader = entry.createReader();
+                // readEntries may return results in batches — keep calling until empty.
+                let batch;
+                do {
+                    batch = await new Promise((resolve, reject) =>
+                        reader.readEntries(resolve, reject)
+                    );
+                    for (const child of batch) {
+                        const children = await collectEntryFiles(child, dirPath);
+                        results.push(...children);
+                    }
+                } while (batch.length > 0);
+            }
+            return results;
         }
 
         async function uploadFile(file) {
@@ -5246,11 +5402,29 @@
             document.getElementById('drop-zone').classList.remove('show');
 
             // Only handle file uploads if not an internal drag
-            if (!draggedItems && e.dataTransfer.files.length > 0) {
-                const files = e.dataTransfer.files;
-                for (const file of files) {
-                    await uploadFile(file);
+            if (!draggedItems && e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+                const entries = Array.from(e.dataTransfer.items)
+                    .map(item => item.webkitGetAsEntry?.())
+                    .filter(Boolean);
+
+                let succeeded = 0, failed = 0;
+                for (const entry of entries) {
+                    const collected = await collectEntryFiles(entry, '');
+                    for (const { file, relPath } of collected) {
+                        try {
+                            const formData = new FormData();
+                            formData.append('file', file);
+                            const url = relPath.includes('/')
+                                ? `/api/files?path=${encodeURIComponent(currentPath)}&relative_path=${encodeURIComponent(relPath)}`
+                                : `/api/files?path=${encodeURIComponent(currentPath)}`;
+                            const res = await fetch(url, { method: 'POST', body: formData });
+                            if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
+                            succeeded++;
+                        } catch { failed++; }
+                    }
                 }
+                if (succeeded > 0) showToast(`Uploaded ${succeeded} file${succeeded !== 1 ? 's' : ''}`);
+                if (failed > 0) showToast(`${failed} file${failed !== 1 ? 's' : ''} failed`, true);
                 loadFiles(currentPath);
                 loadTree();
             }
@@ -5528,11 +5702,8 @@
             }
             html += `<span class="tree-name">${displayName}</span>`;
 
-            // Toggle chevron (on right side for folders)
-            html += `<span class="tree-toggle${isExpanded ? ' expanded' : ''}${!hasChildren ? ' hidden' : ''}"
-                          onclick="toggleTreeNode(event, '${node.path}')">${chevronIcon}</span>`;
-
-            // Action buttons (only for non-root and non-protected items)
+            // Action buttons (only for non-root and non-protected items) — rendered
+            // before the toggle so the chevron stays anchored at the far right.
             if (node.path && !isProtected) {
                 html += `<span class="tree-actions">
                     <button class="tree-action-btn edit-btn" onclick="event.stopPropagation(); editItem('${node.path}', '${node.name}')" title="Rename">
@@ -5547,6 +5718,10 @@
                     </button>
                 </span>`;
             }
+
+            // Toggle chevron last so it stays anchored at the far right
+            html += `<span class="tree-toggle${isExpanded ? ' expanded' : ''}${!hasChildren ? ' hidden' : ''}"
+                          onclick="toggleTreeNode(event, '${node.path}')">${chevronIcon}</span>`;
 
             html += '</div>';
 

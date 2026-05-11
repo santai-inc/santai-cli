@@ -335,9 +335,15 @@ def create_app(project: SantaiProject) -> FastAPI:
 
     @app.post("/api/files")
     async def upload_file(
-        file: UploadFile, path: str = Query(default="")
+        file: UploadFile,
+        path: str = Query(default=""),
+        relative_path: str = Query(default=""),
     ) -> dict[str, str]:
-        """Upload a file to the given path."""
+        """Upload a file to the given path.
+
+        When relative_path is provided (folder upload), the full relative path
+        within the folder is preserved and parent directories are created.
+        """
         target_dir = safe_path(path)
         if not target_dir.is_dir():
             raise HTTPException(
@@ -347,11 +353,17 @@ def create_app(project: SantaiProject) -> FastAPI:
         if not file.filename:
             raise HTTPException(status_code=400, detail="No filename provided")
 
-        file_path = target_dir / file.filename
-        if file_path.exists():
-            raise HTTPException(status_code=409, detail="File already exists")
+        if relative_path:
+            file_path = target_dir / relative_path
+            # Validate the resolved path is within the project root
+            safe_path(str(file_path.relative_to(root_dir)))
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+        else:
+            file_path = target_dir / file.filename
+            if file_path.exists():
+                raise HTTPException(status_code=409, detail="File already exists")
+            safe_path(str(file_path.relative_to(root_dir)))
 
-        safe_path(str(file_path.relative_to(root_dir)))
         with open(file_path, "wb") as f:
             content = await file.read()
             f.write(content)
