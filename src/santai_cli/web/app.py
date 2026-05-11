@@ -109,7 +109,7 @@ def get_file_tree(
     for item in sorted(
         base_path.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower())
     ):
-        if item.name.startswith("."):
+        if item.name.startswith(".") or item.name == "rumdl.toml":
             continue
 
         node: dict[str, Any] = {
@@ -318,7 +318,7 @@ def create_app(project: SantaiProject) -> FastAPI:
         for item in sorted(
             target.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower())
         ):
-            if item.name.startswith("."):
+            if item.name.startswith(".") or item.name == "rumdl.toml":
                 continue
             try:
                 items.append(get_file_info(item))
@@ -522,7 +522,7 @@ def create_app(project: SantaiProject) -> FastAPI:
                 for item in sorted(
                     dir_path.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower())
                 ):
-                    if item.name.startswith("."):
+                    if item.name.startswith(".") or item.name == "rumdl.toml":
                         continue
                     node = {
                         "name": item.name,
