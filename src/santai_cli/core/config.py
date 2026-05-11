@@ -18,6 +18,8 @@ DEFAULT_MODELS: dict[str, str] = {
 
 # Fallback model lists used when the provider's /v1/models API call fails.
 # The live API is always preferred — these are last-resort defaults only.
+# IDs must match what the provider API returns (including date suffixes where
+# the provider requires them, e.g. claude-haiku-4-5-20251001).
 AVAILABLE_MODELS: dict[str, list[str]] = {
     "anthropic": [
         "claude-opus-4-7",

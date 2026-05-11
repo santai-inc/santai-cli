@@ -845,6 +845,11 @@ def create_app(project: SantaiProject) -> FastAPI:
                 words.append(part.capitalize())
         return " ".join(words + trailing_versions)
 
+    # Cache provider API clients keyed by api_key so a config change gets a
+    # fresh client automatically without re-instantiating on every request.
+    _anthropic_clients: dict[str, Any] = {}
+    _openai_clients: dict[str, Any] = {}
+
     @app.get("/api/chat/models")
     async def chat_models() -> dict[str, Any]:
         """Return available AI models based on configured API keys.
@@ -905,7 +910,11 @@ def create_app(project: SantaiProject) -> FastAPI:
                 model_list = proxy_models
             elif provider_name == "anthropic":
                 try:
-                    ac = _anthropic.AsyncAnthropic(api_key=provider_config.api_key)
+                    if provider_config.api_key not in _anthropic_clients:
+                        _anthropic_clients[provider_config.api_key] = (
+                            _anthropic.AsyncAnthropic(api_key=provider_config.api_key)
+                        )
+                    ac = _anthropic_clients[provider_config.api_key]
                     page = await ac.models.list(limit=100)
                     model_list = [m.id for m in page.data]
                 except _anthropic.AuthenticationError:
@@ -916,7 +925,11 @@ def create_app(project: SantaiProject) -> FastAPI:
                     provider_errors[provider_name] = _err("unavailable")
             elif provider_name == "openai":
                 try:
-                    oc = _openai.AsyncOpenAI(api_key=provider_config.api_key)
+                    if provider_config.api_key not in _openai_clients:
+                        _openai_clients[provider_config.api_key] = _openai.AsyncOpenAI(
+                            api_key=provider_config.api_key
+                        )
+                    oc = _openai_clients[provider_config.api_key]
                     page = await oc.models.list()
                     model_list = sorted(
                         [
@@ -924,6 +937,9 @@ def create_app(project: SantaiProject) -> FastAPI:
                             for m in page.data
                             if m.id.startswith(_OPENAI_CHAT_PREFIXES)
                             # Exclude dated snapshots like gpt-4o-2024-11-20
+                            # Exclude dated snapshots (e.g. gpt-4o-2024-11-20).
+                            # These are identical to the base model and clutter
+                            # the list; the base ID is always present alongside them.
                             and not re.search(r"-\d{4}-\d{2}-\d{2}$", m.id)
                         ],
                         reverse=True,
@@ -935,6 +951,9 @@ def create_app(project: SantaiProject) -> FastAPI:
                     model_list = []
                     provider_errors[provider_name] = _err("unavailable")
             else:
+                # Unknown provider type (e.g. Bedrock, custom). Use the
+                # pre-configured model list from config — this is intentional
+                # fallback behaviour, not a sign that the provider is broken.
                 model_list = provider_config.available_models
 
             for model_name in model_list:
