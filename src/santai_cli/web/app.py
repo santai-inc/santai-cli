@@ -861,7 +861,13 @@ def create_app(project: SantaiProject) -> FastAPI:
 
         config = load_config(project.root)
         models: list[dict[str, str | bool]] = []
+        # Maps provider_name -> {type, display} for providers that failed.
+        provider_errors: dict[str, dict[str, str]] = {}
         for provider_name, provider_config in config.providers.items():
+
+            def _err(kind: str) -> dict[str, str]:
+                return {"type": kind, "display": provider_config.name}
+
             if provider_config.base_url:
                 # Fetch model list from LiteLLM proxy
                 proxy_models: list[str] = []
@@ -877,16 +883,25 @@ def create_app(project: SantaiProject) -> FastAPI:
                         resp.raise_for_status()
                         data = resp.json()
                         proxy_models = [m["id"] for m in data.get("data", [])]
+                except httpx.HTTPStatusError as e:
+                    if e.response.status_code in (401, 403):
+                        provider_errors[provider_name] = _err("invalid_key")
+                    else:
+                        provider_errors[provider_name] = _err("unavailable")
                 except Exception:
-                    pass
-                model_list = proxy_models or [provider_config.model]
+                    provider_errors[provider_name] = _err("unavailable")
+                model_list = proxy_models
             elif provider_name == "anthropic":
                 try:
                     ac = _anthropic.AsyncAnthropic(api_key=provider_config.api_key)
                     page = await ac.models.list(limit=100)
                     model_list = [m.id for m in page.data]
+                except _anthropic.AuthenticationError:
+                    model_list = []
+                    provider_errors[provider_name] = _err("invalid_key")
                 except Exception:
-                    model_list = provider_config.available_models
+                    model_list = []
+                    provider_errors[provider_name] = _err("unavailable")
             elif provider_name == "openai":
                 try:
                     oc = _openai.AsyncOpenAI(api_key=provider_config.api_key)
@@ -901,8 +916,12 @@ def create_app(project: SantaiProject) -> FastAPI:
                         ],
                         reverse=True,
                     )
+                except _openai.AuthenticationError:
+                    model_list = []
+                    provider_errors[provider_name] = _err("invalid_key")
                 except Exception:
-                    model_list = provider_config.available_models
+                    model_list = []
+                    provider_errors[provider_name] = _err("unavailable")
             else:
                 model_list = provider_config.available_models
 
@@ -929,7 +948,11 @@ def create_app(project: SantaiProject) -> FastAPI:
                 seen.add(m["display"])
                 deduped.append(m)
         deduped.sort(key=lambda m: m["display"].lower())
-        return {"models": deduped, "configured": config.has_any_provider}
+        return {
+            "models": deduped,
+            "configured": config.has_any_provider,
+            "errors": provider_errors,
+        }
 
     @app.get("/api/chat/agents")
     async def chat_agents() -> dict[str, Any]:
@@ -1076,10 +1099,6 @@ def create_app(project: SantaiProject) -> FastAPI:
             existing["ANTHROPIC_API_KEY"] = req.anthropic_api_key.strip()
         if req.openai_api_key is not None and req.openai_api_key.strip():
             existing["OPENAI_API_KEY"] = req.openai_api_key.strip()
-
-        # Ensure defaults are present
-        existing.setdefault("ANTHROPIC_MODEL", "claude-sonnet-4-6")
-        existing.setdefault("OPENAI_MODEL", "gpt-4o")
 
         # Write .env file — quote all values so special chars are preserved
         lines = [f'{k}="{v}"\n' for k, v in existing.items()]

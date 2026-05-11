@@ -6537,9 +6537,55 @@
                 modelSelect.innerHTML = '';
                 modelList.innerHTML = '';
                 if (modelsData.models.length === 0) {
-                    modelBtn.textContent = 'No models available';
-                    messagesEl.innerHTML = '<div class="chat-no-config">No API keys configured. <a href="#" onclick="event.preventDefault(); showSettingsModal()" style="color: var(--accent, #007aff);">Add your API keys</a> to enable chat.</div>';
+                    const errors = modelsData.errors || {};
+                    const errorEntries = Object.entries(errors);
+                    if (!modelsData.configured) {
+                        modelBtn.textContent = 'No models';
+                        const item = document.createElement('div');
+                        item.className = 'chat-custom-select-option';
+                        item.style.cssText = 'color: var(--text-muted); cursor: default; pointer-events: none;';
+                        item.textContent = 'No API keys configured';
+                        modelList.appendChild(item);
+                        messagesEl.innerHTML = '<div class="chat-no-config">No API keys configured. <a href="#" onclick="event.preventDefault(); showSettingsModal()" style="color: var(--accent, #007aff);">Add your API keys</a> to enable chat.</div>';
+                    } else if (errorEntries.length > 0) {
+                        const invalidProviders = errorEntries
+                            .filter(([, e]) => e.type === 'invalid_key')
+                            .map(([, e]) => e.display);
+                        const unavailableProviders = errorEntries
+                            .filter(([, e]) => e.type === 'unavailable')
+                            .map(([, e]) => e.display);
+                        let msg = '';
+                        let btnText = 'Key error';
+                        if (invalidProviders.length > 0) {
+                            msg += `API key invalid for: ${invalidProviders.join(', ')}. `;
+                            btnText = 'Invalid key';
+                        }
+                        if (unavailableProviders.length > 0) {
+                            msg += `Could not reach: ${unavailableProviders.join(', ')}. `;
+                            if (invalidProviders.length === 0) btnText = 'Unavailable';
+                        }
+                        modelBtn.textContent = btnText;
+                        const item = document.createElement('div');
+                        item.className = 'chat-custom-select-option';
+                        item.style.cssText = 'color: var(--text-muted); cursor: default; pointer-events: none; white-space: normal; line-height: 1.4;';
+                        item.textContent = msg.trim();
+                        modelList.appendChild(item);
+                        messagesEl.innerHTML = `<div class="chat-no-config">${msg.trim()} <a href="#" onclick="event.preventDefault(); showSettingsModal()" style="color: var(--accent, #007aff);">Update your API keys</a></div>`;
+                    } else {
+                        modelBtn.textContent = 'No models';
+                        const item = document.createElement('div');
+                        item.className = 'chat-custom-select-option';
+                        item.style.cssText = 'color: var(--text-muted); cursor: default; pointer-events: none;';
+                        item.textContent = 'No models returned';
+                        modelList.appendChild(item);
+                        messagesEl.innerHTML = '<div class="chat-no-config">No models returned. <a href="#" onclick="event.preventDefault(); showSettingsModal()" style="color: var(--accent, #007aff);">Check your API keys</a></div>';
+                    }
                     return;
+                }
+
+                // Models loaded successfully — clear any stale key-error message
+                if (messagesEl.querySelector('.chat-no-config')) {
+                    messagesEl.innerHTML = '';
                 }
 
                 // Star/default system: localStorage overrides system default

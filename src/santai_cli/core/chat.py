@@ -31,6 +31,13 @@ _NO_SYSTEM_ROLE_MODELS: set[str] = {
     "us.amazon.nova-pro-v1:0",
 }
 
+# These models output interleaved reasoning/thinking in delta.content by default.
+# Disable it so users only see the final answer.
+_DISABLE_THINKING_MODELS: set[str] = {
+    "novapro-bedrock",
+    "us.amazon.nova-pro-v1:0",
+}
+
 
 def _max_tokens_for_model(model: str) -> int:
     return _MAX_TOKENS_BY_MODEL.get(model, _DEFAULT_MAX_TOKENS)
@@ -455,6 +462,8 @@ async def _stream_openai_with_tools(
     # Don't impose a max_tokens cap for proxy providers — they enforce their own limits.
     if not base_url:
         create_kwargs["max_tokens"] = _max_tokens_for_model(model)
+    if model in _DISABLE_THINKING_MODELS:
+        create_kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
     stream = await client.chat.completions.create(**create_kwargs)  # type: ignore[arg-type]
 
     async for chunk in stream:
