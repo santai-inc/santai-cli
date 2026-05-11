@@ -16,22 +16,20 @@ DEFAULT_MODELS: dict[str, str] = {
     "openai": "gpt-4o",
 }
 
-# Popular models available per provider (for interactive selection)
+# Fallback model lists used when the provider's /v1/models API call fails.
+# The live API is always preferred — these are last-resort defaults only.
+# IDs must match what the provider API returns (including date suffixes where
+# the provider requires them, e.g. claude-haiku-4-5-20251001).
 AVAILABLE_MODELS: dict[str, list[str]] = {
     "anthropic": [
         "claude-opus-4-7",
         "claude-sonnet-4-6",
         "claude-haiku-4-5-20251001",
-        "claude-3-7-sonnet-20250219",
-        "claude-3-5-sonnet-20241022",
-        "claude-3-5-haiku-20241022",
     ],
     "openai": [
-        "gpt-4o",
-        "gpt-4o-mini",
         "gpt-4.1",
         "gpt-4.1-mini",
-        "gpt-4.1-nano",
+        "gpt-4o",
         "o3-mini",
     ],
 }

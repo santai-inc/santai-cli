@@ -28,6 +28,9 @@ from santai_cli.core.repo_context import build_repo_context, inject_repo_context
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 STATIC_DIR = Path(__file__).parent / "static"
 
+# Files hidden from all file-tree listings (in addition to dotfiles).
+_HIDDEN_FILES: set[str] = {"rumdl.toml"}
+
 
 class RenameRequest(BaseModel):
     old_path: str
@@ -109,7 +112,7 @@ def get_file_tree(
     for item in sorted(
         base_path.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower())
     ):
-        if item.name.startswith("."):
+        if item.name.startswith(".") or item.name in _HIDDEN_FILES:
             continue
 
         node: dict[str, Any] = {
@@ -318,7 +321,7 @@ def create_app(project: SantaiProject) -> FastAPI:
         for item in sorted(
             target.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower())
         ):
-            if item.name.startswith("."):
+            if item.name.startswith(".") or item.name in _HIDDEN_FILES:
                 continue
             try:
                 items.append(get_file_info(item))
@@ -335,9 +338,15 @@ def create_app(project: SantaiProject) -> FastAPI:
 
     @app.post("/api/files")
     async def upload_file(
-        file: UploadFile, path: str = Query(default="")
+        file: UploadFile,
+        path: str = Query(default=""),
+        relative_path: str = Query(default=""),
     ) -> dict[str, str]:
-        """Upload a file to the given path."""
+        """Upload a file to the given path.
+
+        When relative_path is provided (folder upload), the full relative path
+        within the folder is preserved and parent directories are created.
+        """
         target_dir = safe_path(path)
         if not target_dir.is_dir():
             raise HTTPException(
@@ -347,11 +356,17 @@ def create_app(project: SantaiProject) -> FastAPI:
         if not file.filename:
             raise HTTPException(status_code=400, detail="No filename provided")
 
-        file_path = target_dir / file.filename
-        if file_path.exists():
-            raise HTTPException(status_code=409, detail="File already exists")
+        if relative_path:
+            file_path = target_dir / relative_path
+            # Validate the resolved path is within the project root
+            safe_path(str(file_path.relative_to(root_dir)))
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+        else:
+            file_path = target_dir / file.filename
+            if file_path.exists():
+                raise HTTPException(status_code=409, detail="File already exists")
+            safe_path(str(file_path.relative_to(root_dir)))
 
-        safe_path(str(file_path.relative_to(root_dir)))
         with open(file_path, "wb") as f:
             content = await file.read()
             f.write(content)
@@ -510,7 +525,7 @@ def create_app(project: SantaiProject) -> FastAPI:
                 for item in sorted(
                     dir_path.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower())
                 ):
-                    if item.name.startswith("."):
+                    if item.name.startswith(".") or item.name in _HIDDEN_FILES:
                         continue
                     node = {
                         "name": item.name,
@@ -675,14 +690,25 @@ def create_app(project: SantaiProject) -> FastAPI:
 
     # === Chat API Endpoints ===
 
+    # Models to never show in the dropdown regardless of what the proxy returns.
+    _BLOCKED_MODELS: set[str] = {
+        "deepseekr1-bedrock",  # fakes tool calls as plain text
+        "llama3.3-bedrock",  # fakes tool calls as plain text
+        "llama3.1-bedrock",  # no tool use in streaming mode
+        "llama3.2-1B-bedrock",  # no tool use in streaming mode
+        "qwen3-coder-bedrock",  # invalid model identifier
+        "jamba.2-bedrock",  # deprecated
+        "grok2-xai",  # deprecated
+    }
+
     _MODEL_DISPLAY_NAMES: dict[str, str] = {
         # Direct Anthropic models
         "claude-opus-4-7": "Claude Opus 4.7",
         "claude-sonnet-4-6": "Claude Sonnet 4.6",
         "claude-haiku-4-5-20251001": "Claude Haiku 4.5",
-        "claude-3-7-sonnet-20250219": "Claude 3.7 Sonnet",
-        "claude-3-5-sonnet-20241022": "Claude 3.5 Sonnet",
-        "claude-3-5-haiku-20241022": "Claude 3.5 Haiku",
+        "claude-3-7-sonnet-20250219": "Claude Sonnet 3.7",
+        "claude-3-5-sonnet-20241022": "Claude Sonnet 3.5",
+        "claude-3-5-haiku-20241022": "Claude Haiku 3.5",
         # Anthropic via direct API
         "anthropic-4.5": "Claude Sonnet 4.5",
         # Anthropic via Bedrock
@@ -698,18 +724,7 @@ def create_app(project: SantaiProject) -> FastAPI:
         # Amazon
         "us.amazon.nova-pro-v1:0": "Nova Pro",
         "novapro-bedrock": "Nova Pro",
-        # Meta Llama via Bedrock
-        "llama3.3-bedrock": "Llama 3.3",
-        "llama3.2-1B-bedrock": "Llama 3.2",
-        "llama3.1-bedrock": "Llama 3.1",
-        # DeepSeek via Bedrock
-        "deepseekr1-bedrock": "DeepSeek R1",
-        # Qwen via Bedrock
-        "qwen3-coder-bedrock": "Qwen3 Coder",
-        # AI21 via Bedrock
-        "jamba.2-bedrock": "Jamba Instruct",
         # xAI Grok
-        "grok2-xai": "Grok 2",
         "grok3-xai": "Grok 3",
         # Google Gemini
         "gemini-flash-2": "Gemini 2.0 Flash",
@@ -722,7 +737,13 @@ def create_app(project: SantaiProject) -> FastAPI:
         "gpt-4.1": "GPT-4.1",
         "gpt-4.1-mini": "GPT-4.1 mini",
         "gpt-4.1-nano": "GPT-4.1 nano",
+        "chatgpt-4o-latest": "GPT-4o",
+        "o1": "o1",
+        "o1-mini": "o1-mini",
+        "o1-preview": "o1-preview",
+        "o3": "o3",
         "o3-mini": "o3-mini",
+        "o4-mini": "o4-mini",
         # OpenAI (via proxy)
         "gpt-5big-santai": "GPT-5",
         "gpt-5.4-santai": "GPT-5.4",
@@ -740,13 +761,21 @@ def create_app(project: SantaiProject) -> FastAPI:
         """Convert a raw model ID to a human-readable label.
 
         e.g. 'anthropic-claude-bedrock4.5-haiku'  -> 'Claude Haiku 4.5'
-             'anthropic-claude-bedrock4.6opus'     -> 'Claude Opus 4.6'
+             'claude-3-5-haiku-20241022'           -> 'Claude Haiku 3.5'
+             'claude-3-7-sonnet-20250219'          -> 'Claude Sonnet 3.7'
              'gemini-2.5-pro'                      -> 'Gemini 2.5 Pro'
              'llama3.1-70b'                        -> 'Llama 3.1 70b'
              'us.amazon.nova-pro-v1:0'             -> 'Nova Pro'
         """
         # Drop trailing revision suffixes like :0
         model_id = re.sub(r":\d+$", "", model_id)
+        # Strip trailing 8-digit release dates (e.g. -20241022, -20250219)
+        model_id = re.sub(r"-\d{8}$", "", model_id)
+        # Strip trailing YYYY-MM-DD dates (e.g. -2024-11-20)
+        model_id = re.sub(r"-\d{4}-\d{2}-\d{2}$", "", model_id)
+        # Strip trailing -latest alias
+        model_id = re.sub(r"-latest$", "", model_id)
+
         # Split on hyphens/underscores, then expand dot-namespaced word segments
         # (e.g. 'us.amazon.nova') but keep decimal versions ('2.5') and
         # alpha+version segments ('llama3.1') intact.
@@ -761,8 +790,26 @@ def create_app(project: SantaiProject) -> FastAPI:
             else:
                 raw_parts.append(seg)
 
+        # Collapse consecutive single-digit numeric tokens into a dotted version.
+        # e.g. ['claude', '3', '5', 'haiku'] -> ['claude', '3.5', 'haiku']
+        collapsed: list[str] = []
+        i = 0
+        while i < len(raw_parts):
+            if (
+                re.fullmatch(r"\d", raw_parts[i])
+                and i + 1 < len(raw_parts)
+                and re.fullmatch(r"\d+", raw_parts[i + 1])
+            ):
+                collapsed.append(f"{raw_parts[i]}.{raw_parts[i + 1]}")
+                i += 2
+            else:
+                collapsed.append(raw_parts[i])
+                i += 1
+        raw_parts = collapsed
+
         words: list[str] = []
         trailing_versions: list[str] = []
+        is_claude = raw_parts and raw_parts[0].lower() == "claude"
         for part in raw_parts:
             if not part:
                 continue
@@ -776,9 +823,13 @@ def create_app(project: SantaiProject) -> FastAPI:
                 if bm.group(2):
                     words.append(bm.group(2).capitalize())
                 continue
-            # Pure version/numeric segment like '4.5', '70b', 'v1' — keep in position
+            # Pure version/numeric segment — for Claude IDs push to end so the
+            # family word comes first: "Claude Haiku 3.5" not "Claude 3.5 Haiku"
             if re.match(r"^v?\d", low):
-                words.append(part)
+                if is_claude:
+                    trailing_versions.append(part)
+                else:
+                    words.append(part)
                 continue
             # Alpha prefix glued to version, e.g. 'llama3.1', 'gpt4o'
             am = re.match(r"^([a-zA-Z]+)(\d.*)$", part)
@@ -797,6 +848,23 @@ def create_app(project: SantaiProject) -> FastAPI:
                 words.append(part.capitalize())
         return " ".join(words + trailing_versions)
 
+    # Cache provider API clients keyed by api_key so a config change gets a
+    # fresh client automatically without re-instantiating on every request.
+    _anthropic_clients: dict[str, Any] = {}
+    _openai_clients: dict[str, Any] = {}
+
+    # Chat-model prefixes to keep from the OpenAI /v1/models response.
+    # Excludes embeddings, TTS, Whisper, DALL-E, legacy completions, etc.
+    _OPENAI_CHAT_PREFIXES = (
+        "gpt-4",
+        "gpt-3.5-turbo",
+        "o1",
+        "o3",
+        "o4",
+        "chatgpt-4o",
+        "gpt-5",
+    )
+
     @app.get("/api/chat/models")
     async def chat_models() -> dict[str, Any]:
         """Return available AI models based on configured API keys.
@@ -805,15 +873,23 @@ def create_app(project: SantaiProject) -> FastAPI:
         model list dynamically from the proxy's /v1/models endpoint instead
         of using the hardcoded AVAILABLE_MODELS list.
         """
+        import anthropic as _anthropic
         import httpx
+        import openai as _openai
 
         from santai_cli.core.config import load_config
 
         config = load_config(project.root)
         models: list[dict[str, str | bool]] = []
+        # Maps provider_name -> {type, display} for providers that failed.
+        provider_errors: dict[str, dict[str, str]] = {}
         for provider_name, provider_config in config.providers.items():
+
+            def _err(kind: str) -> dict[str, str]:
+                return {"type": kind, "display": provider_config.name}
+
             if provider_config.base_url:
-                # Fetch model list from proxy
+                # Fetch model list from LiteLLM proxy
                 proxy_models: list[str] = []
                 try:
                     base = provider_config.base_url.rstrip("/")
@@ -827,13 +903,66 @@ def create_app(project: SantaiProject) -> FastAPI:
                         resp.raise_for_status()
                         data = resp.json()
                         proxy_models = [m["id"] for m in data.get("data", [])]
+                except httpx.HTTPStatusError as e:
+                    if e.response.status_code in (401, 403):
+                        provider_errors[provider_name] = _err("invalid_key")
+                    else:
+                        provider_errors[provider_name] = _err("unavailable")
                 except Exception:
-                    pass
-                model_list = proxy_models or [provider_config.model]
+                    provider_errors[provider_name] = _err("unavailable")
+                if not proxy_models and provider_name not in provider_errors:
+                    provider_errors[provider_name] = _err("unavailable")
+                model_list = proxy_models
+            elif provider_name == "anthropic":
+                try:
+                    if provider_config.api_key not in _anthropic_clients:
+                        _anthropic_clients[provider_config.api_key] = (
+                            _anthropic.AsyncAnthropic(api_key=provider_config.api_key)
+                        )
+                    ac = _anthropic_clients[provider_config.api_key]
+                    page = await ac.models.list(limit=100)
+                    model_list = [m.id for m in page.data]
+                except _anthropic.AuthenticationError:
+                    model_list = []
+                    provider_errors[provider_name] = _err("invalid_key")
+                except Exception:
+                    model_list = []
+                    provider_errors[provider_name] = _err("unavailable")
+            elif provider_name == "openai":
+                try:
+                    if provider_config.api_key not in _openai_clients:
+                        _openai_clients[provider_config.api_key] = _openai.AsyncOpenAI(
+                            api_key=provider_config.api_key
+                        )
+                    oc = _openai_clients[provider_config.api_key]
+                    page = await oc.models.list()
+                    model_list = sorted(
+                        [
+                            m.id
+                            for m in page.data
+                            if m.id.startswith(_OPENAI_CHAT_PREFIXES)
+                            # Exclude dated snapshots (e.g. gpt-4o-2024-11-20).
+                            # These are identical to the base model and clutter
+                            # the list; the base ID is always present alongside them.
+                            and not re.search(r"-\d{4}-\d{2}-\d{2}$", m.id)
+                        ],
+                        reverse=True,
+                    )
+                except _openai.AuthenticationError:
+                    model_list = []
+                    provider_errors[provider_name] = _err("invalid_key")
+                except Exception:
+                    model_list = []
+                    provider_errors[provider_name] = _err("unavailable")
             else:
+                # Unknown provider type (e.g. Bedrock, custom). Use the
+                # pre-configured model list from config — this is intentional
+                # fallback behaviour, not a sign that the provider is broken.
                 model_list = provider_config.available_models
 
             for model_name in model_list:
+                if model_name in _BLOCKED_MODELS:
+                    continue
                 is_default = model_name == provider_config.model
                 models.append(
                     {
@@ -854,7 +983,11 @@ def create_app(project: SantaiProject) -> FastAPI:
                 seen.add(m["display"])
                 deduped.append(m)
         deduped.sort(key=lambda m: m["display"].lower())
-        return {"models": deduped, "configured": config.has_any_provider}
+        return {
+            "models": deduped,
+            "configured": config.has_any_provider,
+            "errors": provider_errors,
+        }
 
     @app.get("/api/chat/agents")
     async def chat_agents() -> dict[str, Any]:
@@ -1001,10 +1134,6 @@ def create_app(project: SantaiProject) -> FastAPI:
             existing["ANTHROPIC_API_KEY"] = req.anthropic_api_key.strip()
         if req.openai_api_key is not None and req.openai_api_key.strip():
             existing["OPENAI_API_KEY"] = req.openai_api_key.strip()
-
-        # Ensure defaults are present
-        existing.setdefault("ANTHROPIC_MODEL", "claude-sonnet-4-6")
-        existing.setdefault("OPENAI_MODEL", "gpt-4o")
 
         # Write .env file — quote all values so special chars are preserved
         lines = [f'{k}="{v}"\n' for k, v in existing.items()]

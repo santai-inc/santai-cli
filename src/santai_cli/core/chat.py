@@ -24,6 +24,22 @@ _MAX_TOKENS_BY_MODEL: dict[str, int] = {
 }
 _DEFAULT_MAX_TOKENS = 8192
 
+# These Bedrock-backed models reject a leading system-role message.
+# We merge the system prompt into the first user message instead.
+_NO_SYSTEM_ROLE_MODELS: set[str] = {
+    "novapro-bedrock",
+    "us.amazon.nova-pro-v1:0",
+}
+
+# These models output interleaved reasoning/thinking in delta.content by default.
+# Disable it so users only see the final answer.
+# NOTE: currently the same entries as _NO_SYSTEM_ROLE_MODELS — if you add a model
+# to one set, consider whether it also belongs in the other.
+_DISABLE_THINKING_MODELS: set[str] = {
+    "novapro-bedrock",
+    "us.amazon.nova-pro-v1:0",
+}
+
 
 def _max_tokens_for_model(model: str) -> int:
     return _MAX_TOKENS_BY_MODEL.get(model, _DEFAULT_MAX_TOKENS)
@@ -426,15 +442,30 @@ async def _stream_openai_with_tools(
     pending_tools: dict[int, dict[str, Any]] = {}
     full_text = ""
 
+    messages = session.to_openai_messages()
+    if model in _NO_SYSTEM_ROLE_MODELS:
+        # Merge system prompt into first user message
+        if messages and messages[0]["role"] == "system":
+            system_content = messages.pop(0)["content"]
+            for msg in messages:
+                if msg["role"] == "user":
+                    msg["content"] = f"{system_content}\n\n{msg['content']}"
+                    break
+        # Strip any leading non-user messages (e.g. assistant greeting)
+        while messages and messages[0]["role"] != "user":
+            messages.pop(0)
+
     create_kwargs: dict = {
         "model": model,
-        "messages": session.to_openai_messages(),
+        "messages": messages,
         "stream": True,
         "tools": TOOLS_OPENAI,
     }
     # Don't impose a max_tokens cap for proxy providers — they enforce their own limits.
     if not base_url:
         create_kwargs["max_tokens"] = _max_tokens_for_model(model)
+    if model in _DISABLE_THINKING_MODELS:
+        create_kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
     stream = await client.chat.completions.create(**create_kwargs)  # type: ignore[arg-type]
 
     async for chunk in stream:
