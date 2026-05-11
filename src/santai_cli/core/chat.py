@@ -33,6 +33,8 @@ _NO_SYSTEM_ROLE_MODELS: set[str] = {
 
 # These models output interleaved reasoning/thinking in delta.content by default.
 # Disable it so users only see the final answer.
+# NOTE: currently the same entries as _NO_SYSTEM_ROLE_MODELS — if you add a model
+# to one set, consider whether it also belongs in the other.
 _DISABLE_THINKING_MODELS: set[str] = {
     "novapro-bedrock",
     "us.amazon.nova-pro-v1:0",

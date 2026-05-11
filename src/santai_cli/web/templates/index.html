@@ -4953,6 +4953,8 @@
         let currentDropGroup = null; // <li> currently highlighted as drop target
 
         function isProtectedPath(path) {
+            // Only top-level names are protected — files inside (e.g. notes/my-note.md)
+            // are intentionally moveable; only the folder itself is locked.
             return protectedPaths.includes(path);
         }
 
@@ -5283,26 +5285,30 @@
             document.getElementById('folder-upload-input').click();
         }
 
+        const _MAX_UPLOAD_FILES = 500;
+
         async function handleFolderSelect(event) {
             const files = Array.from(event.target.files);
             event.target.value = '';
             if (files.length === 0) return;
-            let succeeded = 0, failed = 0;
-            for (const file of files) {
-                try {
-                    const relPath = file.webkitRelativePath;
-                    const formData = new FormData();
-                    formData.append('file', file);
-                    const url = relPath
-                        ? `/api/files?path=${encodeURIComponent(currentPath)}&relative_path=${encodeURIComponent(relPath)}`
-                        : `/api/files?path=${encodeURIComponent(currentPath)}`;
-                    const res = await fetch(url, { method: 'POST', body: formData });
+            const capped = files.length > _MAX_UPLOAD_FILES;
+            const batch = capped ? files.slice(0, _MAX_UPLOAD_FILES) : files;
+            const results = await Promise.allSettled(batch.map(file => {
+                const relPath = file.webkitRelativePath;
+                const formData = new FormData();
+                formData.append('file', file);
+                const url = relPath
+                    ? `/api/files?path=${encodeURIComponent(currentPath)}&relative_path=${encodeURIComponent(relPath)}`
+                    : `/api/files?path=${encodeURIComponent(currentPath)}`;
+                return fetch(url, { method: 'POST', body: formData }).then(async res => {
                     if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
-                    succeeded++;
-                } catch { failed++; }
-            }
+                });
+            }));
+            const succeeded = results.filter(r => r.status === 'fulfilled').length;
+            const failed = results.filter(r => r.status === 'rejected').length;
             if (succeeded > 0) showToast(`Uploaded ${succeeded} file${succeeded !== 1 ? 's' : ''}`);
             if (failed > 0) showToast(`${failed} file${failed !== 1 ? 's' : ''} failed`, true);
+            if (capped) showToast(`Folder too large — only first ${_MAX_UPLOAD_FILES} files uploaded`, true);
             loadFiles(currentPath);
             loadTree();
         }
@@ -5336,10 +5342,14 @@
         // Recursively collect all File objects from a FileSystemEntry, with their
         // paths relative to the dropped item's parent (so the top-level folder name
         // is preserved as the first path segment).
-        async function collectEntryFiles(entry, relPrefix) {
+        // _state = { count, capped } shared across recursive calls to enforce the cap.
+        async function collectEntryFiles(entry, relPrefix, _state = { count: 0, capped: false }) {
             const results = [];
+            if (_state.capped) return results;
             if (entry.isFile) {
+                if (_state.count >= _MAX_UPLOAD_FILES) { _state.capped = true; return results; }
                 await new Promise(resolve => entry.file(f => {
+                    _state.count++;
                     results.push({ file: f, relPath: relPrefix + f.name });
                     resolve();
                 }));
@@ -5353,10 +5363,11 @@
                         reader.readEntries(resolve, reject)
                     );
                     for (const child of batch) {
-                        const children = await collectEntryFiles(child, dirPath);
+                        if (_state.capped) break;
+                        const children = await collectEntryFiles(child, dirPath, _state);
                         results.push(...children);
                     }
-                } while (batch.length > 0);
+                } while (batch.length > 0 && !_state.capped);
             }
             return results;
         }
@@ -5408,8 +5419,9 @@
                     .filter(Boolean);
 
                 let succeeded = 0, failed = 0;
+                const dropState = { count: 0, capped: false };
                 for (const entry of entries) {
-                    const collected = await collectEntryFiles(entry, '');
+                    const collected = await collectEntryFiles(entry, '', dropState);
                     for (const { file, relPath } of collected) {
                         try {
                             const formData = new FormData();
@@ -5425,6 +5437,7 @@
                 }
                 if (succeeded > 0) showToast(`Uploaded ${succeeded} file${succeeded !== 1 ? 's' : ''}`);
                 if (failed > 0) showToast(`${failed} file${failed !== 1 ? 's' : ''} failed`, true);
+                if (dropState.capped) showToast(`Folder too large — only first ${_MAX_UPLOAD_FILES} files uploaded`, true);
                 loadFiles(currentPath);
                 loadTree();
             }

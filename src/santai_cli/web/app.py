@@ -28,6 +28,9 @@ from santai_cli.core.repo_context import build_repo_context, inject_repo_context
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 STATIC_DIR = Path(__file__).parent / "static"
 
+# Files hidden from all file-tree listings (in addition to dotfiles).
+_HIDDEN_FILES: set[str] = {"rumdl.toml"}
+
 
 class RenameRequest(BaseModel):
     old_path: str
@@ -109,7 +112,7 @@ def get_file_tree(
     for item in sorted(
         base_path.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower())
     ):
-        if item.name.startswith(".") or item.name == "rumdl.toml":
+        if item.name.startswith(".") or item.name in _HIDDEN_FILES:
             continue
 
         node: dict[str, Any] = {
@@ -318,7 +321,7 @@ def create_app(project: SantaiProject) -> FastAPI:
         for item in sorted(
             target.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower())
         ):
-            if item.name.startswith(".") or item.name == "rumdl.toml":
+            if item.name.startswith(".") or item.name in _HIDDEN_FILES:
                 continue
             try:
                 items.append(get_file_info(item))
@@ -522,7 +525,7 @@ def create_app(project: SantaiProject) -> FastAPI:
                 for item in sorted(
                     dir_path.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower())
                 ):
-                    if item.name.startswith(".") or item.name == "rumdl.toml":
+                    if item.name.startswith(".") or item.name in _HIDDEN_FILES:
                         continue
                     node = {
                         "name": item.name,
@@ -758,8 +761,8 @@ def create_app(project: SantaiProject) -> FastAPI:
         """Convert a raw model ID to a human-readable label.
 
         e.g. 'anthropic-claude-bedrock4.5-haiku'  -> 'Claude Haiku 4.5'
-             'claude-3-5-haiku-20241022'           -> 'Claude 3.5 Haiku'
-             'claude-3-7-sonnet-20250219'          -> 'Claude 3.7 Sonnet'
+             'claude-3-5-haiku-20241022'           -> 'Claude Haiku 3.5'
+             'claude-3-7-sonnet-20250219'          -> 'Claude Sonnet 3.7'
              'gemini-2.5-pro'                      -> 'Gemini 2.5 Pro'
              'llama3.1-70b'                        -> 'Llama 3.1 70b'
              'us.amazon.nova-pro-v1:0'             -> 'Nova Pro'
@@ -850,6 +853,18 @@ def create_app(project: SantaiProject) -> FastAPI:
     _anthropic_clients: dict[str, Any] = {}
     _openai_clients: dict[str, Any] = {}
 
+    # Chat-model prefixes to keep from the OpenAI /v1/models response.
+    # Excludes embeddings, TTS, Whisper, DALL-E, legacy completions, etc.
+    _OPENAI_CHAT_PREFIXES = (
+        "gpt-4",
+        "gpt-3.5-turbo",
+        "o1",
+        "o3",
+        "o4",
+        "chatgpt-4o",
+        "gpt-5",
+    )
+
     @app.get("/api/chat/models")
     async def chat_models() -> dict[str, Any]:
         """Return available AI models based on configured API keys.
@@ -863,18 +878,6 @@ def create_app(project: SantaiProject) -> FastAPI:
         import openai as _openai
 
         from santai_cli.core.config import load_config
-
-        # Chat-model prefixes to keep from the OpenAI /v1/models response.
-        # Excludes embeddings, TTS, Whisper, DALL-E, legacy completions, etc.
-        _OPENAI_CHAT_PREFIXES = (
-            "gpt-4",
-            "gpt-3.5-turbo",
-            "o1",
-            "o3",
-            "o4",
-            "chatgpt-4o",
-            "gpt-5",
-        )
 
         config = load_config(project.root)
         models: list[dict[str, str | bool]] = []
@@ -907,6 +910,8 @@ def create_app(project: SantaiProject) -> FastAPI:
                         provider_errors[provider_name] = _err("unavailable")
                 except Exception:
                     provider_errors[provider_name] = _err("unavailable")
+                if not proxy_models and provider_name not in provider_errors:
+                    provider_errors[provider_name] = _err("unavailable")
                 model_list = proxy_models
             elif provider_name == "anthropic":
                 try:
@@ -936,7 +941,6 @@ def create_app(project: SantaiProject) -> FastAPI:
                             m.id
                             for m in page.data
                             if m.id.startswith(_OPENAI_CHAT_PREFIXES)
-                            # Exclude dated snapshots like gpt-4o-2024-11-20
                             # Exclude dated snapshots (e.g. gpt-4o-2024-11-20).
                             # These are identical to the base model and clutter
                             # the list; the base ID is always present alongside them.
