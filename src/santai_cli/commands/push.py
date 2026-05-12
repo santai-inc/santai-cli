@@ -13,7 +13,7 @@ import typer
 from rich.console import Console
 
 from santai_cli.commands.auth import DEFAULT_HUB_URL, load_credentials
-from santai_cli.core.hub import get_backend_url, resolve_base_id
+from santai_cli.core.hub import create_base, get_backend_url, resolve_base_id
 from santai_cli.core.project import is_santai_project
 
 console = Console()
@@ -103,11 +103,11 @@ def push(
 
     base_id = resolve_base_id(backend, creds["token"], project_name)
     if not base_id:
-        console.print(f"[red]Project '{project_name}' not found.[/red]")
-        console.print(
-            "[yellow]Create it first at the hub, then push.[/yellow]"
-        )
-        raise typer.Exit(1)
+        console.print(f"  Not found — creating [bold]{project_name}[/bold]...")
+        base_id = create_base(backend, creds["token"], project_name)
+        if not base_id:
+            console.print(f"[red]Failed to create project '{project_name}'.[/red]")
+            raise typer.Exit(1)
 
     console.print(f"Packaging [bold]{project_name}[/bold]...")
 
