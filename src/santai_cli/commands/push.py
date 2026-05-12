@@ -7,7 +7,7 @@ import tempfile
 import zipfile
 from pathlib import Path
 from typing import Annotated
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 import typer
 from rich.console import Console
@@ -55,6 +55,28 @@ def _format_size(size_bytes: int) -> str:
     return f"{size_bytes / (1024 * 1024):.1f} MB"
 
 
+def _resolve_base_id(backend: str, token: str, username: str, name: str) -> str | None:
+    """Return the base ID for (username, name), or None if not found."""
+    import urllib.error
+    import urllib.request
+
+    qs = urlencode({"author": username, "search": name, "limit": "20"})
+    req = urllib.request.Request(
+        f"{backend}/bases/?{qs}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read())
+    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError):
+        return None
+
+    for base in data.get("data", []):
+        if base.get("name") == name and base.get("author") == username:
+            return str(base["id"])
+    return None
+
+
 def push(
     name: Annotated[
         str | None,
@@ -87,6 +109,11 @@ def push(
         console.print("Not logged in. Run [bold]santai login[/bold] first.")
         raise typer.Exit(1)
 
+    username = creds.get("username", "")
+    if not username:
+        console.print("[red]Could not determine username from credentials.[/red]")
+        raise typer.Exit(1)
+
     # Determine which files to exclude
     ignored_files = set(SENSITIVE_FILES)
     env_path = project_dir / ".env"
@@ -101,6 +128,16 @@ def push(
     project_name = name or project_dir.name
     hub = creds.get("hub_url", DEFAULT_HUB_URL)
     backend = _get_backend_url(hub)
+
+    console.print(f"Looking up [bold]{project_name}[/bold]...")
+
+    base_id = _resolve_base_id(backend, creds["token"], username, project_name)
+    if not base_id:
+        console.print(f"[red]Project '{project_name}' not found.[/red]")
+        console.print(
+            "[yellow]Create it first at the hub, then push.[/yellow]"
+        )
+        raise typer.Exit(1)
 
     console.print(f"Packaging [bold]{project_name}[/bold]...")
 
@@ -136,15 +173,10 @@ def push(
 
         body_parts.append(f"--{boundary}\r\n".encode())
         body_parts.append(
-            f'Content-Disposition: form-data; name="repoZip"; filename="{quote(project_name)}.zip"\r\n'.encode()
+            f'Content-Disposition: form-data; name="file"; filename="{quote(project_name)}.zip"\r\n'.encode()
         )
         body_parts.append(b"Content-Type: application/zip\r\n\r\n")
         body_parts.append(zip_bytes)
-        body_parts.append(b"\r\n")
-
-        body_parts.append(f"--{boundary}\r\n".encode())
-        body_parts.append(b'Content-Disposition: form-data; name="repoName"\r\n\r\n')
-        body_parts.append(project_name.encode())
         body_parts.append(b"\r\n")
 
         body_parts.append(f"--{boundary}--\r\n".encode())
@@ -152,7 +184,7 @@ def push(
         body = b"".join(body_parts)
 
         req = urllib.request.Request(
-            f"{backend}/santai-repos/upload",
+            f"{backend}/bases/{base_id}/upload",
             data=body,
             method="POST",
             headers={
@@ -166,7 +198,7 @@ def push(
                 data = json.loads(resp.read())
                 console.print(
                     f"[green]Pushed [bold]{project_name}[/bold] "
-                    f"({_format_size(data.get('size', zip_size))})[/green]"
+                    f"(version {data.get('version', '?')})[/green]"
                 )
         except urllib.error.HTTPError as e:
             if e.code == 401:

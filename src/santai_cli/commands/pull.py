@@ -7,6 +7,7 @@ import tempfile
 import zipfile
 from pathlib import Path
 from typing import Annotated
+from urllib.parse import urlencode
 
 import typer
 from rich.console import Console
@@ -28,6 +29,28 @@ def _format_size(size_bytes: int) -> str:
     return f"{size_bytes / (1024 * 1024):.1f} MB"
 
 
+def _resolve_base_id(backend: str, token: str, username: str, name: str) -> str | None:
+    """Return the base ID for (username, name), or None if not found."""
+    import urllib.error
+    import urllib.request
+
+    qs = urlencode({"author": username, "search": name, "limit": "20"})
+    req = urllib.request.Request(
+        f"{backend}/bases/?{qs}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read())
+    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError):
+        return None
+
+    for base in data.get("data", []):
+        if base.get("name") == name and base.get("author") == username:
+            return str(base["id"])
+    return None
+
+
 def pull(
     name: Annotated[
         str,
@@ -47,6 +70,11 @@ def pull(
         console.print("Not logged in. Run [bold]santai login[/bold] first.")
         raise typer.Exit(1)
 
+    username = creds.get("username", "")
+    if not username:
+        console.print("[red]Could not determine username from credentials.[/red]")
+        raise typer.Exit(1)
+
     dest_path = Path(dest or name).resolve()
 
     if dest_path.exists():
@@ -58,8 +86,13 @@ def pull(
 
     console.print(f"Looking up [bold]{name}[/bold]...")
 
+    base_id = _resolve_base_id(backend, creds["token"], username, name)
+    if not base_id:
+        console.print(f"[red]Project '{name}' not found.[/red]")
+        raise typer.Exit(1)
+
     req = urllib.request.Request(
-        f"{backend}/santai-repos/download/{name}",
+        f"{backend}/bases/{base_id}/download",
         headers={"Authorization": f"Bearer {creds['token']}"},
     )
 
