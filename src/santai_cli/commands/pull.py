@@ -7,18 +7,14 @@ import tempfile
 import zipfile
 from pathlib import Path
 from typing import Annotated
-from urllib.parse import urlencode
 
 import typer
 from rich.console import Console
 
 from santai_cli.commands.auth import DEFAULT_HUB_URL, load_credentials
+from santai_cli.core.hub import get_backend_url, resolve_base_id
 
 console = Console()
-
-
-def _get_backend_url(hub_url: str) -> str:
-    return hub_url.replace(":3000", ":3001") if ":3000" in hub_url else hub_url
 
 
 def _format_size(size_bytes: int) -> str:
@@ -27,28 +23,6 @@ def _format_size(size_bytes: int) -> str:
     if size_bytes < 1024 * 1024:
         return f"{size_bytes / 1024:.1f} KB"
     return f"{size_bytes / (1024 * 1024):.1f} MB"
-
-
-def _resolve_base_id(backend: str, token: str, username: str, name: str) -> str | None:
-    """Return the base ID for (username, name), or None if not found."""
-    import urllib.error
-    import urllib.request
-
-    qs = urlencode({"author": username, "search": name, "limit": "20"})
-    req = urllib.request.Request(
-        f"{backend}/bases/?{qs}",
-        headers={"Authorization": f"Bearer {token}"},
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            data = json.loads(resp.read())
-    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError):
-        return None
-
-    for base in data.get("data", []):
-        if base.get("name") == name and base.get("author") == username:
-            return str(base["id"])
-    return None
 
 
 def pull(
@@ -82,11 +56,11 @@ def pull(
         raise typer.Exit(1)
 
     hub = creds.get("hub_url", DEFAULT_HUB_URL)
-    backend = _get_backend_url(hub)
+    backend = get_backend_url(hub)
 
     console.print(f"Looking up [bold]{name}[/bold]...")
 
-    base_id = _resolve_base_id(backend, creds["token"], username, name)
+    base_id = resolve_base_id(backend, creds["token"], username, name)
     if not base_id:
         console.print(f"[red]Project '{name}' not found.[/red]")
         raise typer.Exit(1)
