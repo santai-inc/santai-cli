@@ -84,11 +84,6 @@ def push(
         console.print("Not logged in. Run [bold]santai login[/bold] first.")
         raise typer.Exit(1)
 
-    username = creds.get("username", "")
-    if not username:
-        console.print("[red]Could not determine username from credentials.[/red]")
-        raise typer.Exit(1)
-
     # Determine which files to exclude
     ignored_files = set(SENSITIVE_FILES)
     env_path = project_dir / ".env"
@@ -106,7 +101,7 @@ def push(
 
     console.print(f"Looking up [bold]{project_name}[/bold]...")
 
-    base_id = resolve_base_id(backend, creds["token"], username, project_name)
+    base_id = resolve_base_id(backend, creds["token"], project_name)
     if not base_id:
         console.print(f"[red]Project '{project_name}' not found.[/red]")
         console.print(

@@ -3,21 +3,19 @@
 from __future__ import annotations
 
 import json
-from urllib.parse import urlencode
 
 
 def get_backend_url(hub_url: str) -> str:
     return hub_url.replace(":3000", ":3001") if ":3000" in hub_url else hub_url
 
 
-def resolve_base_id(backend: str, token: str, username: str, name: str) -> str | None:
-    """Return the base ID for (username, name), or None if not found."""
+def resolve_base_id(backend: str, token: str, name: str) -> str | None:
+    """Return the base ID for the authenticated user's base with the given name."""
     import urllib.error
     import urllib.request
 
-    qs = urlencode({"author": username, "search": name, "limit": "20"})
     req = urllib.request.Request(
-        f"{backend}/bases/?{qs}",
+        f"{backend}/me/bases",
         headers={"Authorization": f"Bearer {token}"},
     )
     try:
@@ -26,7 +24,7 @@ def resolve_base_id(backend: str, token: str, username: str, name: str) -> str |
     except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError):
         return None
 
-    for base in data.get("data", []):
-        if base.get("name") == name and base.get("author") == username:
+    for base in data.get("bases", []):
+        if base.get("name") == name:
             return str(base["id"])
     return None

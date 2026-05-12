@@ -44,11 +44,6 @@ def pull(
         console.print("Not logged in. Run [bold]santai login[/bold] first.")
         raise typer.Exit(1)
 
-    username = creds.get("username", "")
-    if not username:
-        console.print("[red]Could not determine username from credentials.[/red]")
-        raise typer.Exit(1)
-
     dest_path = Path(dest or name).resolve()
 
     if dest_path.exists():
@@ -60,7 +55,7 @@ def pull(
 
     console.print(f"Looking up [bold]{name}[/bold]...")
 
-    base_id = resolve_base_id(backend, creds["token"], username, name)
+    base_id = resolve_base_id(backend, creds["token"], name)
     if not base_id:
         console.print(f"[red]Project '{name}' not found.[/red]")
         raise typer.Exit(1)
