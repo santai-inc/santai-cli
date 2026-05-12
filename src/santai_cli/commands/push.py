@@ -13,6 +13,7 @@ import typer
 from rich.console import Console
 
 from santai_cli.commands.auth import DEFAULT_HUB_URL, load_credentials
+from santai_cli.core.hub import create_base, get_backend_url, resolve_base_id
 from santai_cli.core.project import is_santai_project
 
 console = Console()
@@ -41,10 +42,6 @@ def _should_include(path: Path, ignored_files: set[str]) -> bool:
         not any(part in IGNORED_DIRECTORIES for part in path.parts)
         and path.name not in ignored_files
     )
-
-
-def _get_backend_url(hub_url: str) -> str:
-    return hub_url.replace(":3000", ":3001") if ":3000" in hub_url else hub_url
 
 
 def _format_size(size_bytes: int) -> str:
@@ -100,7 +97,17 @@ def push(
 
     project_name = name or project_dir.name
     hub = creds.get("hub_url", DEFAULT_HUB_URL)
-    backend = _get_backend_url(hub)
+    backend = get_backend_url(hub)
+
+    console.print(f"Looking up [bold]{project_name}[/bold]...")
+
+    base_id = resolve_base_id(backend, creds["token"], project_name)
+    if not base_id:
+        console.print(f"  Not found — creating [bold]{project_name}[/bold]...")
+        base_id = create_base(backend, creds["token"], project_name)
+        if not base_id:
+            console.print(f"[red]Failed to create project '{project_name}'.[/red]")
+            raise typer.Exit(1)
 
     console.print(f"Packaging [bold]{project_name}[/bold]...")
 
@@ -136,15 +143,10 @@ def push(
 
         body_parts.append(f"--{boundary}\r\n".encode())
         body_parts.append(
-            f'Content-Disposition: form-data; name="repoZip"; filename="{quote(project_name)}.zip"\r\n'.encode()
+            f'Content-Disposition: form-data; name="file"; filename="{quote(project_name)}.zip"\r\n'.encode()
         )
         body_parts.append(b"Content-Type: application/zip\r\n\r\n")
         body_parts.append(zip_bytes)
-        body_parts.append(b"\r\n")
-
-        body_parts.append(f"--{boundary}\r\n".encode())
-        body_parts.append(b'Content-Disposition: form-data; name="repoName"\r\n\r\n')
-        body_parts.append(project_name.encode())
         body_parts.append(b"\r\n")
 
         body_parts.append(f"--{boundary}--\r\n".encode())
@@ -152,7 +154,7 @@ def push(
         body = b"".join(body_parts)
 
         req = urllib.request.Request(
-            f"{backend}/santai-repos/upload",
+            f"{backend}/bases/{base_id}/upload",
             data=body,
             method="POST",
             headers={
@@ -166,7 +168,7 @@ def push(
                 data = json.loads(resp.read())
                 console.print(
                     f"[green]Pushed [bold]{project_name}[/bold] "
-                    f"({_format_size(data.get('size', zip_size))})[/green]"
+                    f"(version {data.get('version', '?')})[/green]"
                 )
         except urllib.error.HTTPError as e:
             if e.code == 401:
