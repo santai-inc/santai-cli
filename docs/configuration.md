@@ -20,6 +20,10 @@ OPENAI_API_KEY=sk-...
 # Optional: override default models
 ANTHROPIC_MODEL=claude-sonnet-4-20250514
 OPENAI_MODEL=gpt-4o
+
+# Optional: custom OpenAI-compatible proxy (e.g. LiteLLM, Azure).
+# If set, OPENAI_API_KEY should match the proxy's expected key.
+OPENAI_API_BASE_URL=https://your-proxy-url.example.com/
 ```
 
 !!! warning
@@ -31,8 +35,9 @@ OPENAI_MODEL=gpt-4o
 |----------|----------|---------|-------------|
 | `ANTHROPIC_API_KEY` | At least one provider | — | Your Anthropic API key |
 | `ANTHROPIC_MODEL` | No | `claude-sonnet-4-20250514` | Default Anthropic model |
-| `OPENAI_API_KEY` | At least one provider | — | Your OpenAI API key |
+| `OPENAI_API_KEY` | At least one provider | — | Your OpenAI (or OpenAI-compatible) API key |
 | `OPENAI_MODEL` | No | `gpt-4o` | Default OpenAI model |
+| `OPENAI_API_BASE_URL` | No | `https://api.openai.com/v1` | Custom OpenAI-compatible endpoint (e.g. LiteLLM, Azure). When set, `OPENAI_API_KEY` should match the proxy. |
 | `SANTAI_HUB_URL` | No | `http://localhost:3000` | Santai Hub URL for push/pull/auth |
 
 You need at least one provider key configured for AI chat. You can configure both to have access to models from both providers.
