@@ -661,6 +661,11 @@ class NoteDetailScreen(ModalScreen):
             )
             yield Static(id="notes-modal-body")
 
+    def on_click(self, event) -> None:
+        """Dismiss when clicking the dimmed area outside the modal panel."""
+        if event.widget is self:
+            self.dismiss()
+
     def on_mount(self) -> None:
         """Populate note content."""
         theme = ThemeManager.get_current_theme()
@@ -1027,6 +1032,11 @@ class FilePreviewScreen(ModalScreen):
                 id="file-preview-title",
             )
             yield Static(id="file-preview-body")
+
+    def on_click(self, event) -> None:
+        """Dismiss when clicking the dimmed area outside the modal panel."""
+        if event.widget is self:
+            self.dismiss()
 
     def on_mount(self) -> None:
         """Load file content."""
