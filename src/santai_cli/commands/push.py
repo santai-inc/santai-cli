@@ -74,7 +74,7 @@ def push(
     if not is_santai_project(project_dir):
         console.print("[red]Error: Not a Santai project.[/red]")
         console.print(
-            "[yellow]A Santai project must have resources/, codebases/, history/, "
+            "[yellow]A Santai project must have media/, history/, "
             "and notes/ directories.[/yellow]"
         )
         raise typer.Exit(1)

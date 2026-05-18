@@ -5,8 +5,8 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
 
-SANTAI_REQUIRED_DIRS = ["resources", "codebases", "history", "notes"]
-SANTAI_DIRS = [*SANTAI_REQUIRED_DIRS, "wiki"]
+SANTAI_REQUIRED_DIRS = ["media", "history", "notes"]
+SANTAI_DIRS = [*SANTAI_REQUIRED_DIRS]
 
 
 @dataclass
@@ -48,7 +48,7 @@ class GraphNode:
 
     id: str  # Relative path from project root
     name: str
-    directory: str  # Which santai directory (resources, notes, etc.)
+    directory: str  # Which santai directory (media, notes, etc.)
     file_type: str
     size_bytes: int
 
@@ -74,11 +74,9 @@ class FileGraph:
 class DirectoryStats:
     """Statistics for the project directories."""
 
-    resources_count: int
-    codebases_count: int
+    media_count: int
     history_count: int
     notes_count: int
-    wiki_count: int
     total_size_bytes: int
     file_types: dict[str, int]
     recent_files: list[FileInfo]
@@ -92,12 +90,8 @@ class SantaiProject:
     name: str
 
     @property
-    def resources_path(self) -> Path:
-        return self.root / "resources"
-
-    @property
-    def codebases_path(self) -> Path:
-        return self.root / "codebases"
+    def media_path(self) -> Path:
+        return self.root / "media"
 
     @property
     def history_path(self) -> Path:
@@ -107,15 +101,11 @@ class SantaiProject:
     def notes_path(self) -> Path:
         return self.root / "notes"
 
-    @property
-    def wiki_path(self) -> Path:
-        return self.root / "wiki"
-
 
 def is_santai_project(path: Path) -> bool:
     """Check if the given path is a Santai project.
 
-    A Santai project has resources/, codebases/, and history/ directories.
+    A Santai project has media/, history/, and notes/ directories.
     """
     if not path.is_dir():
         return False
@@ -176,11 +166,9 @@ def get_directory_stats(project: SantaiProject) -> DirectoryStats:
         all_files.extend(_get_all_files(dir_path))
 
     # Count files per directory
-    resources_count = _count_files_recursive(project.resources_path)
-    codebases_count = _count_files_recursive(project.codebases_path)
+    media_count = _count_files_recursive(project.media_path)
     history_count = _count_files_recursive(project.history_path)
     notes_count = _count_files_recursive(project.notes_path)
-    wiki_count = _count_files_recursive(project.wiki_path)
 
     # Calculate total size
     total_size = sum(f.size_bytes for f in all_files)
@@ -194,11 +182,9 @@ def get_directory_stats(project: SantaiProject) -> DirectoryStats:
     recent_files = sorted(all_files, key=lambda f: f.modified_at, reverse=True)[:10]
 
     return DirectoryStats(
-        resources_count=resources_count,
-        codebases_count=codebases_count,
+        media_count=media_count,
         history_count=history_count,
         notes_count=notes_count,
-        wiki_count=wiki_count,
         total_size_bytes=total_size,
         file_types=file_types,
         recent_files=recent_files,

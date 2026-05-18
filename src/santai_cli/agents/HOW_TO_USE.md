@@ -7,7 +7,7 @@ These markdown files are agent definitions that can be used **directly** as suba
 When you want to spawn a specialized subagent, tell Claude to use one of these definitions:
 
 ```
-"Use the agent definition from agents/wiki.md as a subagent to curate our project knowledge"
+"Use the agent definition from agents/documentation.md as a subagent to curate our project knowledge"
 
 "Read agents/research.md and spawn a subagent with those instructions to investigate this topic"
 
@@ -25,7 +25,7 @@ Claude Code will:
 ```
 "Act as the agent defined in agents/documentation.md and help me write a history entry"
 
-"Load the agent instructions from agents/linting.md and check our wiki for quality issues"
+"Load the agent instructions from agents/linting.md and check our notes for quality issues"
 ```
 
 ## Using with Other Tools
@@ -39,19 +39,19 @@ Any AI tool that supports custom instructions or system prompts can use these:
 ## Example
 
 ```
-You: "Use agents/wiki.md as a subagent to review our wiki and identify gaps"
+You: "Use agents/documentation.md as a subagent to review our docs and identify gaps"
 
-Claude: [Reads wiki.md, spawns subagent with that expertise]
+Claude: [Reads documentation.md, spawns subagent with that expertise]
 
-Wiki Subagent: "I'll scan the wiki/ directory and cross-reference with history/
-and notes/ to identify knowledge that should be captured..."
+Documentation Subagent: "I'll scan the project directories and cross-reference
+history/ and notes/ to identify knowledge that should be captured..."
 ```
 
 ## Why This Works
 
 - **Direct use**: No code generation, just reference the markdown file
-- **Santai-aware**: Each agent understands the 5-directory structure
-- **Composable**: Chain agents together (research -> documentation -> wiki)
+- **Santai-aware**: Each agent understands the santai directory structure
+- **Composable**: Chain agents together (research -> documentation)
 - **Consistent**: Same agent definitions work across tools
 
 ## Adding New Agents

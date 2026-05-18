@@ -104,8 +104,8 @@ def copy(
     if not is_santai_project(source_path):
         console.print(f"[red]Error: '{source}' is not a valid Santai project.[/red]")
         console.print(
-            "[yellow]A Santai project must have resources/, codebases/, history/, "
-            "notes/, and wiki/ directories.[/yellow]"
+            "[yellow]A Santai project must have media/, history/, and "
+            "notes/ directories.[/yellow]"
         )
         raise typer.Exit(1)
 
@@ -170,11 +170,9 @@ def copy(
     console.print("  ├── AGENTS.md")
     console.print("  ├── README.md")
     console.print("  ├── CLAUDE.md")
-    console.print("  ├── resources/")
-    console.print("  ├── codebases/")
+    console.print("  ├── media/")
     console.print("  ├── history/")
-    console.print("  ├── notes/")
-    console.print("  └── wiki/")
+    console.print("  └── notes/")
     console.print()
     console.print("Next steps:")
     console.print(f"  cd {project_name}")

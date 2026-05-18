@@ -45,15 +45,11 @@ my-project/
 ├── CLAUDE.md
 ├── README.md
 ├── rumdl.toml
-├── resources/
-│   └── .gitkeep
-├── codebases/
+├── media/
 │   └── .gitkeep
 ├── history/
 │   └── .gitkeep
-├── notes/
-│   └── .gitkeep
-└── wiki/
+└── notes/
     └── .gitkeep
 ```
 
@@ -87,21 +83,13 @@ echo "# Decided on REST over GraphQL\nTeam voted unanimously." > history/2025-04
 
 The filename format is `YYYY-MM-DD-description.md`. The description becomes the display title (hyphens are replaced with spaces and title-cased).
 
-### Resources and Codebases
+### Media
 
-Place reference documents in `resources/` and code in `codebases/`:
-
-```bash
-cp ~/design-spec.pdf resources/
-git clone https://github.com/example/repo.git codebases/repo
-```
-
-### Wiki
-
-The `wiki/` directory is intended for curated knowledge that grounds AI agents:
+Place reference documents in `media/`:
 
 ```bash
-echo "# Architecture Overview\nThe system uses a microservices pattern..." > wiki/architecture.md
+cp ~/design-spec.pdf media/
+echo "# Architecture Overview\nThe system uses a microservices pattern..." > media/architecture.md
 ```
 
 ## Exploring Your Project

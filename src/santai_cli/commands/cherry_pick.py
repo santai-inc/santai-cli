@@ -41,8 +41,8 @@ def _validate_project(path_str: str, label: str = "Path") -> Path:
     if not is_santai_project(resolved):
         console.print(f"[red]Error: '{path_str}' is not a valid Santai project.[/red]")
         console.print(
-            "[yellow]A Santai project must have resources/, codebases/, "
-            "history/, and notes/ directories.[/yellow]"
+            "[yellow]A Santai project must have media/, history/, "
+            "and notes/ directories.[/yellow]"
         )
         raise typer.Exit(1)
 
@@ -116,7 +116,7 @@ def cherry_pick(
         typer.Argument(
             help=(
                 "Files or folders to cherry-pick (relative paths inside the "
-                "source project, e.g. notes/idea.md wiki/)"
+                "source project, e.g. notes/idea.md media/)"
             ),
         ),
     ],
@@ -152,7 +152,7 @@ def cherry_pick(
 
         santai cherry-pick ./kb-large ./kb-small notes/idea.md
 
-        santai cherry-pick ./research ./writing wiki/ resources/outline.md
+        santai cherry-pick ./research ./writing media/ media/outline.md
 
         santai cherry-pick . ../other-kb notes/2025-04-01-plan.md --dry-run
     """

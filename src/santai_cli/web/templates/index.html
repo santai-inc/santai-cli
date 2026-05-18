@@ -3795,13 +3795,9 @@
                         </div>
                         <div class="graph-legend">
                             <div id="graph-dir-legend">
-                                <div class="graph-legend-item" data-directory="resources" onclick="toggleDirectoryFilter('resources')">
+                                <div class="graph-legend-item" data-directory="media" onclick="toggleDirectoryFilter('media')">
                                     <span class="graph-legend-color" style="background: #60a5fa;"></span>
-                                    <span>resources</span>
-                                </div>
-                                <div class="graph-legend-item" data-directory="codebases" onclick="toggleDirectoryFilter('codebases')">
-                                    <span class="graph-legend-color" style="background: #a855f7;"></span>
-                                    <span>codebases</span>
+                                    <span>media</span>
                                 </div>
                                 <div class="graph-legend-item" data-directory="history" onclick="toggleDirectoryFilter('history')">
                                     <span class="graph-legend-color" style="background: #f87171;"></span>
@@ -3810,10 +3806,6 @@
                                 <div class="graph-legend-item" data-directory="notes" onclick="toggleDirectoryFilter('notes')">
                                     <span class="graph-legend-color" style="background: #fbbf24;"></span>
                                     <span>notes</span>
-                                </div>
-                                <div class="graph-legend-item" data-directory="wiki" onclick="toggleDirectoryFilter('wiki')">
-                                    <span class="graph-legend-color" style="background: #34d399;"></span>
-                                    <span>wiki</span>
                                 </div>
                                 <button class="graph-cluster-clear-btn" id="dir-clear-btn" style="display:none;" onclick="clearDirectoryFilter()">Clear</button>
                             </div>
@@ -4791,7 +4783,7 @@
                 return;
             }
 
-            const protectedFilePaths = ['codebases', 'history', 'notes', 'resources', 'wiki', 'AGENTS.md', 'CLAUDE.md', 'README.md', 'rumdl.toml'];
+            const protectedFilePaths = ['history', 'media', 'notes', 'AGENTS.md', 'CLAUDE.md', 'README.md', 'rumdl.toml'];
             let html = '<div class="file-grid">';
             for (const item of items) {
                 const isProtected = protectedFilePaths.includes(item.path);
@@ -4948,7 +4940,7 @@
         }
 
         // Move item (drag and drop)
-        const protectedPaths = ['codebases', 'history', 'notes', 'resources', 'wiki', 'AGENTS.md', 'CLAUDE.md', 'README.md', 'rumdl.toml'];
+        const protectedPaths = ['history', 'media', 'notes', 'AGENTS.md', 'CLAUDE.md', 'README.md', 'rumdl.toml'];
         let draggedItems = null;    // array of { path, name, isDir } for current drag
         let currentDropGroup = null; // <li> currently highlighted as drop target
 
@@ -5107,7 +5099,7 @@
             const items = draggedItems.slice();
 
             // Filter to moveable items — skip protected top-level paths so files
-            // inside locked folders (notes/*, wiki/*, etc.) still move correctly
+            // inside locked folders (notes/*, media/*, etc.) still move correctly
             const moveable = items.filter(item => !isProtectedPath(item.path));
             if (moveable.length === 0) return;
 
@@ -5681,7 +5673,7 @@
             let html = '<li>';
 
             // Check if this is a protected path
-            const protectedPaths = ['codebases', 'history', 'notes', 'resources', 'wiki', 'AGENTS.md', 'CLAUDE.md', 'README.md', 'rumdl.toml'];
+            const protectedPaths = ['history', 'media', 'notes', 'AGENTS.md', 'CLAUDE.md', 'README.md', 'rumdl.toml'];
             const isProtected = protectedPaths.includes(node.path);
 
             // Tree item
@@ -6071,11 +6063,9 @@
 
         // Directory color mapping for graph - modern pastel palette
         const dirColors = {
-            resources: '#60a5fa',  // Blue
-            codebases: '#a855f7',  // Deep purple
+            media: '#60a5fa',      // Blue
             history: '#f87171',    // Red
             notes: '#fbbf24',      // Yellow (sticky note)
-            wiki: '#34d399',       // Emerald green
             other: '#94a3b8'       // Slate gray
         };
 
@@ -6629,11 +6619,6 @@
                 welcome: "Hi! I'm your linting assistant. I can enforce content quality and consistency across your project files.",
                 chips: ['Lint the selected file', 'Check for consistency issues', 'Enforce code style across the project', 'Find quality issues'],
             },
-            'wiki': {
-                title: 'AI Wiki Assistant',
-                welcome: "Hi! I'm your wiki assistant. I can curate and maintain your wiki for AI agent context.",
-                chips: ['Update the wiki', 'Add an entry for the selected file', 'Summarize recent changes', 'Generate a wiki index'],
-            },
             'research': {
                 title: 'AI Research Assistant',
                 welcome: "Hi! I'm your research assistant. I can investigate topics and gather context for your knowledge bases.",
@@ -7028,17 +7013,6 @@
                     return {
                         display: `Generate docs for "${fileName}"`,
                         api: content ? `Generate documentation for the following file (${fileName}):\n\n\`\`\`\n${content}\n\`\`\`` : `Generate documentation for the file: ${fileName}`,
-                    };
-                });
-                return;
-            }
-
-            if (text === 'Add an entry for the selected file') {
-                await _sendWithSelectedFile((fileName, content) => {
-                    if (!fileName) return { display: 'Add a wiki entry for the selected file', api: 'Add a wiki entry for the selected file' };
-                    return {
-                        display: `Add a wiki entry for "${fileName}"`,
-                        api: content ? `Add a wiki entry for the following file (${fileName}):\n\n\`\`\`\n${content}\n\`\`\`` : `Add a wiki entry for the file: ${fileName}`,
                     };
                 });
                 return;

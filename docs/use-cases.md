@@ -12,11 +12,8 @@ santai init api-migration-research
 cd api-migration-research
 
 # Add reference materials
-cp ~/specs/current-api.md resources/
-cp ~/specs/target-api.md resources/
-
-# Clone relevant codebases
-git clone https://github.com/org/api-service.git codebases/api-service
+cp ~/specs/current-api.md media/
+cp ~/specs/target-api.md media/
 
 # Set up AI chat for research
 cp .env.example .env
@@ -47,20 +44,20 @@ The agent will create a properly formatted `history/YYYY-MM-DD-description.md` f
 
 ## Building a Project Knowledge Base
 
-Incrementally build a wiki that serves as ground truth for AI agents:
+Incrementally capture knowledge that serves as ground truth for AI agents:
 
 ```bash
 # Research a topic
 santai chat --agent research
 # "What are our deployment environments and how do they differ?"
 
-# Capture findings in the wiki
-santai chat --agent wiki
-# "Create a wiki page documenting our deployment environments"
+# Capture findings in media/
+santai chat --agent documentation
+# "Create a media/ entry documenting our deployment environments"
 
 # Review quality
 santai chat --agent linting
-# "Check the wiki for completeness and consistency"
+# "Check the project for completeness and consistency"
 ```
 
 ## Onboarding to an Existing Project
@@ -74,7 +71,7 @@ cd existing-project
 santai chat --agent summarizer
 # "Give me a complete overview of this project"
 # "Summarize the last 10 history entries"
-# "What's in the wiki?"
+# "What's in media/?"
 
 # Browse visually
 santai ui
@@ -89,20 +86,20 @@ When you need specific files from one project in another without merging everyth
 
 ```bash
 # Preview what you'd get
-santai cherry-pick ./large-kb ./focused-kb wiki/architecture.md notes/ --dry-run
+santai cherry-pick ./large-kb ./focused-kb media/architecture.md notes/ --dry-run
 
 # Copy the files
-santai cherry-pick ./large-kb ./focused-kb wiki/architecture.md notes/
+santai cherry-pick ./large-kb ./focused-kb media/architecture.md notes/
 
 # Copy an entire directory, overwriting conflicts
-santai cherry-pick ./research ./writing resources/ --overwrite
+santai cherry-pick ./research ./writing media/ --overwrite
 ```
 
 This is particularly useful when:
 
 - Splitting a large KB into focused sub-projects
 - Sharing specific reference materials across projects
-- Pulling in wiki context from a team KB into a personal one
+- Pulling in shared context from a team KB into a personal one
 
 ## Merging Two Research Streams
 
@@ -178,7 +175,7 @@ The file graph visualization tracks links between your documents:
 
 1. Add cross-references in your markdown files using standard links:
     ```markdown
-    See [Architecture Overview](../wiki/architecture.md) for context.
+    See [Architecture Overview](../media/architecture.md) for context.
     Related: [[deployment-process]]
     ```
 
@@ -191,7 +188,7 @@ The file graph visualization tracks links between your documents:
 
 3. Search and filter the graph:
     - Press `/` to search for specific files
-    - Press `f` to filter by directory (e.g., show only wiki links)
+    - Press `f` to filter by directory (e.g., show only media/ links)
 
 The graph detects both standard markdown links and wikilinks (`[[page]]` and `[[page|display text]]`).
 
@@ -223,9 +220,8 @@ In the chat:
 You: Audit the entire project. Check:
      - History entry filename conventions
      - Markdown formatting quality
-     - Wiki completeness
      - Cross-references between documents
-     - Notes that should be promoted to wiki or history
+     - Notes that should be promoted to history
 ```
 
 The linting agent will report issues with Error, Warning, and Info severity levels.

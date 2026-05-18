@@ -17,7 +17,7 @@ class RepoContext:
 
     project: SantaiProject
     file_tree: str
-    resources_summary: str
+    media_summary: str
 
 
 def _build_file_tree(root: Path, max_depth: int = 4) -> str:
@@ -59,39 +59,31 @@ def _build_file_tree(root: Path, max_depth: int = 4) -> str:
     return "\n".join(lines)
 
 
-def _get_resources_summary(project: SantaiProject) -> str:
-    """Get a summary of resources in the project.
+def _get_media_summary(project: SantaiProject) -> str:
+    """Get a summary of media files in the project.
 
     Args:
         project: The Santai project.
 
     Returns:
-        Summary string of resources.
+        Summary string of media.
     """
-    resources_path = project.resources_path
-    codebases_path = project.codebases_path
+    media_path = project.media_path
 
     summary_parts = []
 
-    if resources_path.is_dir():
-        files = [f for f in resources_path.rglob("*") if f.is_file()]
+    if media_path.is_dir():
+        files = [f for f in media_path.rglob("*") if f.is_file()]
         if files:
-            summary_parts.append(f"Resources ({len(files)} files):")
+            summary_parts.append(f"Media ({len(files)} files):")
             for f in sorted(files)[:20]:
-                rel = f.relative_to(resources_path)
+                rel = f.relative_to(media_path)
                 summary_parts.append(f"  - {rel}")
-
-    if codebases_path.is_dir():
-        repos = [d for d in codebases_path.iterdir() if d.is_dir()]
-        if repos:
-            summary_parts.append(f"\nCodebases ({len(repos)} repositories):")
-            for repo in sorted(repos)[:10]:
-                summary_parts.append(f"  - {repo.name}/")
 
     if not summary_parts:
         return ""
 
-    return f"## Resources Summary\n\n{'=' * 40}\n\n" + "\n".join(summary_parts)
+    return f"## Media Summary\n\n{'=' * 40}\n\n" + "\n".join(summary_parts)
 
 
 def build_repo_context(project: SantaiProject) -> RepoContext:
@@ -100,7 +92,7 @@ def build_repo_context(project: SantaiProject) -> RepoContext:
     This function scans the project directory and generates structured
     context including:
     - File tree structure
-    - Resources summary
+    - Media summary
 
     Args:
         project: The Santai project to build context for.
@@ -111,7 +103,7 @@ def build_repo_context(project: SantaiProject) -> RepoContext:
     return RepoContext(
         project=project,
         file_tree=_build_file_tree(project.root),
-        resources_summary=_get_resources_summary(project),
+        media_summary=_get_media_summary(project),
     )
 
 
@@ -139,15 +131,15 @@ def build_repo_context_prompt(context: RepoContext) -> str:
         f"```\n{context.file_tree}\n```",
     ]
 
-    if context.resources_summary:
-        sections.extend(["", context.resources_summary])
+    if context.media_summary:
+        sections.extend(["", context.media_summary])
 
     sections.extend(
         [
             "",
             "## Important Guidelines",
             "- You can see the file tree above, but you do NOT have the file contents in context.",
-            "- IMPORTANT: Whenever a user asks a question that could be answered by a file in this project (notes, wiki, resources, codebases, or any other file), you MUST call read_file to read the relevant file(s) before answering. Never answer knowledge-base questions from memory — always fetch fresh content with the tool.",
+            "- IMPORTANT: Whenever a user asks a question that could be answered by a file in this project (notes, media, history, or any other file), you MUST call read_file to read the relevant file(s) before answering. Never answer knowledge-base questions from memory — always fetch fresh content with the tool.",
             "- If multiple files might be relevant, read each one before responding.",
             "- Use [[wikilinks]] or markdown links when referencing project files.",
             "- IMPORTANT: If a read_file result includes 'truncated: true', the file was cut off. Acknowledge this to the user rather than treating the partial content as complete.",

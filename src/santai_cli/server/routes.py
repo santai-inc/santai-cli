@@ -46,14 +46,11 @@ This directory is managed by Santai.
 
 ## Directory Structure
 
-- **resources/** - Reference materials including markdown files, PDFs, images, \
+- **media/** - Reference materials including markdown files, PDFs, images, \
 and other documents
-- **codebases/** - Code repositories and references
 - **history/** - Markdown documentation of major changes and decisions \
 (supplements git history)
 - **notes/** - General notes, scratch space, and quick thoughts
-- **wiki/** - Important context for grounding AI agents and solidifying \
-project knowledge
 """
 
 _README_MD_TEMPLATE = """\
@@ -93,7 +90,7 @@ def _validate_santai_project(path: Path, label: str = "Path") -> None:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=(
                 f"{label} '{path}' is not a valid Santai project. "
-                "Must contain resources/, codebases/, history/, and notes/ "
+                "Must contain media/, history/, and notes/ "
                 "directories."
             ),
         )
@@ -179,7 +176,7 @@ async def api_init(req: InitRequest) -> InitResponse:
     _run_command(["git", "init"], cwd=target)
 
     # Create directory structure
-    for dir_name in ["resources", "codebases", "history", "notes", "wiki"]:
+    for dir_name in ["media", "history", "notes"]:
         (target / dir_name).mkdir(exist_ok=True)
         (target / dir_name / ".gitkeep").touch()
 

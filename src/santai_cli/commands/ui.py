@@ -22,7 +22,7 @@ def ui(
     """Launch the TUI dashboard.
 
     Displays a terminal-based user interface with:
-    - Directory tree showing resources/, codebases/, history/
+    - Directory tree showing media/, history/, notes/
     - Dashboard with file statistics, types, and recent files
 
     Press 'q' to quit, 'r' to refresh, 't' to see theme options.

@@ -79,7 +79,7 @@ Selectively copy specific files or folders from one project into another.
 
 ```bash
 santai cherry-pick ./kb-large ./kb-small notes/idea.md
-santai cherry-pick ./research ./writing wiki/ resources/outline.md
+santai cherry-pick ./research ./writing media/ media/outline.md
 santai cherry-pick . ../other-kb notes/ --dry-run
 ```
 
@@ -154,11 +154,9 @@ A Santai project contains these directories:
 
 | Directory | Purpose |
 |-----------|---------|
-| `resources/` | Reference materials (markdown, PDFs, images, documents) |
-| `codebases/` | Code repositories and references |
+| `media/` | Reference materials (markdown, PDFs, images, documents) |
 | `history/` | Dated markdown entries documenting major changes |
 | `notes/` | General notes and scratch space |
-| `wiki/` | Context for grounding AI agents |
 
 ## Development
 
