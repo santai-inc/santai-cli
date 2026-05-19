@@ -3831,6 +3831,12 @@
                                 Delete Link
                             </button>
                             <div class="graph-edit-status" id="graph-edit-status"></div>
+                            <button class="graph-edit-btn" id="restore-links-btn" onclick="clearDeletedLinks()" title="Restore all deleted links" style="display:none;">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                                Restore Links
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -6146,6 +6152,7 @@
                 const data = await response.json();
                 renderGraph(data);
                 lastGraphHash = hashGraphData(data);
+                updateEditStatus(); // show Restore Links button if deletions exist
             } catch (error) {
                 console.error('Failed to load graph:', error);
                 document.getElementById('graph-stats').textContent = 'Failed to load graph';
@@ -6211,6 +6218,7 @@
                 if (!nodeMap.has(e.source) || !nodeMap.has(e.target)) return false;
                 const key = [e.source, e.target].sort().join('\0');
                 if (seenEdgePairs.has(key)) return false;
+                if (deletedLinks.has(key)) return false;
                 seenEdgePairs.add(key);
                 return true;
             });
@@ -7571,6 +7579,8 @@
         let deleteMode = false;
         let selectedSourceNode = null;
         let customLinks = JSON.parse(localStorage.getItem('santai-custom-links') || '[]');
+        // Set of "source\0target" keys (sorted) for links the user has explicitly deleted
+        let deletedLinks = new Set(JSON.parse(localStorage.getItem('santai-deleted-links') || '[]'));
 
         // Graph filter state
         let activeDirectoryFilters = new Set(); // Empty means show all
@@ -8187,6 +8197,8 @@
             } else {
                 status.textContent = '';
             }
+            const restoreBtn = document.getElementById('restore-links-btn');
+            if (restoreBtn) restoreBtn.style.display = deletedLinks.size > 0 ? '' : 'none';
         }
 
         function updateGraphInteraction() {
@@ -8243,31 +8255,35 @@
             if (!deleteMode) return;
 
             event.stopPropagation();
-
-            // Hide tooltip since the link will be removed
             document.getElementById('graph-tooltip').classList.remove('visible');
 
-            // Find and remove the link
             const sourceId = d.source.id || d.source;
             const targetId = d.target.id || d.target;
+            const key = [sourceId, targetId].sort().join('\0');
 
-            // Check if it's a custom link
+            // Remove from custom links if present
             const customIndex = customLinks.findIndex(l =>
                 (l.source === sourceId && l.target === targetId) ||
                 (l.source === targetId && l.target === sourceId)
             );
-
             if (customIndex !== -1) {
                 customLinks.splice(customIndex, 1);
                 localStorage.setItem('santai-custom-links', JSON.stringify(customLinks));
-
-                if (window.lastGraphData) {
-                    renderGraph(window.lastGraphData);
-                }
-                showToast('Link deleted');
-            } else {
-                showToast('Cannot delete file-based links', true);
             }
+
+            // Always add to deleted set so the link stays hidden even if re-computed
+            deletedLinks.add(key);
+            localStorage.setItem('santai-deleted-links', JSON.stringify([...deletedLinks]));
+
+            if (window.lastGraphData) renderGraph(window.lastGraphData);
+            showToast('Link deleted');
+        }
+
+        function clearDeletedLinks() {
+            deletedLinks.clear();
+            localStorage.removeItem('santai-deleted-links');
+            if (window.lastGraphData) renderGraph(window.lastGraphData);
+            showToast('Deleted links restored');
         }
 
         function zoomGraph(factor) {
