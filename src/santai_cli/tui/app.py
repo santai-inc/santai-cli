@@ -1580,9 +1580,9 @@ class GraphFilterScreen(ModalScreen):
 
     def key_enter(self) -> None:
         """Apply the filter."""
-        all_dirs = set(self.DIRS) | self._available_dirs
-        if self._selected >= all_dirs or not self._selected:
-            # All selected or none selected = no filter
+        # Compare against available dirs only — standard dirs with no files
+        # are irrelevant and would prevent this check from ever being True.
+        if not self._selected or self._selected >= self._available_dirs:
             filter_dirs = None
         else:
             filter_dirs = set(self._selected)
