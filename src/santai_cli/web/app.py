@@ -457,24 +457,6 @@ def create_app(project: SantaiProject) -> FastAPI:
     @app.post("/api/files/move")
     async def move_file(req: MoveRequest) -> dict[str, str]:
         """Move a file or directory to a new location."""
-        # Protected top-level paths that cannot be moved
-        protected_paths = {
-            "codebases",
-            "history",
-            "notes",
-            "resources",
-            "wiki",
-            "AGENTS.md",
-            "CLAUDE.md",
-            "README.md",
-            "rumdl.toml",
-        }
-
-        if req.source_path in protected_paths:
-            raise HTTPException(
-                status_code=403, detail="Cannot move protected files or folders"
-            )
-
         source = safe_path(req.source_path)
         target_dir = safe_path(req.target_folder)
 

@@ -4799,17 +4799,14 @@
                 return;
             }
 
-            const protectedFilePaths = ['codebases', 'history', 'notes', 'resources', 'wiki', 'AGENTS.md', 'CLAUDE.md', 'README.md', 'rumdl.toml'];
             let html = '<div class="file-grid">';
             for (const item of items) {
-                const isProtected = protectedFilePaths.includes(item.path);
-                const canDrag = !isProtected;
                 html += `<div class="file-item"
                      data-path="${item.path}"
                      data-is-dir="${item.is_dir}"
                      data-name="${item.name}"
-                     ${canDrag ? 'draggable="true"' : ''}
-                     ${canDrag ? `ondragstart="handleDragStart(event, '${item.path}', '${item.name}', ${item.is_dir})"` : ''}
+                     draggable="true"
+                     ondragstart="handleDragStart(event, '${item.path}', '${item.name}', ${item.is_dir})"
                      ondragend="handleDragEnd(event)"
                      ${item.is_dir ? `ondragover="handleDragOver(event, '${item.path}', true)"` : ''}
                      ${item.is_dir ? 'ondragleave="handleDragLeave(event)"' : ''}
@@ -4824,8 +4821,7 @@
                         <div class="file-name">${item.name}</div>
                         <div class="file-meta">${item.is_dir ? 'Folder' : item.size_formatted}</div>
                     </div>`;
-                if (!isProtected) {
-                    html += `<div class="file-actions">
+                html += `<div class="file-actions">
                         <button class="file-action-btn edit-btn" onclick="event.stopPropagation(); editItem('${item.path}', '${item.name}')" title="Rename">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
@@ -4837,7 +4833,6 @@
                             </svg>
                         </button>
                     </div>`;
-                }
                 html += `</div>`;
             }
             html += '</div>';
@@ -4956,15 +4951,8 @@
         }
 
         // Move item (drag and drop)
-        const protectedPaths = ['codebases', 'history', 'notes', 'resources', 'wiki', 'AGENTS.md', 'CLAUDE.md', 'README.md', 'rumdl.toml'];
         let draggedItems = null;    // array of { path, name, isDir } for current drag
         let currentDropGroup = null; // <li> currently highlighted as drop target
-
-        function isProtectedPath(path) {
-            // Only top-level names are protected — files inside (e.g. notes/my-note.md)
-            // are intentionally moveable; only the folder itself is locked.
-            return protectedPaths.includes(path);
-        }
 
         function getFlatVisibleTreeItems() {
             return Array.from(document.querySelectorAll('#tree-view .tree-item'));
@@ -5020,10 +5008,6 @@
         }
 
         function handleDragStart(event, path, name, isDir) {
-            if (isProtectedPath(path)) {
-                event.preventDefault();
-                return;
-            }
             // If this item is part of a multi-selection, drag all selected items
             if (selectedItems.size > 1 && selectedItems.has(path)) {
                 draggedItems = [];
@@ -5143,10 +5127,9 @@
             // Save items before async (draggedItems gets nulled by handleDragEnd)
             const items = draggedItems.slice();
 
-            // Filter to items that actually need to move: skip protected paths,
-            // items already in the target folder, and dirs being dropped into themselves
+            // Filter to items that actually need to move: skip items already in the
+            // target folder and dirs being dropped into themselves
             const moveable = items.filter(item =>
-                !isProtectedPath(item.path) &&
                 item.path.split('/').slice(0, -1).join('/') !== dropFolder &&
                 !(item.isDir && (dropFolder === item.path || dropFolder.startsWith(item.path + '/')))
             );
@@ -5729,12 +5712,8 @@
 
             let html = '<li>';
 
-            // Check if this is a protected path
-            const protectedPaths = ['codebases', 'history', 'notes', 'resources', 'wiki', 'AGENTS.md', 'CLAUDE.md', 'README.md', 'rumdl.toml'];
-            const isProtected = protectedPaths.includes(node.path);
-
             // Tree item
-            const canDrag = node.path && !isProtected;
+            const canDrag = !!node.path;
             const isSelected = selectedItems.has(node.path);
             const isPreviewing = !isSelected && node.path === previewPath;
             // Suppress folder-active green while a multi-selection is in progress
@@ -5765,9 +5744,9 @@
             }
             html += `<span class="tree-name">${displayName}</span>`;
 
-            // Action buttons (only for non-root and non-protected items) — rendered
+            // Action buttons (only for non-root items) — rendered
             // before the toggle so the chevron stays anchored at the far right.
-            if (node.path && !isProtected) {
+            if (node.path) {
                 html += `<span class="tree-actions">
                     <button class="tree-action-btn edit-btn" onclick="event.stopPropagation(); editItem('${node.path}', '${node.name}')" title="Rename">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
