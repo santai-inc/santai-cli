@@ -4237,6 +4237,25 @@
             if (main) main.classList.remove('preview-open');
             document.body.classList.remove('preview-open');
             resizeGraphIfFullscreen();
+            // Re-center graph in non-fullscreen mode when preview closes.
+            // Reading clientWidth after the class removal forces a synchronous reflow so
+            // we get real dimensions before the first paint — no corner-flash.
+            if (!document.querySelector('.graph-panel.fullscreen') && window.currentSimulation && window.graphSvg && window.graphZoom) {
+                const container = document.querySelector('.graph-container');
+                const svg = d3.select('#graph-svg');
+                // clientWidth access forces layout; returns 0 if still hidden
+                if (container && svg && container.clientWidth > 0) {
+                    const svgW = +svg.attr('width') || 0;
+                    const svgH = +svg.attr('height') || 0;
+                    const dimensionsLost = svgW === 0 || svgH === 0;
+                    if (dimensionsLost) {
+                        svg.attr('width', container.clientWidth).attr('height', container.clientHeight);
+                        fitAllNodes(false);
+                    } else if (!window.graphUserHasMoved) {
+                        fitAllNodes(false);
+                    }
+                }
+            }
         }
 
         // File Preview Functions
@@ -6155,6 +6174,7 @@
         function renderGraph(data) {
             // Store data for re-rendering on resize/fullscreen
             window.lastGraphData = data;
+            window.graphUserHasMoved = false;
 
             const container = document.querySelector('.graph-container');
             const svg = d3.select('#graph-svg');
@@ -6330,6 +6350,7 @@
                 .scaleExtent([0.1, 4])
                 .on('zoom', (event) => {
                     g.attr('transform', event.transform);
+                    if (event.sourceEvent) window.graphUserHasMoved = true;
                 });
 
             svg.call(zoom);
@@ -6340,6 +6361,7 @@
 
             // Add double-click to reset zoom
             svg.on('dblclick.zoom', () => {
+                window.graphUserHasMoved = false;
                 fitAllNodes(true);
             });
 
