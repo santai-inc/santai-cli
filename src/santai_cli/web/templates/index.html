@@ -5054,6 +5054,7 @@
         }
 
         function clearDropGroupHighlight() {
+            hideFolderMoveTooltip();
             if (currentDropGroup) {
                 currentDropGroup.classList.remove('drag-drop-target');
                 const svg = currentDropGroup.querySelector(':scope > .drag-group-svg');
@@ -5062,9 +5063,22 @@
             }
         }
 
+        function showFolderMoveTooltip(event, folderName) {
+            const tooltip = document.getElementById('folder-move-tooltip');
+            tooltip.textContent = `Move to ${folderName}`;
+            tooltip.style.left = (event.clientX + 12) + 'px';
+            tooltip.style.top = (event.clientY + 12) + 'px';
+            tooltip.classList.add('visible');
+        }
+
+        function hideFolderMoveTooltip() {
+            document.getElementById('folder-move-tooltip').classList.remove('visible');
+        }
+
         function handleDragEnd(event) {
             event.target.classList.remove('dragging');
             clearDropGroupHighlight();
+            hideFolderMoveTooltip();
             document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over', 'invalid'));
             draggedItems = null;
         }
@@ -5087,6 +5101,9 @@
             }
 
             event.dataTransfer.dropEffect = 'move';
+
+            const folderName = dropFolder.split('/').pop() || 'root directory';
+            showFolderMoveTooltip(event, folderName);
 
             const treeItem = event.target.closest('#tree-view .tree-item');
             if (!treeItem) return;
@@ -5413,6 +5430,14 @@
             }
         }
 
+        // Clear tree drag state when drag leaves the tree panel
+        document.querySelector('.tree-container').addEventListener('dragleave', (e) => {
+            if (!draggedItems) return;
+            if (!e.currentTarget.contains(e.relatedTarget)) {
+                clearDropGroupHighlight();
+            }
+        });
+
         // Drag and drop (external files only - not internal moves)
         document.addEventListener('dragover', (e) => {
             e.preventDefault();
@@ -5719,6 +5744,7 @@
                          ondragover="handleDragOver(event, '${node.path}', ${node.is_dir})"
                          ondragleave="handleDragLeave(event)"
                          ondrop="handleDrop(event, '${node.path}', ${node.is_dir})"
+                         ${node.is_dir ? `onmouseenter="if(selectedItems.size>0)showFolderMoveTooltip(event,'${node.name.replace(/'/g, "\\'")}')" onmouseleave="hideFolderMoveTooltip()"` : ''}
                          onclick="handleTreeClick(event, '${node.path}', ${node.is_dir}, ${hasChildren})"
                          ondblclick="handleTreeDblClick(event, '${node.path}', ${node.is_dir})">`;
 
@@ -8423,5 +8449,6 @@
         setupScrollFade('.preview-content');
     </script>
     <div class="graph-tooltip" id="graph-tooltip"></div>
+    <div class="graph-tooltip" id="folder-move-tooltip"></div>
 </body>
 </html>
