@@ -3831,12 +3831,7 @@
                                 Delete Link
                             </button>
                             <div class="graph-edit-status" id="graph-edit-status"></div>
-                            <button class="graph-edit-btn" id="restore-links-btn" onclick="clearDeletedLinks()" title="Restore all deleted links" style="display:none;">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                </svg>
-                                Restore Links
-                            </button>
+
                         </div>
                     </div>
                 </div>
@@ -6452,18 +6447,14 @@
                 .attr('stdDeviation', '2.5')
                 .attr('flood-color', 'rgba(0,0,0,0.18)');
 
-            const _edgeStroke = { reference: '#cbd5e1', semantic: '#7aa2d4', name: '#84cc7a' };
-            const _edgeStrokeFor = d => d.isCustom ? '#cbd5e1' : (_edgeStroke[d.edge_type] || '#cbd5e1');
-
             const link = g.append('g')
                 .attr('class', 'links')
                 .selectAll('line')
                 .data(links)
                 .join('line')
                 .attr('class', d => 'graph-link' + (deleteMode ? ' graph-link-deletable' : ''))
-                .attr('stroke', d => _edgeStrokeFor(d))
+                .attr('stroke', '#cbd5e1')
                 .attr('stroke-width', 1.5)
-                .attr('stroke-dasharray', d => d.edge_type === 'name' ? '4 3' : null)
                 .attr('opacity', d => d.isSecondary ? 0.35 : 1)
                 .on('mouseover', function(event, d) {
                     if (deleteMode) {
@@ -6471,14 +6462,13 @@
                     } else {
                         d3.select(this).attr('stroke', '#3EB489').attr('stroke-width', 2.5);
                     }
-                    const typeLabel = d.isCustom ? 'custom' : (d.edge_type || 'reference');
-                    tooltip.innerHTML = `${d.source.name || d.source} → ${d.target.name || d.target} <span style="opacity:0.6">(${typeLabel})</span>`;
+                    tooltip.innerHTML = `${d.source.name || d.source} → ${d.target.name || d.target}${d.isCustom ? ' (custom)' : ''}`;
                     tooltip.style.left = event.clientX + 12 + 'px';
                     tooltip.style.top = event.clientY + 12 + 'px';
                     tooltip.classList.add('visible');
                 })
-                .on('mouseout', function(event, d) {
-                    d3.select(this).attr('stroke', _edgeStrokeFor(d)).attr('stroke-width', 1.5);
+                .on('mouseout', function() {
+                    d3.select(this).attr('stroke', '#cbd5e1').attr('stroke-width', 1.5);
                     tooltip.classList.remove('visible');
                 })
                 .on('click', function(event, d) {
@@ -6517,7 +6507,7 @@
                         d3.select(this).select('circle').attr('stroke', null).attr('stroke-width', null);
                     }
                     // Reset link colors (preserve opacity for secondary links)
-                    link.attr('stroke', d => _edgeStrokeFor(d)).attr('stroke-width', 1.5)
+                    link.attr('stroke', '#cbd5e1').attr('stroke-width', 1.5)
                         .attr('opacity', l => l.isSecondary ? 0.35 : 1);
                     tooltip.classList.remove('visible');
                 })
@@ -8197,8 +8187,6 @@
             } else {
                 status.textContent = '';
             }
-            const restoreBtn = document.getElementById('restore-links-btn');
-            if (restoreBtn) restoreBtn.style.display = deletedLinks.size > 0 ? '' : 'none';
         }
 
         function updateGraphInteraction() {
@@ -8277,13 +8265,6 @@
 
             if (window.lastGraphData) renderGraph(window.lastGraphData);
             showToast('Link deleted');
-        }
-
-        function clearDeletedLinks() {
-            deletedLinks.clear();
-            localStorage.removeItem('santai-deleted-links');
-            if (window.lastGraphData) renderGraph(window.lastGraphData);
-            showToast('Deleted links restored');
         }
 
         function zoomGraph(factor) {
