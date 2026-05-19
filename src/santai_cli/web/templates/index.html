@@ -4419,8 +4419,18 @@
 
             const panel = document.getElementById('preview-panel');
             if (panel) panel.classList.remove('fullscreen');
+
+            // Capture and clear before state changes so hidePreviewPanel doesn't observe
+            // a stale flag, then restore graph fullscreen after the preview is gone.
+            const shouldRestoreGraph = _previewFullscreenRestoredGraph;
+            _previewFullscreenRestoredGraph = false;
+
             resetPreviewState();
             hidePreviewPanel();
+
+            if (shouldRestoreGraph) {
+                toggleGraphFullscreen(false);
+            }
         }
 
         function togglePreviewFullscreen() {
@@ -4449,7 +4459,7 @@
 
             if (!isFullscreen && _previewFullscreenRestoredGraph) {
                 _previewFullscreenRestoredGraph = false;
-                toggleGraphFullscreen();
+                toggleGraphFullscreen(false);
             }
 
             expandIcon.style.display = isFullscreen ? 'none' : 'block';
@@ -7487,7 +7497,7 @@
 
             if (!isFullscreen && _previewFullscreenRestoredGraph) {
                 _previewFullscreenRestoredGraph = false;
-                toggleGraphFullscreen();
+                toggleGraphFullscreen(false);
             }
 
             if (isFullscreen) {
@@ -8270,7 +8280,7 @@
         let _graphPanelNextSibling = null;
         let _previewFullscreenRestoredGraph = false;
 
-        function toggleGraphFullscreen() {
+        function toggleGraphFullscreen(animated = true) {
             const panel = document.querySelector('.graph-panel');
             const expandIcon = document.getElementById('fullscreen-icon-expand');
             const collapseIcon = document.getElementById('fullscreen-icon-collapse');
@@ -8327,7 +8337,7 @@
                     svg.attr('width', null).attr('height', null);
                     svg.attr('width', container.clientWidth).attr('height', container.clientHeight);
                 }
-                fitAllNodes(true);
+                fitAllNodes(animated);
             });
         }
 
@@ -8431,8 +8441,8 @@
 
         // Also hook into graph fullscreen toggle
         const _origToggleGraphFullscreen = toggleGraphFullscreen;
-        toggleGraphFullscreen = function() {
-            _origToggleGraphFullscreen();
+        toggleGraphFullscreen = function(animated = true) {
+            _origToggleGraphFullscreen(animated);
             setTimeout(updateFloatingLegend, 60);
             // Run again after the delayed renderGraph (300ms for exit) to clean up
             // orphaned floating legends created by the re-render.
