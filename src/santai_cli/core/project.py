@@ -61,7 +61,7 @@ class GraphEdge:
 
     source: str  # Source file id
     target: str  # Target file id
-    link_text: str  # The text that was linked
+    link_text: str = ""  # The text that was linked
     edge_type: str = field(default="reference")  # "reference" or "semantic"
 
 
@@ -602,6 +602,38 @@ def _cosine(a: dict[str, float], b: dict[str, float]) -> float:
     return dot / (mag_a * mag_b) if mag_a and mag_b else 0.0
 
 
+def _name_tokens(filename: str) -> set[str]:
+    """Extract meaningful alpha tokens from a filename (no extension, no digits)."""
+    stem = Path(filename).stem.lower()
+    words = re.findall(r"[a-z]{3,}", stem)
+    return {w for w in words if w not in _STOP_WORDS}
+
+
+def _compute_name_edges(
+    nodes: list[GraphNode],
+    existing_pairs: set[tuple[str, str]],
+) -> list[GraphEdge]:
+    """Connect files that share significant filename tokens (e.g. assignment series)."""
+    token_to_ids: dict[str, list[str]] = {}
+    for node in nodes:
+        for token in _name_tokens(node.name):
+            token_to_ids.setdefault(token, []).append(node.id)
+
+    edges: list[GraphEdge] = []
+    seen = set(existing_pairs)
+    for node_ids in token_to_ids.values():
+        if len(node_ids) < 2:
+            continue
+        for i, id_a in enumerate(node_ids):
+            for id_b in node_ids[i + 1 :]:
+                pair = (min(id_a, id_b), max(id_a, id_b))
+                if pair in seen:
+                    continue
+                seen.add(pair)
+                edges.append(GraphEdge(source=id_a, target=id_b, edge_type="name"))
+    return edges
+
+
 def _compute_semantic_edges(
     file_contents: dict[str, str],
     existing_pairs: set[tuple[str, str]],
@@ -692,7 +724,33 @@ def get_file_graph(project: SantaiProject) -> FileGraph:
     file_map: dict[str, Path] = {}  # file_id -> Path
     file_contents: dict[str, str] = {}  # file_id -> content
 
-    text_extensions = {".md", ".txt", ".markdown"}
+    text_extensions = {
+        ".md",
+        ".txt",
+        ".markdown",
+        # Code files — tokenizer extracts identifiers and comments
+        ".py",
+        ".cpp",
+        ".cc",
+        ".cxx",
+        ".c",
+        ".h",
+        ".hpp",
+        ".js",
+        ".ts",
+        ".jsx",
+        ".tsx",
+        ".java",
+        ".rb",
+        ".go",
+        ".rs",
+        ".cs",
+        ".swift",
+        ".kt",
+        ".scala",
+        ".sql",
+        ".sh",
+    }
 
     # Known santai subdirectories
     for dir_name in SANTAI_DIRS:
@@ -762,5 +820,9 @@ def get_file_graph(project: SantaiProject) -> FileGraph:
     # Add semantic edges for topically related files with no explicit link
     existing_pairs = {(e.source, e.target) for e in edges}
     edges.extend(_compute_semantic_edges(file_contents, existing_pairs))
+
+    # Add name-based edges for files sharing significant filename tokens
+    existing_pairs = {(e.source, e.target) for e in edges}
+    edges.extend(_compute_name_edges(nodes, existing_pairs))
 
     return FileGraph(nodes=nodes, edges=edges)

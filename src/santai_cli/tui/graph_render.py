@@ -467,7 +467,8 @@ def render_graph(
     dimmed_edge_color = "dim #2a2a2a"
     _default_colors = {
         "reference": "dim #444444",
-        "semantic": "dim #2d4a7a",  # indigo — visually distinct from reference gray
+        "semantic": "dim #2d4a7a",  # indigo
+        "name": "dim #2d5a3a",  # dark green — filename-pattern matches
     }
 
     for edge in edges:

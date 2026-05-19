@@ -6205,7 +6205,8 @@
             let links = data.edges.map(e => ({
                 source: e.source,
                 target: e.target,
-                link_text: e.link_text
+                link_text: e.link_text,
+                edge_type: e.edge_type || 'reference'
             })).filter(e => {
                 if (!nodeMap.has(e.source) || !nodeMap.has(e.target)) return false;
                 const key = [e.source, e.target].sort().join('\0');
@@ -6443,14 +6444,18 @@
                 .attr('stdDeviation', '2.5')
                 .attr('flood-color', 'rgba(0,0,0,0.18)');
 
+            const _edgeStroke = { reference: '#cbd5e1', semantic: '#7aa2d4', name: '#84cc7a' };
+            const _edgeStrokeFor = d => d.isCustom ? '#cbd5e1' : (_edgeStroke[d.edge_type] || '#cbd5e1');
+
             const link = g.append('g')
                 .attr('class', 'links')
                 .selectAll('line')
                 .data(links)
                 .join('line')
                 .attr('class', d => 'graph-link' + (deleteMode ? ' graph-link-deletable' : ''))
-                .attr('stroke', '#cbd5e1')
+                .attr('stroke', d => _edgeStrokeFor(d))
                 .attr('stroke-width', 1.5)
+                .attr('stroke-dasharray', d => d.edge_type === 'name' ? '4 3' : null)
                 .attr('opacity', d => d.isSecondary ? 0.35 : 1)
                 .on('mouseover', function(event, d) {
                     if (deleteMode) {
@@ -6458,13 +6463,14 @@
                     } else {
                         d3.select(this).attr('stroke', '#3EB489').attr('stroke-width', 2.5);
                     }
-                    tooltip.innerHTML = `${d.source.name || d.source} → ${d.target.name || d.target}${d.isCustom ? ' (custom)' : ''}`;
+                    const typeLabel = d.isCustom ? 'custom' : (d.edge_type || 'reference');
+                    tooltip.innerHTML = `${d.source.name || d.source} → ${d.target.name || d.target} <span style="opacity:0.6">(${typeLabel})</span>`;
                     tooltip.style.left = event.clientX + 12 + 'px';
                     tooltip.style.top = event.clientY + 12 + 'px';
                     tooltip.classList.add('visible');
                 })
-                .on('mouseout', function() {
-                    d3.select(this).attr('stroke', '#cbd5e1').attr('stroke-width', 1.5);
+                .on('mouseout', function(event, d) {
+                    d3.select(this).attr('stroke', _edgeStrokeFor(d)).attr('stroke-width', 1.5);
                     tooltip.classList.remove('visible');
                 })
                 .on('click', function(event, d) {
@@ -6503,7 +6509,7 @@
                         d3.select(this).select('circle').attr('stroke', null).attr('stroke-width', null);
                     }
                     // Reset link colors (preserve opacity for secondary links)
-                    link.attr('stroke', '#cbd5e1').attr('stroke-width', 1.5)
+                    link.attr('stroke', d => _edgeStrokeFor(d)).attr('stroke-width', 1.5)
                         .attr('opacity', l => l.isSecondary ? 0.35 : 1);
                     tooltip.classList.remove('visible');
                 })
