@@ -7672,6 +7672,13 @@
         };
 
         // Normalize common plural/suffix variants so "cloud" and "clouds" count as one word
+        function _pluralize(w) {
+            if (w.endsWith('s')) return w;
+            if (w.length > 2 && w.endsWith('y') && !/[aeiou]/i.test(w[w.length - 2])) return w.slice(0, -1) + 'ies';
+            if (/(?:ch|sh|[xz])$/i.test(w)) return w + 'es';
+            return w + 's';
+        }
+
         function _stemWord(w) {
             if (w.length > 5 && w.endsWith('ies')) return w.slice(0, -3) + 'y';      // libraries→library
             if (w.length > 4 && /ches$|shes$|xes$|zes$/.test(w)) return w.slice(0, -2); // brushes→brush
@@ -7749,12 +7756,18 @@
             if (common.length) {
                 // Order by average filename position so title reads in natural word order
                 common.sort((a, b) => a.pos - b.pos || a.display.length - b.display.length || a.display.localeCompare(b.display));
-                return common.map(c => c.display).join(' ');
+                const words = common.map(c => c.display);
+                // Pluralize the last word when the cluster has multiple files
+                if (nodes.length > 1) words[words.length - 1] = _pluralize(words[words.length - 1]);
+                return words.join(' ');
             }
 
             // 2. Any top words at all, excluding requested words
             const top = _topWords(counts, originals, excludeWords, 2, positions);
-            if (top.length) return top.join(' ');
+            if (top.length) {
+                if (nodes.length > 1) top[top.length - 1] = _pluralize(top[top.length - 1]);
+                return top.join(' ');
+            }
 
             // 3. Shared directory (only if not falling back to avoid "notes" × N)
             const dirs = nodes.map(n => n.directory || '');
