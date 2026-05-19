@@ -4203,6 +4203,11 @@
          * passed through DOMPurify to prevent XSS from untrusted content.
          */
         function safeMarkdown(md) {
+            // Convert [[path]] and [[path|display]] to standard markdown links
+            // before marked sees the content, so they render as clickable <a> tags.
+            md = md.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, path, text) =>
+                `[${text || path}](${path})`
+            );
             const raw = (typeof marked !== 'undefined') ? marked.parse(md) : md;
             return (typeof DOMPurify !== 'undefined') ? DOMPurify.sanitize(raw) : raw.replace(/<[^>]*>/g, '');
         }
@@ -4294,26 +4299,27 @@
                             const href = link.getAttribute('href');
                             // Check if it's a relative link (local file)
                             if (href && !href.startsWith('http://') && !href.startsWith('https://') && !href.startsWith('mailto:') && !href.startsWith('#')) {
-                                // Resolve the path relative to current file's directory
+                                // Resolve the path: try relative to current file's directory
+                                // first, then fall back to root-relative (for wikilinks).
                                 const currentDir = path.split('/').slice(0, -1).join('/');
-                                const newPath = currentDir ? `${currentDir}/${href}` : href;
+                                const relPath = currentDir ? `${currentDir}/${href}` : href;
+                                let resolvedPath = null;
 
-                                // Check if file exists
                                 try {
-                                    const checkRes = await fetch(`/api/files/content?path=${encodeURIComponent(newPath)}`);
-                                    if (!checkRes.ok) {
-                                        // File doesn't exist - disable link
-                                        link.style.color = 'var(--text-muted)';
-                                        link.style.textDecoration = 'line-through';
-                                        link.style.cursor = 'not-allowed';
-                                        link.title = 'File not found';
-                                        link.addEventListener('click', (e) => e.preventDefault());
-                                        return;
+                                    let checkRes = await fetch(`/api/files/content?path=${encodeURIComponent(relPath)}`);
+                                    if (checkRes.ok) {
+                                        resolvedPath = relPath;
+                                    } else if (currentDir) {
+                                        checkRes = await fetch(`/api/files/content?path=${encodeURIComponent(href)}`);
+                                        if (checkRes.ok) resolvedPath = href;
                                     }
-                                } catch {
-                                    // Error checking - disable link
+                                } catch { /* fall through to broken-link handling */ }
+
+                                if (!resolvedPath) {
                                     link.style.color = 'var(--text-muted)';
+                                    link.style.textDecoration = 'line-through';
                                     link.style.cursor = 'not-allowed';
+                                    link.title = 'File not found';
                                     link.addEventListener('click', (e) => e.preventDefault());
                                     return;
                                 }
@@ -4321,8 +4327,8 @@
                                 // File exists - open preview and reveal in tree
                                 link.addEventListener('click', (e) => {
                                     e.preventDefault();
-                                    openFilePreview(newPath, 'push');
-                                    revealInTree(newPath);
+                                    openFilePreview(resolvedPath, 'push');
+                                    revealInTree(resolvedPath);
                                 });
                             } else if (href && (href.startsWith('http://') || href.startsWith('https://'))) {
                                 // External link - open in new window

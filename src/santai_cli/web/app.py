@@ -16,6 +16,8 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from santai_cli.core.project import (
+    MARKDOWN_LINK_PATTERN,
+    WIKILINK_PATTERN,
     SantaiProject,
     get_directory_stats,
     get_file_graph,
@@ -127,6 +129,102 @@ def get_file_tree(
         tree.append(node)
 
     return tree
+
+
+def _update_markdown_links(root_dir: Path, old_abs: Path, new_abs: Path) -> None:
+    """Rewrite markdown links across the project after a file/folder move or rename.
+
+    Two cases are handled for every .md file found:
+    - Outside the moved item: any link that resolved to old_abs (or inside it) is
+      rewritten to point to the equivalent path under new_abs.
+    - Inside the moved item: outbound links whose targets didn't move are recomputed
+      from the file's new directory, and links whose targets also moved are left alone
+      (relative path within the subtree is unchanged).
+
+    Wikilinks ([[name]]) are not touched — they resolve by filename, not path.
+    """
+    for md_file in root_dir.rglob("*.md"):
+        if not md_file.is_file():
+            continue
+
+        # Work out where this file's links were authored from.
+        # If the file was inside the moved subtree its links were written relative
+        # to its OLD location; we need to resolve them from there.
+        if md_file == new_abs or (new_abs.is_dir() and md_file.is_relative_to(new_abs)):
+            suffix = md_file.relative_to(new_abs) if new_abs.is_dir() else Path(".")
+            link_base = (old_abs / suffix).parent
+            file_moved = True
+        else:
+            link_base = md_file.parent
+            file_moved = False
+
+        try:
+            content = md_file.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+
+        def _make_replacer(link_base: Path, md_file: Path, file_moved: bool):
+            def replacer(match: re.Match) -> str:
+                text = match.group(1)
+                target = match.group(2)
+
+                if target.startswith(("http://", "https://", "mailto:", "#")):
+                    return match.group(0)
+
+                fragment = ""
+                if "#" in target:
+                    target, frag = target.split("#", 1)
+                    fragment = "#" + frag
+                    if not target:
+                        return match.group(0)
+
+                resolved = (link_base / target).resolve()
+
+                if resolved == old_abs:
+                    new_target_abs = new_abs
+                elif resolved.is_relative_to(old_abs):
+                    new_target_abs = new_abs / resolved.relative_to(old_abs)
+                elif file_moved:
+                    # File moved but this link points outside the moved subtree —
+                    # recompute the relative path from the new file location.
+                    new_target_abs = resolved
+                else:
+                    return match.group(0)
+
+                new_rel = os.path.relpath(new_target_abs, md_file.parent).replace(
+                    "\\", "/"
+                )
+                return f"[{text}]({new_rel}{fragment})"
+
+            return replacer
+
+        new_content = MARKDOWN_LINK_PATTERN.sub(
+            _make_replacer(link_base, md_file, file_moved), content
+        )
+
+        # Also update wikilinks [[path]] — resolved from project root, not file dir.
+        def _wikilink_replacer(match: re.Match) -> str:
+            inner = match.group(1).strip()
+            display = match.group(2)
+            resolved = (root_dir / inner).resolve()
+            if resolved == old_abs:
+                new_target = str(new_abs.relative_to(root_dir)).replace("\\", "/")
+            elif resolved.is_relative_to(old_abs):
+                new_target_abs = new_abs / resolved.relative_to(old_abs)
+                new_target = str(new_target_abs.relative_to(root_dir)).replace(
+                    "\\", "/"
+                )
+            else:
+                return match.group(0)
+            return f"[[{new_target}|{display}]]" if display else f"[[{new_target}]]"
+
+        new_content = WIKILINK_PATTERN.sub(_wikilink_replacer, new_content)
+
+        if new_content != content:
+            try:
+                md_file.write_text(new_content, encoding="utf-8")
+            except OSError:
+                pass
 
 
 def create_app(project: SantaiProject) -> FastAPI:
@@ -406,7 +504,9 @@ def create_app(project: SantaiProject) -> FastAPI:
                 status_code=409, detail="A file with that name already exists"
             )
 
+        old_abs = target.resolve()
         target.rename(new_path)
+        _update_markdown_links(root_dir, old_abs, new_path.resolve())
         return {
             "message": "Renamed successfully",
             "path": str(new_path.relative_to(root_dir)),
@@ -483,6 +583,7 @@ def create_app(project: SantaiProject) -> FastAPI:
                 pass  # Not a subdirectory, OK to proceed
 
         shutil.move(str(source), str(new_path))
+        _update_markdown_links(root_dir, source, new_path)
         return {
             "message": "Moved successfully",
             "path": str(new_path.relative_to(root_dir)),

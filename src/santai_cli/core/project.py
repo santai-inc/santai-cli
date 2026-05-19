@@ -335,7 +335,7 @@ def get_notes(project: SantaiProject) -> list[NoteEntry]:
 # Patterns for detecting links in markdown files
 # Matches: [text](path) and [[wikilink]]
 MARKDOWN_LINK_PATTERN = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
-WIKILINK_PATTERN = re.compile(r"\[\[([^\]|]+)(?:\|[^\]]+)?\]\]")
+WIKILINK_PATTERN = re.compile(r"\[\[([^\]|]+)(?:\|([^\]]+))?\]\]")
 
 
 def _get_directory_name(file_path: Path, project_root: Path) -> str:
