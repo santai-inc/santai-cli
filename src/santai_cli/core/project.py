@@ -343,6 +343,17 @@ WIKILINK_PATTERN = re.compile(r"\[\[([^\]|]+)(?:\|[^\]]+)?\]\]")
 
 _SKIP_DIRS = frozenset({"__pycache__", "node_modules", ".venv", "venv", ".git"})
 
+# Project meta-files that should never appear as graph nodes
+_GRAPH_EXCLUDE_NAMES = frozenset(
+    {
+        "AGENTS.md",
+        "CLAUDE.md",
+        "README.md",
+        "README.rst",
+        "rumdl.toml",
+    }
+)
+
 
 def _get_directory_name(file_path: Path, project_root: Path) -> str:
     """Get the directory category for a file relative to the project root.
@@ -642,6 +653,8 @@ def _add_file_to_graph(
     text_extensions: set[str],
 ) -> None:
     """Add a single file to the graph data structures."""
+    if file_path.name in _GRAPH_EXCLUDE_NAMES:
+        return
     try:
         relative_path = file_path.relative_to(project_root)
         file_id = str(relative_path)

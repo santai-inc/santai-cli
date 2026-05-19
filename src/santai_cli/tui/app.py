@@ -436,9 +436,9 @@ class GraphPanel(Static):
         # The graph visualization
         lines.append(result.markup)
 
-        # Legend: known dirs first, then dynamic dirs alphabetically, unassigned last
+        # Legend: reflect exactly what is currently rendered (uses `nodes`, not graph_data)
         lines.append("")
-        dirs_present = {n.directory for n in graph_data.nodes}
+        dirs_present = {n.directory for n in nodes}
         known_order = ["resources", "codebases", "history", "notes", "wiki"]
         legend_parts = []
         for dir_name in known_order:
