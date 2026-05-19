@@ -7665,32 +7665,52 @@
             sh:'Shell', bash:'Shell', sql:'SQL', r:'R'
         };
 
+        // Normalize common plural/suffix variants so "cloud" and "clouds" count as one word
+        function _stemWord(w) {
+            if (w.length > 5 && w.endsWith('ies')) return w.slice(0, -3) + 'y';      // libraries→library
+            if (w.length > 4 && /ches$|shes$|xes$|zes$/.test(w)) return w.slice(0, -2); // brushes→brush
+            if (w.length > 4 && w.endsWith('s') && !w.endsWith('ss')) return w.slice(0, -1); // clouds→cloud
+            return w;
+        }
+
         function _clusterFileWords(clusterId) {
             const nodeIds = clusterNodes.get(clusterId) || [];
             const nodeMap = window.lastFullNodeMap || new Map();
             const nodes = nodeIds.map(id => nodeMap.get(id)).filter(Boolean);
-            const counts = {};
+            const counts = {};    // stem → # files that contain it
+            const originals = {}; // stem → best display word (shortest / most natural form)
             nodes.forEach(n => {
-                const stem = n.name.replace(/\.[^.]+$/, '');
-                stem.split(/[\s\-_\.]+/)
+                const base = n.name.replace(/\.[^.]+$/, '');
+                const seenStems = new Set(); // dedupe within one filename
+                base.split(/[\s\-_\.]+/)
                     .map(w => w.toLowerCase())
                     .filter(w => w.length > 2 && !_clusterStopWords.has(w) && !/^\d+$/.test(w))
-                    .forEach(w => { counts[w] = (counts[w] || 0) + 1; });
+                    .forEach(w => {
+                        const s = _stemWord(w);
+                        if (seenStems.has(s)) return;
+                        seenStems.add(s);
+                        counts[s] = (counts[s] || 0) + 1;
+                        // Keep the shorter (more base) form as the display word
+                        if (!originals[s] || w.length < originals[s].length) originals[s] = w;
+                    });
             });
-            return { nodes, counts };
+            return { nodes, counts, originals };
         }
 
-        function _topWords(counts, exclude = new Set(), limit = 2) {
+        function _topWords(counts, originals, exclude = new Set(), limit = 2) {
             return Object.entries(counts)
-                .filter(([w]) => !exclude.has(w))
-                .sort((a, b) => b[1] - a[1])
+                .filter(([s]) => !exclude.has(s))
+                // Sort by count desc, then alpha for a stable tiebreak (avoids "first file wins")
+                .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
                 .slice(0, limit)
-                .map(([w]) => w.charAt(0).toUpperCase() + w.slice(1));
+                .map(([s]) => { const w = originals[s] || s; return w.charAt(0).toUpperCase() + w.slice(1); });
         }
 
         function suggestClusterName(clusterId, excludeWords = new Set()) {
-            const { nodes, counts } = _clusterFileWords(clusterId);
+            const { nodes, counts, originals } = _clusterFileWords(clusterId);
             if (!nodes.length) return `Cluster ${clusterId + 1}`;
+
+            const display = s => { const w = originals[s] || s; return w.charAt(0).toUpperCase() + w.slice(1); };
 
             // 0. Code-file detection — label by language when most files share an extension
             const extCounts = {};
@@ -7704,16 +7724,16 @@
                 return `${topLang[0]} Files`;
             }
 
-            // 1. Words appearing in at least half the files (lower bar for small clusters)
+            // 1. Words appearing in at least 40% of files (threshold 1 for tiny clusters)
             const threshold = nodes.length <= 2 ? 1 : Math.ceil(nodes.length * 0.4);
             const common = Object.entries(counts)
-                .filter(([w, c]) => c >= threshold && !excludeWords.has(w))
-                .sort((a, b) => b[1] - a[1])
-                .map(([w]) => w.charAt(0).toUpperCase() + w.slice(1));
+                .filter(([s, c]) => c >= threshold && !excludeWords.has(s))
+                .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+                .map(([s]) => display(s));
             if (common.length) return common.slice(0, 2).join(' ');
 
             // 2. Any top words at all, excluding requested words
-            const top = _topWords(counts, excludeWords);
+            const top = _topWords(counts, originals, excludeWords);
             if (top.length) return top.join(' ');
 
             // 3. Shared directory (only if not falling back to avoid "notes" × N)
@@ -7744,9 +7764,11 @@
             clusterNodes.forEach((nodeIds, cid) => { if (nodeIds.length > 1) ids.push(cid); });
             ids.sort((a, b) => a - b);
 
-            // First pass: assign initial names
+            // First pass: assign initial names (pre-compute fileWords to reuse in collision pass)
             const nameToIds = new Map();
+            const fileWordsCache = new Map();
             for (const cid of ids) {
+                fileWordsCache.set(cid, _clusterFileWords(cid));
                 const saved = clusterNames[getClusterKey(cid)];
                 if (saved) { clusterDisplayNames.set(cid, saved); continue; }
                 const name = suggestClusterName(cid);
@@ -7759,26 +7781,22 @@
             for (const [name, colliding] of nameToIds) {
                 if (colliding.length <= 1) continue;
 
-                // Gather all words from all colliding clusters
-                const allWordMaps = colliding.map(cid => _clusterFileWords(cid).counts);
-                const allWords = new Set(allWordMaps.flatMap(m => Object.keys(m)));
+                const wordData = colliding.map(cid => fileWordsCache.get(cid));
 
-                // Find words that distinguish each cluster (present in this cluster but not others)
+                // Find stems that distinguish each cluster (present in this one but not others)
                 colliding.forEach((cid, i) => {
-                    const mine = allWordMaps[i];
-                    const otherWords = new Set(
-                        allWordMaps.filter((_, j) => j !== i).flatMap(m => Object.keys(m))
+                    const { counts: mine, originals: myOrig } = wordData[i];
+                    const otherStems = new Set(
+                        wordData.filter((_, j) => j !== i).flatMap(d => Object.keys(d.counts))
                     );
                     const unique = Object.entries(mine)
-                        .filter(([w]) => !otherWords.has(w))
-                        .sort((a, b) => b[1] - a[1])
-                        .map(([w]) => w.charAt(0).toUpperCase() + w.slice(1));
+                        .filter(([s]) => !otherStems.has(s))
+                        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+                        .map(([s]) => { const w = myOrig[s] || s; return w.charAt(0).toUpperCase() + w.slice(1); });
 
                     if (unique.length) {
-                        // Append the unique word to distinguish
                         clusterDisplayNames.set(cid, `${name} · ${unique[0]}`);
                     } else {
-                        // No unique words — fall back to numbered suffix
                         clusterDisplayNames.set(cid, `${name} ${i + 1}`);
                     }
                 });
