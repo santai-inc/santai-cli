@@ -399,8 +399,29 @@ class GraphPanel(Static):
         self._node_positions = result.node_positions
         self._node_map = result.node_map
 
-        # Build output
+        # Build output — legend and stats come FIRST so they are never clipped
+        # by the container height in the non-scrollable panel view.
         lines = []
+
+        # Legend: reflect exactly what is currently rendered (uses `nodes`, not graph_data)
+        dirs_present = {n.directory for n in nodes}
+        known_order = ["resources", "codebases", "history", "notes", "wiki"]
+        legend_parts = []
+        for dir_name in known_order:
+            if dir_name in dirs_present:
+                color = self.get_dir_color(dir_name)
+                label = dir_name[:12] + "…" if len(dir_name) > 13 else dir_name
+                legend_parts.append(f"[{color}]●[/{color}] {label}")
+        for dir_name in sorted(
+            dirs_present - set(known_order) - {"unassigned", "other"}
+        ):
+            color = self.get_dir_color(dir_name)
+            label = dir_name[:12] + "…" if len(dir_name) > 13 else dir_name
+            legend_parts.append(f"[{color}]●[/{color}] {label}")
+        if "unassigned" in dirs_present:
+            color = self.get_dir_color("unassigned")
+            legend_parts.append(f"[{color}]●[/{color}] unassigned")
+        lines.append(" ".join(legend_parts))
 
         # Stats header with search/filter indicators
         total_nodes = len(graph_data.nodes)
@@ -436,28 +457,9 @@ class GraphPanel(Static):
         # The graph visualization
         lines.append(result.markup)
 
-        # Legend: reflect exactly what is currently rendered (uses `nodes`, not graph_data)
-        lines.append("")
-        dirs_present = {n.directory for n in nodes}
-        known_order = ["resources", "codebases", "history", "notes", "wiki"]
-        legend_parts = []
-        for dir_name in known_order:
-            if dir_name in dirs_present:
-                color = self.get_dir_color(dir_name)
-                legend_parts.append(f"[{color}]●[/{color}] {dir_name}")
-        for dir_name in sorted(
-            dirs_present - set(known_order) - {"unassigned", "other"}
-        ):
-            color = self.get_dir_color(dir_name)
-            legend_parts.append(f"[{color}]●[/{color}] {dir_name}")
-        if "unassigned" in dirs_present:
-            color = self.get_dir_color("unassigned")
-            legend_parts.append(f"[{color}]●[/{color}] unassigned")
-        lines.append(" ".join(legend_parts))
-
         if graph_data.edges:
             lines.append(
-                "[dim]⬢ hub (5+)  ◆ connected (3+)  ● node"
+                "\n[dim]⬢ hub (5+)  ◆ connected (3+)  ● node"
                 "  ◈ match  ◉ selected  c=clear[/dim]"
             )
 
