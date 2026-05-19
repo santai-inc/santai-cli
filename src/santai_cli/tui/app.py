@@ -2,7 +2,6 @@
 
 from collections.abc import Callable, Iterable
 from datetime import datetime
-from hashlib import md5
 from pathlib import Path
 from typing import Any
 
@@ -272,9 +271,16 @@ class GraphPanel(Static):
         """Return a stable color for any directory name."""
         if dir_name in cls.DIR_COLORS:
             return cls.DIR_COLORS[dir_name]
-        # Use MD5 for a stable cross-process hash (Python's built-in hash is
-        # randomized by PYTHONHASHSEED and changes every process restart).
-        idx = md5(dir_name.encode()).digest()[0] % len(cls._EXTRA_PALETTE)
+        # Replicate the web UI's Math.imul(31, h) polynomial hash so the same
+        # directory gets the same palette index (and therefore the same color)
+        # on both surfaces.
+        h = 0
+        for c in dir_name:
+            h_u32 = int(h) & 0xFFFFFFFF
+            prod = (31 * h_u32) & 0xFFFFFFFF
+            imul = prod if prod < 0x80000000 else prod - 0x100000000
+            h = imul + ord(c)
+        idx = abs(int(h)) % len(cls._EXTRA_PALETTE)
         return cls._EXTRA_PALETTE[idx]
 
     def __init__(self, project: SantaiProject, fullscreen: bool = False) -> None:
@@ -407,7 +413,7 @@ class GraphPanel(Static):
         # by the container height in the non-scrollable panel view.
         lines = []
 
-        # Legend: reflect exactly what is currently rendered (uses `nodes`, not graph_data)
+        # Legend: reflect exactly what is rendered (uses `nodes`, not graph_data)
         dirs_present = {n.directory for n in nodes}
         known_order = ["resources", "codebases", "history", "notes", "wiki"]
         legend_parts = []
@@ -1528,7 +1534,7 @@ class GraphFilterScreen(ModalScreen):
             lines.append(f"  [{i}]{checkbox} {label}")
 
         # Dynamic dirs: alphabetically, with "unassigned" at the end
-        # Keys 6–9 are assigned to the first 4 extra dirs in order
+        # Keys 6-9 are assigned to the first 4 extra dirs in order
         extra_dirs = sorted(self._available_dirs - set(self.DIRS) - {"unassigned"})
         all_extra = extra_dirs + (
             ["unassigned"] if "unassigned" in self._available_dirs else []
