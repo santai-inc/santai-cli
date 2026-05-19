@@ -5092,7 +5092,7 @@
 
             const primary = draggedItems[0];
             const isNoOp = primary.path === dropFolder
-                || (draggedItems.length === 1 && primary.path.split('/').slice(0, -1).join('/') === dropFolder)
+                || draggedItems.every(item => item.path.split('/').slice(0, -1).join('/') === dropFolder)
                 || (draggedItems.length === 1 && primary.isDir && (dropFolder === primary.path || dropFolder.startsWith(primary.path + '/')));
 
             if (isNoOp) {
@@ -5143,9 +5143,13 @@
             // Save items before async (draggedItems gets nulled by handleDragEnd)
             const items = draggedItems.slice();
 
-            // Filter to moveable items — skip protected top-level paths so files
-            // inside locked folders (notes/*, wiki/*, etc.) still move correctly
-            const moveable = items.filter(item => !isProtectedPath(item.path));
+            // Filter to items that actually need to move: skip protected paths,
+            // items already in the target folder, and dirs being dropped into themselves
+            const moveable = items.filter(item =>
+                !isProtectedPath(item.path) &&
+                item.path.split('/').slice(0, -1).join('/') !== dropFolder &&
+                !(item.isDir && (dropFolder === item.path || dropFolder.startsWith(item.path + '/')))
+            );
             if (moveable.length === 0) return;
 
             if (moveable.length === 1) {
