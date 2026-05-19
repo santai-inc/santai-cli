@@ -750,6 +750,15 @@ def get_file_graph(project: SantaiProject) -> FileGraph:
         ".scala",
         ".sql",
         ".sh",
+        # Markup / config / data — often contain meaningful prose or keys
+        ".html",
+        ".htm",
+        ".json",
+        ".yaml",
+        ".yml",
+        ".toml",
+        ".xml",
+        ".csv",
     }
 
     # Known santai subdirectories

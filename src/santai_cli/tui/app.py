@@ -1520,10 +1520,13 @@ class GraphFilterScreen(ModalScreen):
             lines.append(f"  [{i}]{checkbox} {label}")
 
         # Dynamic dirs: alphabetically, with "unassigned" at the end
+        # Keys 6–9 are assigned to the first 4 extra dirs in order
         extra_dirs = sorted(self._available_dirs - set(self.DIRS) - {"unassigned"})
-        for d in extra_dirs + (
+        all_extra = extra_dirs + (
             ["unassigned"] if "unassigned" in self._available_dirs else []
-        ):
+        )
+        for idx, d in enumerate(all_extra):
+            key_hint = f"[{idx + 6}]" if idx < 4 else "   "
             color = GraphPanel.get_dir_color(d)
             count = self._dir_counts.get(d, 0)
             is_on = d in self._selected
@@ -1533,7 +1536,7 @@ class GraphFilterScreen(ModalScreen):
             else:
                 checkbox = "  ○"
                 label = f"[dim]{d}/ ({count} files)[/dim]"
-            lines.append(f"     {checkbox} {label}")
+            lines.append(f"  {key_hint}{checkbox} {label}")
 
         lines.append("")
 
@@ -1545,7 +1548,10 @@ class GraphFilterScreen(ModalScreen):
         total_count = sum(self._dir_counts.values())
         lines.append(f"  Showing: [bold]{selected_count}[/bold] of {total_count} files")
         lines.append("")
-        lines.append("  [dim]1-5 = toggle directory · a = all · x = none[/dim]")
+        extra_key_hint = " · 6-9 = extra dirs" if all_extra else ""
+        lines.append(
+            f"  [dim]1-5 = toggle directory{extra_key_hint} · a = all · x = none[/dim]"
+        )
         lines.append("  [dim]Enter = apply · Esc = cancel[/dim]")
 
         body.update("\n".join(lines))
@@ -1571,6 +1577,21 @@ class GraphFilterScreen(ModalScreen):
 
     def action_toggle_5(self) -> None:
         self._toggle_dir("wiki")
+
+    def on_key(self, event) -> None:
+        """Handle keys 6–9 to toggle dynamic (non-standard) directories."""
+        if not event.key.isdigit():
+            return
+        n = int(event.key)
+        if n < 6:
+            return
+        extra_dirs = sorted(self._available_dirs - set(self.DIRS) - {"unassigned"})
+        all_extra = extra_dirs + (
+            ["unassigned"] if "unassigned" in self._available_dirs else []
+        )
+        idx = n - 6
+        if 0 <= idx < len(all_extra):
+            self._toggle_dir(all_extra[idx])
 
     def action_select_all(self) -> None:
         self._selected = set(self.DIRS) | self._available_dirs
