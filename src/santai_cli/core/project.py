@@ -341,16 +341,25 @@ MARKDOWN_LINK_PATTERN = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
 WIKILINK_PATTERN = re.compile(r"\[\[([^\]|]+)(?:\|[^\]]+)?\]\]")
 
 
+_SKIP_DIRS = frozenset({"__pycache__", "node_modules", ".venv", "venv", ".git"})
+
+
 def _get_directory_name(file_path: Path, project_root: Path) -> str:
-    """Get the santai directory name for a file."""
+    """Get the directory category for a file relative to the project root.
+
+    Returns the first path component for files in subdirectories,
+    or "unassigned" for files sitting directly at the project root.
+    """
     try:
         relative = file_path.relative_to(project_root)
         parts = relative.parts
-        if parts and parts[0] in SANTAI_DIRS:
+        if len(parts) == 1:
+            return "unassigned"
+        if parts:
             return parts[0]
     except ValueError:
         pass
-    return "other"
+    return "unassigned"
 
 
 def _extract_links(content: str) -> list[tuple[str, str]]:
@@ -623,61 +632,103 @@ def _compute_semantic_edges(
     return edges
 
 
+def _add_file_to_graph(
+    file_path: Path,
+    directory: str,
+    project_root: Path,
+    nodes: list[GraphNode],
+    file_map: dict[str, Path],
+    file_contents: dict[str, str],
+    text_extensions: set[str],
+) -> None:
+    """Add a single file to the graph data structures."""
+    try:
+        relative_path = file_path.relative_to(project_root)
+        file_id = str(relative_path)
+        stat = file_path.stat()
+
+        nodes.append(
+            GraphNode(
+                id=file_id,
+                name=file_path.name,
+                directory=directory,
+                file_type=file_path.suffix.lower() if file_path.suffix else "(no ext)",
+                size_bytes=stat.st_size,
+            )
+        )
+        file_map[file_id] = file_path
+
+        if file_path.suffix.lower() in text_extensions:
+            try:
+                file_contents[file_id] = file_path.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                pass
+
+    except (OSError, ValueError):
+        pass
+
+
 def get_file_graph(project: SantaiProject) -> FileGraph:
     """Build a graph of files and their backlinks.
 
-    Scans all markdown and text files in the project directories,
-    extracts links, and builds a graph representation.
+    Scans all files in the project: known santai dirs, root-level files
+    (shown as "unassigned"), and any other root-level subdirectories.
     """
     nodes: list[GraphNode] = []
     edges: list[GraphEdge] = []
     file_map: dict[str, Path] = {}  # file_id -> Path
     file_contents: dict[str, str] = {}  # file_id -> content
 
-    # Collect all text-based files
     text_extensions = {".md", ".txt", ".markdown"}
 
+    # Known santai subdirectories
     for dir_name in SANTAI_DIRS:
         dir_path = project.root / dir_name
         if not dir_path.is_dir():
             continue
 
         for file_path in dir_path.rglob("*"):
-            if not file_path.is_file():
+            if not file_path.is_file() or file_path.name.startswith("."):
                 continue
-            if file_path.name.startswith("."):
-                continue
+            _add_file_to_graph(
+                file_path,
+                dir_name,
+                project.root,
+                nodes,
+                file_map,
+                file_contents,
+                text_extensions,
+            )
 
-            try:
-                relative_path = file_path.relative_to(project.root)
-                file_id = str(relative_path)
-                stat = file_path.stat()
-
-                # Create node for all files
-                nodes.append(
-                    GraphNode(
-                        id=file_id,
-                        name=file_path.name,
-                        directory=dir_name,
-                        file_type=file_path.suffix.lower()
-                        if file_path.suffix
-                        else "(no ext)",
-                        size_bytes=stat.st_size,
-                    )
+    # Root-level files (directly in project root) → "unassigned"
+    # Plus non-SANTAI, non-hidden root subdirectories
+    santai_and_skip = set(SANTAI_DIRS) | _SKIP_DIRS
+    for entry in project.root.iterdir():
+        if entry.name.startswith("."):
+            continue
+        if entry.is_file():
+            _add_file_to_graph(
+                entry,
+                "unassigned",
+                project.root,
+                nodes,
+                file_map,
+                file_contents,
+                text_extensions,
+            )
+        elif entry.is_dir() and entry.name not in santai_and_skip:
+            for file_path in entry.rglob("*"):
+                if not file_path.is_file() or file_path.name.startswith("."):
+                    continue
+                _add_file_to_graph(
+                    file_path,
+                    entry.name,
+                    project.root,
+                    nodes,
+                    file_map,
+                    file_contents,
+                    text_extensions,
                 )
-
-                file_map[file_id] = file_path
-
-                # Read content for text files (for link extraction)
-                if file_path.suffix.lower() in text_extensions:
-                    try:
-                        content = file_path.read_text(encoding="utf-8")
-                        file_contents[file_id] = content
-                    except UnicodeDecodeError:
-                        pass
-
-            except (OSError, ValueError):
-                continue
 
     # Extract links and create reference edges
     for source_id, content in file_contents.items():
