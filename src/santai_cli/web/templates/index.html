@@ -4213,6 +4213,7 @@
         let lastClickedPath = null;    // anchor for shift-range selection
         let files = [];
         let previewPath = null;
+        let previewHistory = []; // paths navigated via markdown links, for back-button
         let previewReturnClusterId = null; // set when a file is opened from a cluster list
         function hasPreviewContent() {
             const header = document.getElementById('preview-file-header');
@@ -4234,7 +4235,12 @@
         }
 
         // File Preview Functions
-        async function openFilePreview(path) {
+        async function openFilePreview(path, historyMode = 'clear') {
+            if (historyMode === 'push') {
+                if (previewPath) previewHistory.push(previewPath);
+            } else if (historyMode === 'clear') {
+                previewHistory = [];
+            }
             if (document.body.classList.contains('graph-is-fullscreen')) {
                 toggleGraphFullscreen();
             }
@@ -4312,10 +4318,11 @@
                                     return;
                                 }
 
-                                // File exists - open in new tab
+                                // File exists - open preview and reveal in tree
                                 link.addEventListener('click', (e) => {
                                     e.preventDefault();
-                                    window.open(`/?preview=${encodeURIComponent(newPath)}`, '_blank');
+                                    openFilePreview(newPath, 'push');
+                                    revealInTree(newPath);
                                 });
                             } else if (href && (href.startsWith('http://') || href.startsWith('https://'))) {
                                 // External link - open in new window
@@ -4361,6 +4368,7 @@
 
         function resetPreviewState() {
             previewPath = null;
+            previewHistory = [];
             updateTreePreviewState();
             previewReturnClusterId = null;
             window.activeClusterId = null;
@@ -4979,6 +4987,18 @@
         function updateTreePreviewState() {
             document.querySelectorAll('#tree-view .tree-item').forEach(el => {
                 el.classList.toggle('tree-previewing', el.dataset.path === previewPath && !selectedItems.has(el.dataset.path));
+            });
+        }
+
+        function revealInTree(filePath) {
+            const parts = filePath.split('/');
+            for (let i = 1; i < parts.length; i++) {
+                expandedPaths.add(parts.slice(0, i).join('/'));
+            }
+            renderTree();
+            requestAnimationFrame(() => {
+                const el = document.querySelector('#tree-view .tree-item.tree-previewing');
+                if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
             });
         }
 
@@ -8034,6 +8054,12 @@
         }
 
         function goBackFromPreview() {
+            if (previewHistory.length > 0) {
+                const previousPath = previewHistory.pop();
+                openFilePreview(previousPath, 'keep');
+                revealInTree(previousPath);
+                return;
+            }
             if (previewReturnClusterId !== null) {
                 const id = previewReturnClusterId;
                 previewReturnClusterId = null;
