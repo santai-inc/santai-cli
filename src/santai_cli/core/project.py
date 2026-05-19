@@ -1,7 +1,9 @@
 """Project detection and data loading for Santai projects."""
 
+import math
 import re
-from dataclasses import dataclass
+from collections import Counter
+from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
 
@@ -60,6 +62,7 @@ class GraphEdge:
     source: str  # Source file id
     target: str  # Target file id
     link_text: str  # The text that was linked
+    edge_type: str = field(default="reference")  # "reference" or "semantic"
 
 
 @dataclass
@@ -439,6 +442,187 @@ def _resolve_link(
     return None
 
 
+_STOP_WORDS = frozenset(
+    {
+        "a",
+        "an",
+        "and",
+        "are",
+        "as",
+        "at",
+        "be",
+        "been",
+        "by",
+        "can",
+        "did",
+        "do",
+        "for",
+        "from",
+        "had",
+        "has",
+        "have",
+        "he",
+        "her",
+        "him",
+        "his",
+        "how",
+        "if",
+        "in",
+        "is",
+        "it",
+        "its",
+        "my",
+        "no",
+        "not",
+        "of",
+        "on",
+        "or",
+        "our",
+        "she",
+        "so",
+        "than",
+        "that",
+        "the",
+        "their",
+        "them",
+        "then",
+        "there",
+        "these",
+        "they",
+        "this",
+        "those",
+        "through",
+        "to",
+        "up",
+        "was",
+        "we",
+        "were",
+        "what",
+        "when",
+        "which",
+        "who",
+        "will",
+        "with",
+        "would",
+        "you",
+        "your",
+        "very",
+        "also",
+        "all",
+        "any",
+        "both",
+        "each",
+        "few",
+        "more",
+        "most",
+        "one",
+        "other",
+        "same",
+        "such",
+        "about",
+        "but",
+        "into",
+        "here",
+        "just",
+        "over",
+        "only",
+    }
+)
+
+_MARKDOWN_STRIP = re.compile(
+    r"```.*?```|`[^`]+`|\[([^\]]+)\]\([^)]+\)|\[\[([^\]|]+)(?:\|[^\]]+)?\]\]|#{1,6} |[*_~]",
+    re.DOTALL,
+)
+
+
+def _tokenize(text: str) -> list[str]:
+    """Strip markdown syntax and return meaningful lowercase words (min 3 chars)."""
+    cleaned = _MARKDOWN_STRIP.sub(lambda m: m.group(1) or m.group(2) or " ", text)
+    words = re.findall(r"[a-z]{3,}", cleaned.lower())
+    return [w for w in words if w not in _STOP_WORDS]
+
+
+def _tfidf_vectors(
+    file_contents: dict[str, str],
+) -> dict[str, dict[str, float]]:
+    """Return a TF-IDF vector (sparse dict) per file id."""
+    doc_terms: dict[str, Counter] = {}
+    for file_id, content in file_contents.items():
+        tokens = _tokenize(content)
+        if len(tokens) >= 20:  # skip very short files
+            doc_terms[file_id] = Counter(tokens)
+
+    n = len(doc_terms)
+    if n < 2:
+        return {}
+
+    df: Counter = Counter()
+    for terms in doc_terms.values():
+        df.update(terms.keys())
+
+    # Smoothed IDF: log((1+n)/(1+df)) + 1  — keeps shared terms at reduced weight
+    # instead of zeroing them out, which breaks small corpora (e.g. n=2).
+    idf = {term: math.log((1 + n) / (1 + count)) + 1.0 for term, count in df.items()}
+
+    vectors: dict[str, dict[str, float]] = {}
+    for file_id, terms in doc_terms.items():
+        total = sum(terms.values())
+        vectors[file_id] = {
+            term: (count / total) * idf[term] for term, count in terms.items()
+        }
+    return vectors
+
+
+def _cosine(a: dict[str, float], b: dict[str, float]) -> float:
+    dot = sum(a.get(t, 0.0) * v for t, v in b.items())
+    if dot == 0.0:
+        return 0.0
+    mag_a = math.sqrt(sum(v * v for v in a.values()))
+    mag_b = math.sqrt(sum(v * v for v in b.values()))
+    return dot / (mag_a * mag_b) if mag_a and mag_b else 0.0
+
+
+def _compute_semantic_edges(
+    file_contents: dict[str, str],
+    existing_pairs: set[tuple[str, str]],
+    threshold: float = 0.15,
+    max_per_node: int = 3,
+) -> list[GraphEdge]:
+    """Add semantic edges between topically related files that lack explicit links."""
+    vectors = _tfidf_vectors(file_contents)
+    ids = list(vectors.keys())
+
+    # Score all candidate pairs
+    scored: list[tuple[float, str, str]] = []
+    for i, id_a in enumerate(ids):
+        for id_b in ids[i + 1 :]:
+            if (id_a, id_b) in existing_pairs or (id_b, id_a) in existing_pairs:
+                continue
+            sim = _cosine(vectors[id_a], vectors[id_b])
+            if sim >= threshold:
+                scored.append((sim, id_a, id_b))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+
+    budget: Counter = Counter()
+    edges: list[GraphEdge] = []
+    for sim, id_a, id_b in scored:
+        if budget[id_a] >= max_per_node or budget[id_b] >= max_per_node:
+            continue
+        edges.append(
+            GraphEdge(
+                source=id_a,
+                target=id_b,
+                link_text=f"~{sim:.2f}",
+                edge_type="semantic",
+            )
+        )
+        budget[id_a] += 1
+        budget[id_b] += 1
+
+    return edges
+
+
 def get_file_graph(project: SantaiProject) -> FileGraph:
     """Build a graph of files and their backlinks.
 
@@ -495,7 +679,7 @@ def get_file_graph(project: SantaiProject) -> FileGraph:
             except (OSError, ValueError):
                 continue
 
-    # Extract links and create edges
+    # Extract links and create reference edges
     for source_id, content in file_contents.items():
         source_path = file_map[source_id]
         links = _extract_links(content)
@@ -510,5 +694,9 @@ def get_file_graph(project: SantaiProject) -> FileGraph:
                         link_text=link_text,
                     )
                 )
+
+    # Add semantic edges for topically related files with no explicit link
+    existing_pairs = {(e.source, e.target) for e in edges}
+    edges.extend(_compute_semantic_edges(file_contents, existing_pairs))
 
     return FileGraph(nodes=nodes, edges=edges)
