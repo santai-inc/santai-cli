@@ -2190,7 +2190,13 @@
         }
 
         .graph-filter-btn-clusters:hover {
-            background: rgba(0, 0, 0, 0.08);
+            background: linear-gradient(135deg,
+                rgba(255, 150, 100, 0.45) 0%,
+                rgba(255, 100, 150, 0.4) 50%,
+                rgba(150, 100, 255, 0.4) 100%
+            );
+            color: var(--text-primary);
+            transform: scale(1.02);
         }
 
         .graph-filter-btn-clusters.active {
@@ -3799,7 +3805,7 @@
                             </div>
                             <div id="graph-cluster-legend" style="display:none;"></div>
                             <button class="graph-cluster-clear-btn" id="cluster-clear-btn" style="display:none;" onclick="clearClusterFilter()">Clear</button>
-                            <button class="graph-filter-btn graph-filter-btn-clusters" id="cluster-mode-btn" onclick="toggleClusterMode()" style="display:none;">Clusters</button>
+                            <button class="graph-filter-btn graph-filter-btn-clusters" id="cluster-mode-btn" onclick="toggleClusterMode()" title="Color nodes by connected cluster" style="display:none;">Clusters</button>
                         </div>
                         <div class="graph-filter-controls">
                             <button class="graph-filter-btn active" data-filter="all" onclick="setConnectionFilter('all')">All</button>
@@ -7643,8 +7649,21 @@
             'the','a','an','and','or','of','in','on','at','to','for','with','by',
             'from','into','index','main','readme','untitled','file','new','doc',
             'docs','draft','copy','page','part','section','about','how','what',
-            'overview','summary','introduction','general','misc','other','stuff'
+            'overview','summary','introduction','general','misc','other','stuff',
+            // Generic essay/title structure words that don't identify the topic
+            'importance','important','impact','role','understanding','exploring',
+            'analysis','analyzing','benefits','challenges','guide','history',
+            'using','based','notes','note','topic','topics','review','report'
         ]);
+
+        // Map file extensions to human-readable language names
+        const _codeExtNames = {
+            cpp:'C++', cc:'C++', cxx:'C++', c:'C', h:'C/C++',
+            py:'Python', js:'JavaScript', ts:'TypeScript', jsx:'React', tsx:'React',
+            java:'Java', rb:'Ruby', go:'Go', rs:'Rust', cs:'C#',
+            php:'PHP', swift:'Swift', kt:'Kotlin', scala:'Scala',
+            sh:'Shell', bash:'Shell', sql:'SQL', r:'R'
+        };
 
         function _clusterFileWords(clusterId) {
             const nodeIds = clusterNodes.get(clusterId) || [];
@@ -7672,6 +7691,18 @@
         function suggestClusterName(clusterId, excludeWords = new Set()) {
             const { nodes, counts } = _clusterFileWords(clusterId);
             if (!nodes.length) return `Cluster ${clusterId + 1}`;
+
+            // 0. Code-file detection — label by language when most files share an extension
+            const extCounts = {};
+            nodes.forEach(n => {
+                const m = n.name.match(/\.([^.]+)$/);
+                const lang = m && _codeExtNames[m[1].toLowerCase()];
+                if (lang) extCounts[lang] = (extCounts[lang] || 0) + 1;
+            });
+            const topLang = Object.entries(extCounts).sort((a, b) => b[1] - a[1])[0];
+            if (topLang && topLang[1] >= Math.ceil(nodes.length * 0.6)) {
+                return `${topLang[0]} Files`;
+            }
 
             // 1. Words appearing in at least half the files (lower bar for small clusters)
             const threshold = nodes.length <= 2 ? 1 : Math.ceil(nodes.length * 0.4);
