@@ -7690,7 +7690,7 @@
                 const seenStems = new Set(); // dedupe within one filename
                 base.split(/[\s\-_\.]+/)
                     .map(w => w.toLowerCase())
-                    .filter(w => w.length > 2 && !_clusterStopWords.has(w) && !/^\d+$/.test(w))
+                    .filter(w => w.length > 2 && !_clusterStopWords.has(w) && /^[a-z]+$/.test(w))
                     .forEach(w => {
                         const s = _stemWord(w);
                         if (seenStems.has(s)) return;
