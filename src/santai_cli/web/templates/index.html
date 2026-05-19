@@ -6060,10 +6060,18 @@
             other: '#94a3b8'        // Slate gray fallback
         };
 
-        // Extra palette for dynamically discovered directories (deterministic by name hash)
+        // Extra palette for dynamically discovered directories (deterministic by name hash).
+        // Colors chosen to be perceptually distinct from the 5 named dirs
+        // (blue, purple, red, yellow, green) and from each other.
         const _extraDirPalette = [
-            '#e07b54', '#54b8e0', '#b054e0', '#54e0a8',
-            '#e0c454', '#c454e0', '#54e07b', '#e05480'
+            '#f97316',  // orange
+            '#22d3ee',  // cyan
+            '#d946ef',  // fuchsia
+            '#84cc16',  // lime
+            '#0f766e',  // dark teal
+            '#fb923c',  // peach-orange
+            '#a21caf',  // deep magenta
+            '#0e7490'   // dark cyan
         ];
 
         function getDirColor(dirName) {
