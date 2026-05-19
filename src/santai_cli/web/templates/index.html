@@ -7685,37 +7685,43 @@
             const nodes = nodeIds.map(id => nodeMap.get(id)).filter(Boolean);
             const counts = {};    // stem → # files that contain it
             const originals = {}; // stem → best display word (shortest / most natural form)
+            const positions = {}; // stem → [normalized positions across filenames, for ordering]
             nodes.forEach(n => {
                 const base = n.name.replace(/\.[^.]+$/, '');
+                const tokens = base.split(/[\s\-_\.]+/).map(w => w.toLowerCase());
+                const tokenCount = tokens.length;
                 const seenStems = new Set(); // dedupe within one filename
-                base.split(/[\s\-_\.]+/)
-                    .map(w => w.toLowerCase())
-                    .filter(w => w.length > 2 && !_clusterStopWords.has(w) && /^[a-z]+$/.test(w))
-                    .forEach(w => {
-                        const s = _stemWord(w);
-                        if (seenStems.has(s)) return;
-                        seenStems.add(s);
-                        counts[s] = (counts[s] || 0) + 1;
-                        // Keep the shorter (more base) form as the display word
-                        if (!originals[s] || w.length < originals[s].length) originals[s] = w;
-                    });
+                tokens.forEach((w, idx) => {
+                    if (w.length <= 2 || _clusterStopWords.has(w) || !/^[a-z]+$/.test(w)) return;
+                    const s = _stemWord(w);
+                    if (seenStems.has(s)) return;
+                    seenStems.add(s);
+                    counts[s] = (counts[s] || 0) + 1;
+                    // Keep the shorter (more base) form as the display word
+                    if (!originals[s] || w.length < originals[s].length) originals[s] = w;
+                    // Track normalized position (0 = first token, 1 = last) for word ordering
+                    if (!positions[s]) positions[s] = [];
+                    positions[s].push(tokenCount > 1 ? idx / (tokenCount - 1) : 0);
+                });
             });
-            return { nodes, counts, originals };
+            return { nodes, counts, originals, positions };
         }
 
-        function _topWords(counts, originals, exclude = new Set(), limit = 2) {
-            const words = Object.entries(counts)
+        function _topWords(counts, originals, exclude = new Set(), limit = 2, positions = {}) {
+            const avgPos = s => { const ps = positions[s] || [0.5]; return ps.reduce((a, b) => a + b, 0) / ps.length; };
+            return Object.entries(counts)
                 .filter(([s]) => !exclude.has(s))
                 // Sort by count desc, then alpha for a stable tiebreak (avoids "first file wins")
                 .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
                 .slice(0, limit)
-                .map(([s]) => { const w = originals[s] || s; return w.charAt(0).toUpperCase() + w.slice(1); });
-            // Shorter word first → modifier before noun ("Public Libraries" not "Libraries Public")
-            return words.sort((a, b) => a.length - b.length || a.localeCompare(b));
+                .map(([s]) => { const w = originals[s] || s; return { display: w.charAt(0).toUpperCase() + w.slice(1), pos: avgPos(s) }; })
+                // Sort by average filename position so title reads in natural word order
+                .sort((a, b) => a.pos - b.pos || a.display.length - b.display.length || a.display.localeCompare(b.display))
+                .map(({ display }) => display);
         }
 
         function suggestClusterName(clusterId, excludeWords = new Set()) {
-            const { nodes, counts, originals } = _clusterFileWords(clusterId);
+            const { nodes, counts, originals, positions } = _clusterFileWords(clusterId);
             if (!nodes.length) return `Cluster ${clusterId + 1}`;
 
             const display = s => { const w = originals[s] || s; return w.charAt(0).toUpperCase() + w.slice(1); };
@@ -7734,19 +7740,20 @@
 
             // 1. Words appearing in at least 40% of files (threshold 1 for tiny clusters)
             const threshold = nodes.length <= 2 ? 1 : Math.ceil(nodes.length * 0.4);
+            const avgPos = s => { const ps = positions[s] || [0.5]; return ps.reduce((a, b) => a + b, 0) / ps.length; };
             const common = Object.entries(counts)
                 .filter(([s, c]) => c >= threshold && !excludeWords.has(s))
                 .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-                .map(([s]) => display(s));
+                .slice(0, 2)
+                .map(([s]) => ({ display: display(s), pos: avgPos(s) }));
             if (common.length) {
-                const pair = common.slice(0, 2);
-                // Shorter word first → modifier before noun ("Public Libraries" not "Libraries Public")
-                pair.sort((a, b) => a.length - b.length || a.localeCompare(b));
-                return pair.join(' ');
+                // Order by average filename position so title reads in natural word order
+                common.sort((a, b) => a.pos - b.pos || a.display.length - b.display.length || a.display.localeCompare(b.display));
+                return common.map(c => c.display).join(' ');
             }
 
             // 2. Any top words at all, excluding requested words
-            const top = _topWords(counts, originals, excludeWords);
+            const top = _topWords(counts, originals, excludeWords, 2, positions);
             if (top.length) return top.join(' ');
 
             // 3. Shared directory (only if not falling back to avoid "notes" × N)
