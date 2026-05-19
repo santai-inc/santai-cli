@@ -3795,26 +3795,6 @@
                         </div>
                         <div class="graph-legend">
                             <div id="graph-dir-legend">
-                                <div class="graph-legend-item" data-directory="resources" onclick="toggleDirectoryFilter('resources')">
-                                    <span class="graph-legend-color" style="background: #60a5fa;"></span>
-                                    <span>resources</span>
-                                </div>
-                                <div class="graph-legend-item" data-directory="codebases" onclick="toggleDirectoryFilter('codebases')">
-                                    <span class="graph-legend-color" style="background: #a855f7;"></span>
-                                    <span>codebases</span>
-                                </div>
-                                <div class="graph-legend-item" data-directory="history" onclick="toggleDirectoryFilter('history')">
-                                    <span class="graph-legend-color" style="background: #f87171;"></span>
-                                    <span>history</span>
-                                </div>
-                                <div class="graph-legend-item" data-directory="notes" onclick="toggleDirectoryFilter('notes')">
-                                    <span class="graph-legend-color" style="background: #fbbf24;"></span>
-                                    <span>notes</span>
-                                </div>
-                                <div class="graph-legend-item" data-directory="wiki" onclick="toggleDirectoryFilter('wiki')">
-                                    <span class="graph-legend-color" style="background: #34d399;"></span>
-                                    <span>wiki</span>
-                                </div>
                                 <button class="graph-cluster-clear-btn" id="dir-clear-btn" style="display:none;" onclick="clearDirectoryFilter()">Clear</button>
                             </div>
                             <div id="graph-cluster-legend" style="display:none;"></div>
@@ -6071,13 +6051,69 @@
 
         // Directory color mapping for graph - modern pastel palette
         const dirColors = {
-            resources: '#60a5fa',  // Blue
-            codebases: '#a855f7',  // Deep purple
-            history: '#f87171',    // Red
-            notes: '#fbbf24',      // Yellow (sticky note)
-            wiki: '#34d399',       // Emerald green
-            other: '#94a3b8'       // Slate gray
+            resources: '#60a5fa',   // Blue
+            codebases: '#a855f7',   // Deep purple
+            history: '#f87171',     // Red
+            notes: '#fbbf24',       // Yellow (sticky note)
+            wiki: '#34d399',        // Emerald green
+            unassigned: '#9b9ba8',  // Muted blue-gray (root-level files)
+            other: '#94a3b8'        // Slate gray fallback
         };
+
+        // Extra palette for dynamically discovered directories (deterministic by name hash)
+        const _extraDirPalette = [
+            '#e07b54', '#54b8e0', '#b054e0', '#54e0a8',
+            '#e0c454', '#c454e0', '#54e07b', '#e05480'
+        ];
+
+        function getDirColor(dirName) {
+            if (dirColors[dirName]) return dirColors[dirName];
+            // Deterministic hash so the same dir always gets the same color
+            let h = 0;
+            for (let i = 0; i < dirName.length; i++) {
+                h = Math.imul(31, h) + dirName.charCodeAt(i) | 0;
+            }
+            return _extraDirPalette[Math.abs(h) % _extraDirPalette.length];
+        }
+
+        // Rebuild the directory legend from actual graph data so dynamic/root-level
+        // folders appear automatically without any hardcoded HTML.
+        const _knownDirOrder = ['resources', 'codebases', 'history', 'notes', 'wiki'];
+
+        function updateDirLegend(data) {
+            const container = document.getElementById('graph-dir-legend');
+            if (!container) return;
+
+            const presentDirs = [...new Set(data.nodes.map(n => n.directory))];
+            const dynamic = presentDirs
+                .filter(d => !_knownDirOrder.includes(d) && d !== 'unassigned' && d !== 'other')
+                .sort();
+            const ordered = [
+                ..._knownDirOrder.filter(d => presentDirs.includes(d)),
+                ...dynamic,
+                ...(presentDirs.includes('unassigned') ? ['unassigned'] : [])
+            ];
+
+            // Preserve the Clear button (last child) while replacing legend items
+            const clearBtn = container.querySelector('#dir-clear-btn');
+            container.innerHTML = '';
+
+            ordered.forEach(dir => {
+                const color = getDirColor(dir);
+                const label = dir.length > 14 ? dir.slice(0, 13) + '…' : dir;
+                const item = document.createElement('div');
+                item.className = 'graph-legend-item' +
+                    (activeDirectoryFilters.has(dir) ? ' active' : '') +
+                    (activeDirectoryFilters.size > 0 && !activeDirectoryFilters.has(dir) ? ' dimmed' : '');
+                item.dataset.directory = dir;
+                item.title = dir;
+                item.onclick = () => toggleDirectoryFilter(dir);
+                item.innerHTML = `<span class="graph-legend-color" style="background:${color};"></span><span>${label}</span>`;
+                container.appendChild(item);
+            });
+
+            if (clearBtn) container.appendChild(clearBtn);
+        }
 
         // Track graph data to detect changes
         let lastGraphHash = null;
@@ -6225,6 +6261,9 @@
                 }
                 updateClusterLegend();
             }
+
+            // Rebuild dir legend so dynamic/root-level folders always appear
+            updateDirLegend(data);
 
             // Apply directory filter - identify primary nodes
             let primaryNodeIds = new Set();
@@ -6471,7 +6510,7 @@
                 .attr('r', 9)
                 .attr('fill', d => colorByCluster
                     ? (clusterColors[clusterMap.get(d.id)] || '#94a3b8')
-                    : (dirColors[d.directory] || dirColors.other))
+                    : getDirColor(d.directory))
                 .attr('opacity', d => d.isSecondary ? 0.35 : 1)
                 .attr('filter', 'url(#node-glow)');
 
