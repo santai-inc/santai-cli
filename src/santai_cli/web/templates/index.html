@@ -7704,12 +7704,14 @@
         }
 
         function _topWords(counts, originals, exclude = new Set(), limit = 2) {
-            return Object.entries(counts)
+            const words = Object.entries(counts)
                 .filter(([s]) => !exclude.has(s))
                 // Sort by count desc, then alpha for a stable tiebreak (avoids "first file wins")
                 .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
                 .slice(0, limit)
                 .map(([s]) => { const w = originals[s] || s; return w.charAt(0).toUpperCase() + w.slice(1); });
+            // Shorter word first → modifier before noun ("Public Libraries" not "Libraries Public")
+            return words.sort((a, b) => a.length - b.length || a.localeCompare(b));
         }
 
         function suggestClusterName(clusterId, excludeWords = new Set()) {
@@ -7736,7 +7738,12 @@
                 .filter(([s, c]) => c >= threshold && !excludeWords.has(s))
                 .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
                 .map(([s]) => display(s));
-            if (common.length) return common.slice(0, 2).join(' ');
+            if (common.length) {
+                const pair = common.slice(0, 2);
+                // Shorter word first → modifier before noun ("Public Libraries" not "Libraries Public")
+                pair.sort((a, b) => a.length - b.length || a.localeCompare(b));
+                return pair.join(' ');
+            }
 
             // 2. Any top words at all, excluding requested words
             const top = _topWords(counts, originals, excludeWords);
