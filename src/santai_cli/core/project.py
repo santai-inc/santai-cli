@@ -344,33 +344,15 @@ WIKILINK_PATTERN = re.compile(r"\[\[([^\]|]+)(?:\|[^\]]+)?\]\]")
 _SKIP_DIRS = frozenset({"__pycache__", "node_modules", ".venv", "venv", ".git"})
 
 # Project meta-files that should never appear as graph nodes
-_GRAPH_EXCLUDE_NAMES = frozenset(
+_GRAPH_EXCLUDE_NAMES_LOWER = frozenset(
     {
-        "AGENTS.md",
-        "CLAUDE.md",
-        "README.md",
-        "README.rst",
+        "agents.md",
+        "claude.md",
+        "readme.md",
+        "readme.rst",
         "rumdl.toml",
     }
 )
-
-
-def _get_directory_name(file_path: Path, project_root: Path) -> str:
-    """Get the directory category for a file relative to the project root.
-
-    Returns the first path component for files in subdirectories,
-    or "unassigned" for files sitting directly at the project root.
-    """
-    try:
-        relative = file_path.relative_to(project_root)
-        parts = relative.parts
-        if len(parts) == 1:
-            return "unassigned"
-        if parts:
-            return parts[0]
-    except ValueError:
-        pass
-    return "unassigned"
 
 
 def _extract_links(content: str) -> list[tuple[str, str]]:
@@ -620,7 +602,8 @@ def _compute_name_edges(
             token_to_ids.setdefault(token, []).append(node.id)
 
     edges: list[GraphEdge] = []
-    seen = set(existing_pairs)
+    # Normalize to sorted pairs so direction-sensitive existing_pairs don't miss dedup
+    seen = {(min(a, b), max(a, b)) for a, b in existing_pairs}
     for node_ids in token_to_ids.values():
         if len(node_ids) < 2:
             continue
@@ -685,7 +668,7 @@ def _add_file_to_graph(
     text_extensions: set[str],
 ) -> None:
     """Add a single file to the graph data structures."""
-    if file_path.name in _GRAPH_EXCLUDE_NAMES:
+    if file_path.name.lower() in _GRAPH_EXCLUDE_NAMES_LOWER:
         return
     try:
         relative_path = file_path.relative_to(project_root)
@@ -810,9 +793,13 @@ def get_file_graph(project: SantaiProject) -> FileGraph:
                     text_extensions,
                 )
 
-    # Extract links and create reference edges
+    # Extract links and create reference edges — only from prose/markdown files,
+    # not code files (whose [text](url) in comments isn't meaningful graph structure)
+    _prose_extensions = {".md", ".txt", ".markdown"}
     for source_id, content in file_contents.items():
         source_path = file_map[source_id]
+        if source_path.suffix.lower() not in _prose_extensions:
+            continue
         links = _extract_links(content)
 
         for link_text, link_target in links:

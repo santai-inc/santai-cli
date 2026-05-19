@@ -6086,7 +6086,7 @@
             // Deterministic hash so the same dir always gets the same color
             let h = 0;
             for (let i = 0; i < dirName.length; i++) {
-                h = Math.imul(31, h) + dirName.charCodeAt(i) | 0;
+                h = Math.imul(31, h) + dirName.charCodeAt(i);
             }
             return _extraDirPalette[Math.abs(h) % _extraDirPalette.length];
         }
@@ -6147,7 +6147,7 @@
                 const data = await response.json();
                 renderGraph(data);
                 lastGraphHash = hashGraphData(data);
-                updateEditStatus(); // show Restore Links button if deletions exist
+                updateEditStatus();
             } catch (error) {
                 console.error('Failed to load graph:', error);
                 document.getElementById('graph-stats').textContent = 'Failed to load graph';
@@ -8191,6 +8191,8 @@
                 }
             } else if (deleteMode) {
                 status.textContent = 'Click a link to delete it';
+            } else if (deletedLinks.size > 0) {
+                status.innerHTML = `<span style="opacity:0.6">${deletedLinks.size} link${deletedLinks.size === 1 ? '' : 's'} hidden — <a href="#" onclick="event.preventDefault();deletedLinks.clear();localStorage.removeItem('santai-deleted-links');if(window.lastGraphData)renderGraph(window.lastGraphData);updateEditStatus();" style="color:inherit;">restore</a></span>`;
             } else {
                 status.textContent = '';
             }

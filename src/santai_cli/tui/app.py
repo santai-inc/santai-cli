@@ -2,6 +2,7 @@
 
 from collections.abc import Callable, Iterable
 from datetime import datetime
+from hashlib import md5
 from pathlib import Path
 from typing import Any
 
@@ -253,16 +254,17 @@ class GraphPanel(Static):
         "other": "#6b6560",  # warm gray fallback
     }
 
-    # Colors assigned round-robin (by hash) to dynamically discovered dirs
+    # Matches the web UI _extraDirPalette — same order so the same dir gets
+    # the same color in both surfaces.
     _EXTRA_PALETTE = [
-        "#e07b54",  # orange
-        "#54b8e0",  # sky blue
-        "#b054e0",  # purple
-        "#54e0a8",  # mint
-        "#e0c454",  # amber
-        "#c454e0",  # violet
-        "#54e07b",  # lime
-        "#e05480",  # rose
+        "#f97316",  # orange
+        "#22d3ee",  # cyan
+        "#d946ef",  # fuchsia
+        "#84cc16",  # lime
+        "#0f766e",  # dark teal
+        "#fb923c",  # peach-orange
+        "#a21caf",  # deep magenta
+        "#0e7490",  # dark cyan
     ]
 
     @classmethod
@@ -270,7 +272,9 @@ class GraphPanel(Static):
         """Return a stable color for any directory name."""
         if dir_name in cls.DIR_COLORS:
             return cls.DIR_COLORS[dir_name]
-        idx = hash(dir_name) % len(cls._EXTRA_PALETTE)
+        # Use MD5 for a stable cross-process hash (Python's built-in hash is
+        # randomized by PYTHONHASHSEED and changes every process restart).
+        idx = md5(dir_name.encode()).digest()[0] % len(cls._EXTRA_PALETTE)
         return cls._EXTRA_PALETTE[idx]
 
     def __init__(self, project: SantaiProject, fullscreen: bool = False) -> None:
@@ -1451,6 +1455,10 @@ class GraphFilterScreen(ModalScreen):
         Binding("3", "toggle_3", "history"),
         Binding("4", "toggle_4", "notes"),
         Binding("5", "toggle_5", "wiki"),
+        Binding("6", "toggle_6", "dir 6", show=False),
+        Binding("7", "toggle_7", "dir 7", show=False),
+        Binding("8", "toggle_8", "dir 8", show=False),
+        Binding("9", "toggle_9", "dir 9", show=False),
         Binding("a", "select_all", "All"),
         Binding("x", "clear_all", "None"),
     ]
@@ -1578,20 +1586,25 @@ class GraphFilterScreen(ModalScreen):
     def action_toggle_5(self) -> None:
         self._toggle_dir("wiki")
 
-    def on_key(self, event) -> None:
-        """Handle keys 6–9 to toggle dynamic (non-standard) directories."""
-        if not event.key.isdigit():
-            return
-        n = int(event.key)
-        if n < 6:
-            return
+    def _toggle_extra_dir(self, idx: int) -> None:
         extra_dirs = sorted(self._available_dirs - set(self.DIRS) - {"unassigned"})
         all_extra = extra_dirs + (
             ["unassigned"] if "unassigned" in self._available_dirs else []
         )
-        idx = n - 6
         if 0 <= idx < len(all_extra):
             self._toggle_dir(all_extra[idx])
+
+    def action_toggle_6(self) -> None:
+        self._toggle_extra_dir(0)
+
+    def action_toggle_7(self) -> None:
+        self._toggle_extra_dir(1)
+
+    def action_toggle_8(self) -> None:
+        self._toggle_extra_dir(2)
+
+    def action_toggle_9(self) -> None:
+        self._toggle_extra_dir(3)
 
     def action_select_all(self) -> None:
         self._selected = set(self.DIRS) | self._available_dirs
