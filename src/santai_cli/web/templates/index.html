@@ -3094,21 +3094,6 @@
         }
         .chat-file-pill a:hover { text-decoration: underline; }
 
-        .chat-sort-notification {
-            padding: 4px 10px 4px 9px;
-            margin: 3px 0 5px;
-            font-size: 11.5px;
-            color: var(--text-muted, #6b7280);
-            border-left: 2px solid #16a34a;
-            border-radius: 0 4px 4px 0;
-            line-height: 1.6;
-        }
-        .chat-sort-notification code {
-            font-family: monospace;
-            font-size: 11px;
-            color: #16a34a;
-        }
-
         .chat-msg {
             padding: 10px 14px;
             border-radius: 18px;
@@ -5469,37 +5454,26 @@
             } catch { return null; }
         }
 
-        // Insert a quiet notification row into the chat panel showing smart-sort results.
+        // Show smart-sort results as a bot message (hides suggestion chips automatically).
         function appendSortNotification(placements) {
-            const msgs = document.getElementById('chat-messages');
-            if (!msgs || !placements.length) return;
-            const note = document.createElement('div');
-            note.className = 'chat-sort-notification';
+            if (!placements.length) return;
+            let md;
             if (placements.length === 1) {
                 const p = placements[0];
-                const nameCode = document.createElement('code');
-                nameCode.textContent = p.name;
-                const destCode = document.createElement('code');
-                destCode.textContent = p.dest;
-                note.append('Sorted ', nameCode, ' → ', destCode);
+                md = `Sorted \`${p.name}\` → \`${p.dest}\``;
+            } else if (placements.length <= 6) {
+                const lines = placements.map(p => `- \`${p.name}\` → \`${p.dest}\``);
+                md = `Sorted ${placements.length} files:\n${lines.join('\n')}`;
             } else {
                 const byFolder = {};
                 for (const p of placements) {
                     const folder = p.dest.split('/')[0];
                     byFolder[folder] = (byFolder[folder] || 0) + 1;
                 }
-                note.append(`Sorted ${placements.length} files → `);
-                let first = true;
-                for (const [f, n] of Object.entries(byFolder)) {
-                    if (!first) note.append(', ');
-                    const fc = document.createElement('code');
-                    fc.textContent = f + '/';
-                    note.append(fc, ` (${n})`);
-                    first = false;
-                }
+                const parts = Object.entries(byFolder).map(([f, n]) => `\`${f}/\` (${n})`);
+                md = `Sorted ${placements.length} files → ${parts.join(', ')}`;
             }
-            msgs.appendChild(note);
-            msgs.scrollTop = msgs.scrollHeight;
+            appendChatMessage('assistant', md);
         }
 
         async function handleFileSelect(event) {
