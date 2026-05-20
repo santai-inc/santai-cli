@@ -273,11 +273,11 @@ _MEDIA_EXTS: frozenset[str] = frozenset(
     }
 )
 
-_SMART_PLACE_ALLOWED = re.compile(r"^(notes|media|history)/[^/]")
+_SMART_PLACE_ALLOWED = re.compile(r"^(notes|resources|history)/[^/]")
 
 _SMART_PLACE_FOLDER_LIST = (
     "- notes/ → personal notes, summaries, AI research, documentation, how-to guides, tutorials, reference pages\n"
-    "- media/ → media, images, audio, video, PDFs, templates, archives, binary files\n"
+    "- resources/ → media, images, audio, video, PDFs, templates, archives, binary files\n"
     "- history/ → logs, changelogs, versioned records"
 )
 
@@ -287,7 +287,7 @@ async def _suggest_file_placement(
     content: str,
     project_root: Path,
 ) -> dict[str, str]:
-    """AI-driven file placement into notes/, media/, or history/."""
+    """AI-driven file placement into notes/, resources/, or history/."""
     import json as _json
 
     from santai_cli.core.config import load_config
@@ -370,7 +370,7 @@ async def _suggest_file_placement(
                 continue
 
     if ext in _MEDIA_EXTS:
-        return {"path": f"media/{slug}", "reasoning": "Media file"}
+        return {"path": f"resources/{slug}", "reasoning": "Media file"}
     if is_folder:
         # Scan the file manifest to detect media-dominant folders
         manifest_text = content.replace("Folder containing:", "").strip()
@@ -383,7 +383,7 @@ async def _suggest_file_placement(
             )
             if media_count / len(names) > 0.5:
                 return {
-                    "path": f"media/{slug}",
+                    "path": f"resources/{slug}",
                     "reasoning": "Folder containing mostly media files",
                 }
     return {"path": f"notes/{slug}", "reasoning": "Default to notes"}

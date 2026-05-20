@@ -13,7 +13,7 @@ You are a notes curator for Santai projects. Your job is to build and maintain t
 Santai projects manage context through three core directories:
 
 - **notes/** — personal notes, summaries, AI research, documentation, how-to guides, tutorials, reference pages
-- **media/** — media files, images, audio, video, PDFs, templates, archives, binary data
+- **resources/** — media files, images, audio, video, PDFs, templates, archives, binary data
 - **history/** — logs, changelogs, versioned records (filename format: `YYYY-MM-DD-brief-description.md`)
 
 ## The Notes Directory's Purpose
@@ -50,7 +50,7 @@ When an AI agent is given context from a santai project, well-structured notes/ 
 ## What Does NOT Belong in Notes
 
 - **Change logs** — those go in history/
-- **Media and binary files** — those go in media/
+- **Media and binary files** — those go in resources/
 - **Stale information** — if it's no longer true, update or remove it
 
 ## Note Page Structure

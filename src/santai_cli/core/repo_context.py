@@ -60,18 +60,9 @@ def _build_file_tree(root: Path, max_depth: int = 4) -> str:
 
 
 def _get_resources_summary(project: SantaiProject) -> str:
-    """Get a summary of media files and recent notes in the project."""
+    """Get a summary of resources files and recent notes in the project."""
     summary_parts = []
 
-    media_path = project.root / "media"
-    if media_path.is_dir():
-        files = [f for f in media_path.rglob("*") if f.is_file()]
-        if files:
-            summary_parts.append(f"Media ({len(files)} files):")
-            for f in sorted(files)[:20]:
-                summary_parts.append(f"  - {f.relative_to(media_path)}")
-
-    # Legacy resources/ support while migration is in progress
     resources_path = project.resources_path
     if resources_path.is_dir():
         files = [f for f in resources_path.rglob("*") if f.is_file()]
@@ -140,7 +131,7 @@ def build_repo_context_prompt(context: RepoContext) -> str:
             "## File Organization",
             "This project organizes files into three knowledge-base folders:",
             "- **notes/** — personal notes, summaries, AI research, documentation, how-to guides, tutorials, reference pages",
-            "- **media/** — media files, images, audio, video, PDFs, templates, archives, binary data",
+            "- **resources/** — media files, images, audio, video, PDFs, templates, archives, binary data",
             "- **history/** — logs, changelogs, versioned records (use `YYYY-MM-DD-brief-description.md` format)",
             "",
             "**When writing files:**",
@@ -151,7 +142,7 @@ def build_repo_context_prompt(context: RepoContext) -> str:
             "",
             "## Important Guidelines",
             "- You can see the file tree above, but you do NOT have the file contents in context.",
-            "- IMPORTANT: Whenever a user asks a question that could be answered by a file in this project (notes/, media/, history/, or any other file), you MUST call read_file to read the relevant file(s) before answering. Never answer knowledge-base questions from memory — always fetch fresh content with the tool.",
+            "- IMPORTANT: Whenever a user asks a question that could be answered by a file in this project (notes/, resources/, history/, or any other file), you MUST call read_file to read the relevant file(s) before answering. Never answer knowledge-base questions from memory — always fetch fresh content with the tool.",
             "- If multiple files might be relevant, read each one before responding.",
             "- Use [[wikilinks]] or markdown links when referencing project files.",
             "- IMPORTANT: If a read_file result includes 'truncated: true', the file was cut off. Acknowledge this to the user rather than treating the partial content as complete.",
