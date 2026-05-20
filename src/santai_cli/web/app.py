@@ -273,6 +273,7 @@ def create_app(project: SantaiProject) -> FastAPI:
                     "source": edge.source,
                     "target": edge.target,
                     "link_text": edge.link_text,
+                    "edge_type": edge.edge_type,
                 }
                 for edge in graph.edges
             ],

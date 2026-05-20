@@ -2190,7 +2190,13 @@
         }
 
         .graph-filter-btn-clusters:hover {
-            background: rgba(0, 0, 0, 0.08);
+            background: linear-gradient(135deg,
+                rgba(255, 150, 100, 0.45) 0%,
+                rgba(255, 100, 150, 0.4) 50%,
+                rgba(150, 100, 255, 0.4) 100%
+            );
+            color: var(--text-primary);
+            transform: scale(1.02);
         }
 
         .graph-filter-btn-clusters.active {
@@ -3795,31 +3801,11 @@
                         </div>
                         <div class="graph-legend">
                             <div id="graph-dir-legend">
-                                <div class="graph-legend-item" data-directory="resources" onclick="toggleDirectoryFilter('resources')">
-                                    <span class="graph-legend-color" style="background: #60a5fa;"></span>
-                                    <span>resources</span>
-                                </div>
-                                <div class="graph-legend-item" data-directory="codebases" onclick="toggleDirectoryFilter('codebases')">
-                                    <span class="graph-legend-color" style="background: #a855f7;"></span>
-                                    <span>codebases</span>
-                                </div>
-                                <div class="graph-legend-item" data-directory="history" onclick="toggleDirectoryFilter('history')">
-                                    <span class="graph-legend-color" style="background: #f87171;"></span>
-                                    <span>history</span>
-                                </div>
-                                <div class="graph-legend-item" data-directory="notes" onclick="toggleDirectoryFilter('notes')">
-                                    <span class="graph-legend-color" style="background: #fbbf24;"></span>
-                                    <span>notes</span>
-                                </div>
-                                <div class="graph-legend-item" data-directory="wiki" onclick="toggleDirectoryFilter('wiki')">
-                                    <span class="graph-legend-color" style="background: #34d399;"></span>
-                                    <span>wiki</span>
-                                </div>
                                 <button class="graph-cluster-clear-btn" id="dir-clear-btn" style="display:none;" onclick="clearDirectoryFilter()">Clear</button>
                             </div>
                             <div id="graph-cluster-legend" style="display:none;"></div>
                             <button class="graph-cluster-clear-btn" id="cluster-clear-btn" style="display:none;" onclick="clearClusterFilter()">Clear</button>
-                            <button class="graph-filter-btn graph-filter-btn-clusters" id="cluster-mode-btn" onclick="toggleClusterMode()" style="display:none;">Clusters</button>
+                            <button class="graph-filter-btn graph-filter-btn-clusters" id="cluster-mode-btn" onclick="toggleClusterMode()" title="Color nodes by connected cluster" style="display:none;">Clusters</button>
                         </div>
                         <div class="graph-filter-controls">
                             <button class="graph-filter-btn active" data-filter="all" onclick="setConnectionFilter('all')">All</button>
@@ -3845,6 +3831,7 @@
                                 Delete Link
                             </button>
                             <div class="graph-edit-status" id="graph-edit-status"></div>
+
                         </div>
                     </div>
                 </div>
@@ -6071,13 +6058,77 @@
 
         // Directory color mapping for graph - modern pastel palette
         const dirColors = {
-            resources: '#60a5fa',  // Blue
-            codebases: '#a855f7',  // Deep purple
-            history: '#f87171',    // Red
-            notes: '#fbbf24',      // Yellow (sticky note)
-            wiki: '#34d399',       // Emerald green
-            other: '#94a3b8'       // Slate gray
+            resources: '#60a5fa',   // Blue
+            codebases: '#a855f7',   // Deep purple
+            history: '#f87171',     // Red
+            notes: '#fbbf24',       // Yellow (sticky note)
+            wiki: '#34d399',        // Emerald green
+            unassigned: '#9b9ba8',  // Muted blue-gray (root-level files)
+            other: '#94a3b8'        // Slate gray fallback
         };
+
+        // Extra palette for dynamically discovered directories (deterministic by name hash).
+        // Colors chosen to be perceptually distinct from the 5 named dirs
+        // (blue, purple, red, yellow, green) and from each other.
+        const _extraDirPalette = [
+            '#f97316',  // orange
+            '#22d3ee',  // cyan
+            '#d946ef',  // fuchsia
+            '#84cc16',  // lime
+            '#0f766e',  // dark teal
+            '#fb923c',  // peach-orange
+            '#a21caf',  // deep magenta
+            '#0e7490'   // dark cyan
+        ];
+
+        function getDirColor(dirName) {
+            if (dirColors[dirName]) return dirColors[dirName];
+            // Deterministic hash so the same dir always gets the same color
+            let h = 0;
+            for (let i = 0; i < dirName.length; i++) {
+                h = Math.imul(31, h) + dirName.charCodeAt(i);
+            }
+            return _extraDirPalette[Math.abs(h) % _extraDirPalette.length];
+        }
+
+        // Rebuild the directory legend from actual graph data so dynamic/root-level
+        // folders appear automatically without any hardcoded HTML.
+        const _knownDirOrder = ['resources', 'codebases', 'history', 'notes', 'wiki'];
+
+        function updateDirLegend(data) {
+            const container = document.getElementById('graph-dir-legend');
+            if (!container) return;
+
+            const presentDirs = [...new Set(data.nodes.map(n => n.directory))];
+            const dynamic = presentDirs
+                .filter(d => !_knownDirOrder.includes(d) && d !== 'unassigned' && d !== 'other')
+                .sort();
+            const ordered = [
+                ..._knownDirOrder.filter(d => presentDirs.includes(d)),
+                ...dynamic,
+                ...(presentDirs.includes('unassigned') ? ['unassigned'] : [])
+            ];
+
+            // Preserve the Clear button (last child) while replacing legend items
+            const clearBtn = container.querySelector('#dir-clear-btn');
+            container.innerHTML = '';
+
+            ordered.forEach(dir => {
+                const color = getDirColor(dir);
+                const label = dir.length > 14 ? dir.slice(0, 13) + '…' : dir;
+                const item = document.createElement('div');
+                item.className = 'graph-legend-item' +
+                    (activeDirectoryFilters.has(dir) ? ' active' : '') +
+                    (activeDirectoryFilters.size > 0 && !activeDirectoryFilters.has(dir) ? ' dimmed' : '');
+                item.dataset.directory = dir;
+                item.title = dir;
+                item.onclick = () => toggleDirectoryFilter(dir);
+                item.innerHTML = `<span class="graph-legend-color" style="background:${color};"></span><span>${label}</span>`;
+                container.appendChild(item);
+            });
+
+            if (clearBtn) container.appendChild(clearBtn);
+        }
 
         // Track graph data to detect changes
         let lastGraphHash = null;
@@ -6096,6 +6147,7 @@
                 const data = await response.json();
                 renderGraph(data);
                 lastGraphHash = hashGraphData(data);
+                updateEditStatus();
             } catch (error) {
                 console.error('Failed to load graph:', error);
                 document.getElementById('graph-stats').textContent = 'Failed to load graph';
@@ -6155,11 +6207,13 @@
             let links = data.edges.map(e => ({
                 source: e.source,
                 target: e.target,
-                link_text: e.link_text
+                link_text: e.link_text,
+                edge_type: e.edge_type || 'reference'
             })).filter(e => {
                 if (!nodeMap.has(e.source) || !nodeMap.has(e.target)) return false;
                 const key = [e.source, e.target].sort().join('\0');
                 if (seenEdgePairs.has(key)) return false;
+                if (deletedLinks.has(key)) return false;
                 seenEdgePairs.add(key);
                 return true;
             });
@@ -6225,6 +6279,9 @@
                 }
                 updateClusterLegend();
             }
+
+            // Rebuild dir legend so dynamic/root-level folders always appear
+            updateDirLegend(data);
 
             // Apply directory filter - identify primary nodes
             let primaryNodeIds = new Set();
@@ -6471,7 +6528,7 @@
                 .attr('r', 9)
                 .attr('fill', d => colorByCluster
                     ? (clusterColors[clusterMap.get(d.id)] || '#94a3b8')
-                    : (dirColors[d.directory] || dirColors.other))
+                    : getDirColor(d.directory))
                 .attr('opacity', d => d.isSecondary ? 0.35 : 1)
                 .attr('filter', 'url(#node-glow)');
 
@@ -7512,6 +7569,8 @@
         let deleteMode = false;
         let selectedSourceNode = null;
         let customLinks = JSON.parse(localStorage.getItem('santai-custom-links') || '[]');
+        // Set of "source\0target" keys (sorted) for links the user has explicitly deleted
+        let deletedLinks = new Set(JSON.parse(localStorage.getItem('santai-deleted-links') || '[]'));
 
         // Graph filter state
         let activeDirectoryFilters = new Set(); // Empty means show all
@@ -7596,47 +7655,119 @@
             'the','a','an','and','or','of','in','on','at','to','for','with','by',
             'from','into','index','main','readme','untitled','file','new','doc',
             'docs','draft','copy','page','part','section','about','how','what',
-            'overview','summary','introduction','general','misc','other','stuff'
+            'overview','summary','introduction','general','misc','other','stuff',
+            // Generic essay/title structure words that don't identify the topic
+            'importance','important','impact','role','understanding','exploring',
+            'analysis','analyzing','benefits','challenges','guide','history',
+            'using','based','notes','note','topic','topics','review','report'
         ]);
+
+        // Map file extensions to human-readable language names
+        const _codeExtNames = {
+            cpp:'C++', cc:'C++', cxx:'C++', c:'C', h:'C/C++',
+            py:'Python', js:'JavaScript', ts:'TypeScript', jsx:'React', tsx:'React',
+            java:'Java', rb:'Ruby', go:'Go', rs:'Rust', cs:'C#',
+            php:'PHP', swift:'Swift', kt:'Kotlin', scala:'Scala',
+            sh:'Shell', bash:'Shell', sql:'SQL', r:'R'
+        };
+
+        // Normalize common plural/suffix variants so "cloud" and "clouds" count as one word
+        function _pluralize(w) {
+            if (w.endsWith('s')) return w;
+            if (w.length > 2 && w.endsWith('y') && !/[aeiou]/i.test(w[w.length - 2])) return w.slice(0, -1) + 'ies';
+            if (/(?:ch|sh|[xz])$/i.test(w)) return w + 'es';
+            return w + 's';
+        }
+
+        function _stemWord(w) {
+            if (w.length > 5 && w.endsWith('ies')) return w.slice(0, -3) + 'y';      // libraries→library
+            if (w.length > 4 && /ches$|shes$|xes$|zes$/.test(w)) return w.slice(0, -2); // brushes→brush
+            if (w.length > 4 && w.endsWith('s') && !w.endsWith('ss')) return w.slice(0, -1); // clouds→cloud
+            return w;
+        }
 
         function _clusterFileWords(clusterId) {
             const nodeIds = clusterNodes.get(clusterId) || [];
             const nodeMap = window.lastFullNodeMap || new Map();
             const nodes = nodeIds.map(id => nodeMap.get(id)).filter(Boolean);
-            const counts = {};
+            const counts = {};    // stem → # files that contain it
+            const originals = {}; // stem → best display word (shortest / most natural form)
+            const positions = {}; // stem → [normalized positions across filenames, for ordering]
             nodes.forEach(n => {
-                const stem = n.name.replace(/\.[^.]+$/, '');
-                stem.split(/[\s\-_\.]+/)
-                    .map(w => w.toLowerCase())
-                    .filter(w => w.length > 2 && !_clusterStopWords.has(w) && !/^\d+$/.test(w))
-                    .forEach(w => { counts[w] = (counts[w] || 0) + 1; });
+                const base = n.name.replace(/\.[^.]+$/, '');
+                const tokens = base.split(/[\s\-_\.]+/).map(w => w.toLowerCase());
+                const tokenCount = tokens.length;
+                const seenStems = new Set(); // dedupe within one filename
+                tokens.forEach((w, idx) => {
+                    if (w.length <= 2 || _clusterStopWords.has(w) || !/^[a-z]+$/.test(w)) return;
+                    const s = _stemWord(w);
+                    if (seenStems.has(s)) return;
+                    seenStems.add(s);
+                    counts[s] = (counts[s] || 0) + 1;
+                    // Keep the shorter (more base) form as the display word
+                    if (!originals[s] || w.length < originals[s].length) originals[s] = w;
+                    // Track normalized position (0 = first token, 1 = last) for word ordering
+                    if (!positions[s]) positions[s] = [];
+                    positions[s].push(tokenCount > 1 ? idx / (tokenCount - 1) : 0);
+                });
             });
-            return { nodes, counts };
+            return { nodes, counts, originals, positions };
         }
 
-        function _topWords(counts, exclude = new Set(), limit = 2) {
+        function _topWords(counts, originals, exclude = new Set(), limit = 2, positions = {}) {
+            const avgPos = s => { const ps = positions[s] || [0.5]; return ps.reduce((a, b) => a + b, 0) / ps.length; };
             return Object.entries(counts)
-                .filter(([w]) => !exclude.has(w))
-                .sort((a, b) => b[1] - a[1])
+                .filter(([s]) => !exclude.has(s))
+                // Sort by count desc, then alpha for a stable tiebreak (avoids "first file wins")
+                .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
                 .slice(0, limit)
-                .map(([w]) => w.charAt(0).toUpperCase() + w.slice(1));
+                .map(([s]) => { const w = originals[s] || s; return { display: w.charAt(0).toUpperCase() + w.slice(1), pos: avgPos(s) }; })
+                // Sort by average filename position so title reads in natural word order
+                .sort((a, b) => a.pos - b.pos || a.display.length - b.display.length || a.display.localeCompare(b.display))
+                .map(({ display }) => display);
         }
 
         function suggestClusterName(clusterId, excludeWords = new Set()) {
-            const { nodes, counts } = _clusterFileWords(clusterId);
+            const { nodes, counts, originals, positions } = _clusterFileWords(clusterId);
             if (!nodes.length) return `Cluster ${clusterId + 1}`;
 
-            // 1. Words appearing in at least half the files (lower bar for small clusters)
+            const display = s => { const w = originals[s] || s; return w.charAt(0).toUpperCase() + w.slice(1); };
+
+            // 0. Code-file detection — label by language when most files share an extension
+            const extCounts = {};
+            nodes.forEach(n => {
+                const m = n.name.match(/\.([^.]+)$/);
+                const lang = m && _codeExtNames[m[1].toLowerCase()];
+                if (lang) extCounts[lang] = (extCounts[lang] || 0) + 1;
+            });
+            const topLang = Object.entries(extCounts).sort((a, b) => b[1] - a[1])[0];
+            if (topLang && topLang[1] >= Math.ceil(nodes.length * 0.6)) {
+                return `${topLang[0]} Files`;
+            }
+
+            // 1. Words appearing in at least 40% of files (threshold 1 for tiny clusters)
             const threshold = nodes.length <= 2 ? 1 : Math.ceil(nodes.length * 0.4);
+            const avgPos = s => { const ps = positions[s] || [0.5]; return ps.reduce((a, b) => a + b, 0) / ps.length; };
             const common = Object.entries(counts)
-                .filter(([w, c]) => c >= threshold && !excludeWords.has(w))
-                .sort((a, b) => b[1] - a[1])
-                .map(([w]) => w.charAt(0).toUpperCase() + w.slice(1));
-            if (common.length) return common.slice(0, 2).join(' ');
+                .filter(([s, c]) => c >= threshold && !excludeWords.has(s))
+                .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+                .slice(0, 2)
+                .map(([s]) => ({ display: display(s), pos: avgPos(s) }));
+            if (common.length) {
+                // Order by average filename position so title reads in natural word order
+                common.sort((a, b) => a.pos - b.pos || a.display.length - b.display.length || a.display.localeCompare(b.display));
+                const words = common.map(c => c.display);
+                // Pluralize the last word when the cluster has multiple files
+                if (nodes.length > 1) words[words.length - 1] = _pluralize(words[words.length - 1]);
+                return words.join(' ');
+            }
 
             // 2. Any top words at all, excluding requested words
-            const top = _topWords(counts, excludeWords);
-            if (top.length) return top.join(' ');
+            const top = _topWords(counts, originals, excludeWords, 2, positions);
+            if (top.length) {
+                if (nodes.length > 1) top[top.length - 1] = _pluralize(top[top.length - 1]);
+                return top.join(' ');
+            }
 
             // 3. Shared directory (only if not falling back to avoid "notes" × N)
             const dirs = nodes.map(n => n.directory || '');
@@ -7666,9 +7797,11 @@
             clusterNodes.forEach((nodeIds, cid) => { if (nodeIds.length > 1) ids.push(cid); });
             ids.sort((a, b) => a - b);
 
-            // First pass: assign initial names
+            // First pass: assign initial names (pre-compute fileWords to reuse in collision pass)
             const nameToIds = new Map();
+            const fileWordsCache = new Map();
             for (const cid of ids) {
+                fileWordsCache.set(cid, _clusterFileWords(cid));
                 const saved = clusterNames[getClusterKey(cid)];
                 if (saved) { clusterDisplayNames.set(cid, saved); continue; }
                 const name = suggestClusterName(cid);
@@ -7681,26 +7814,22 @@
             for (const [name, colliding] of nameToIds) {
                 if (colliding.length <= 1) continue;
 
-                // Gather all words from all colliding clusters
-                const allWordMaps = colliding.map(cid => _clusterFileWords(cid).counts);
-                const allWords = new Set(allWordMaps.flatMap(m => Object.keys(m)));
+                const wordData = colliding.map(cid => fileWordsCache.get(cid));
 
-                // Find words that distinguish each cluster (present in this cluster but not others)
+                // Find stems that distinguish each cluster (present in this one but not others)
                 colliding.forEach((cid, i) => {
-                    const mine = allWordMaps[i];
-                    const otherWords = new Set(
-                        allWordMaps.filter((_, j) => j !== i).flatMap(m => Object.keys(m))
+                    const { counts: mine, originals: myOrig } = wordData[i];
+                    const otherStems = new Set(
+                        wordData.filter((_, j) => j !== i).flatMap(d => Object.keys(d.counts))
                     );
                     const unique = Object.entries(mine)
-                        .filter(([w]) => !otherWords.has(w))
-                        .sort((a, b) => b[1] - a[1])
-                        .map(([w]) => w.charAt(0).toUpperCase() + w.slice(1));
+                        .filter(([s]) => !otherStems.has(s))
+                        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+                        .map(([s]) => { const w = myOrig[s] || s; return w.charAt(0).toUpperCase() + w.slice(1); });
 
                     if (unique.length) {
-                        // Append the unique word to distinguish
                         clusterDisplayNames.set(cid, `${name} · ${unique[0]}`);
                     } else {
-                        // No unique words — fall back to numbered suffix
                         clusterDisplayNames.set(cid, `${name} ${i + 1}`);
                     }
                 });
@@ -8082,6 +8211,8 @@
                 }
             } else if (deleteMode) {
                 status.textContent = 'Click a link to delete it';
+            } else if (deletedLinks.size > 0) {
+                status.innerHTML = `<span style="opacity:0.6">${deletedLinks.size} link${deletedLinks.size === 1 ? '' : 's'} hidden — <a href="#" onclick="event.preventDefault();deletedLinks.clear();localStorage.removeItem('santai-deleted-links');if(window.lastGraphData)renderGraph(window.lastGraphData);updateEditStatus();" style="color:inherit;">restore</a></span>`;
             } else {
                 status.textContent = '';
             }
@@ -8141,31 +8272,28 @@
             if (!deleteMode) return;
 
             event.stopPropagation();
-
-            // Hide tooltip since the link will be removed
             document.getElementById('graph-tooltip').classList.remove('visible');
 
-            // Find and remove the link
             const sourceId = d.source.id || d.source;
             const targetId = d.target.id || d.target;
+            const key = [sourceId, targetId].sort().join('\0');
 
-            // Check if it's a custom link
+            // Remove from custom links if present
             const customIndex = customLinks.findIndex(l =>
                 (l.source === sourceId && l.target === targetId) ||
                 (l.source === targetId && l.target === sourceId)
             );
-
             if (customIndex !== -1) {
                 customLinks.splice(customIndex, 1);
                 localStorage.setItem('santai-custom-links', JSON.stringify(customLinks));
-
-                if (window.lastGraphData) {
-                    renderGraph(window.lastGraphData);
-                }
-                showToast('Link deleted');
-            } else {
-                showToast('Cannot delete file-based links', true);
             }
+
+            // Always add to deleted set so the link stays hidden even if re-computed
+            deletedLinks.add(key);
+            localStorage.setItem('santai-deleted-links', JSON.stringify([...deletedLinks]));
+
+            if (window.lastGraphData) renderGraph(window.lastGraphData);
+            showToast('Link deleted');
         }
 
         function zoomGraph(factor) {
