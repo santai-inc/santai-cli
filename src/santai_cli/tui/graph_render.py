@@ -32,6 +32,7 @@ class GraphEdge:
 
     source: str
     target: str
+    edge_type: str = "reference"  # "reference" or "semantic"
 
 
 @dataclass
@@ -462,18 +463,24 @@ def render_graph(
         highlighted_edge_nodes.update(hl)
 
     # Draw edges — highlight edges connected to selected/highlighted nodes
-    default_edge_color = "dim #444444"
     highlight_edge_color = "bold #FFD700"  # gold for highlighted edges
     dimmed_edge_color = "dim #2a2a2a"
+    _default_colors = {
+        "reference": "dim #444444",
+        "semantic": "dim #2d4a7a",  # indigo
+        "name": "dim #2d5a3a",  # dark green — filename-pattern matches
+    }
 
     for edge in edges:
         if edge.source not in node_map or edge.target not in node_map:
             continue
         src = node_map[edge.source]
         tgt = node_map[edge.target]
+        default_color = _default_colors.get(
+            edge.edge_type, _default_colors["reference"]
+        )
 
         if highlighted_edge_nodes:
-            # If either endpoint is highlighted, use highlight color
             src_hl = edge.source in highlighted_edge_nodes
             tgt_hl = edge.target in highlighted_edge_nodes
             if src_hl or tgt_hl:
@@ -481,7 +488,7 @@ def render_graph(
             else:
                 canvas.draw_line(src.x, src.y, tgt.x, tgt.y, dimmed_edge_color)
         else:
-            canvas.draw_line(src.x, src.y, tgt.x, tgt.y, default_edge_color)
+            canvas.draw_line(src.x, src.y, tgt.x, tgt.y, default_color)
 
     # Draw nodes
     for node in layout_nodes:
@@ -601,6 +608,7 @@ def build_graph_from_project_data(
             GraphEdge(
                 source=edge.source,
                 target=edge.target,
+                edge_type=getattr(edge, "edge_type", "reference"),
             )
         )
 

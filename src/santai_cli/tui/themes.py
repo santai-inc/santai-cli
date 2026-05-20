@@ -749,7 +749,7 @@ def _generate_css(c: ThemeColors) -> str:
     #theme-modal {{
         width: 60%;
         height: auto;
-        max-height: 70%;
+        max-height: 90%;
     }}
 
     #theme-modal-content {{
