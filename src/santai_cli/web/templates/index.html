@@ -5396,10 +5396,42 @@
             }
         });
 
+        // Read up to maxChars of text from a file (returns '' for binary/large files).
+        function readTextPreview(file, maxChars = 2000) {
+            if (file.size > 500_000) return Promise.resolve('');
+            return new Promise(resolve => {
+                const reader = new FileReader();
+                reader.onload = e => resolve((e.target.result || '').slice(0, maxChars));
+                reader.onerror = () => resolve('');
+                reader.readAsText(file);
+            });
+        }
+
+        // Ask the backend to suggest a placement path for a file or folder.
+        // Returns a path like "notes/my-file.md" or null on failure.
+        async function callSmartPlace(filename, content) {
+            try {
+                const res = await fetch('/api/chat/smart-place', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename, content })
+                });
+                if (!res.ok) return null;
+                const data = await res.json();
+                return data.path || null;
+            } catch { return null; }
+        }
+
         async function handleFileSelect(event) {
             const files = event.target.files;
             for (const file of files) {
-                await uploadFile(file);
+                if (currentPath === '') {
+                    const preview = await readTextPreview(file);
+                    const smartPath = await callSmartPlace(file.name, preview);
+                    await uploadFile(file, smartPath);
+                } else {
+                    await uploadFile(file);
+                }
             }
             event.target.value = '';
             loadFiles(currentPath);
@@ -5440,15 +5472,19 @@
             return results;
         }
 
-        async function uploadFile(file) {
+        // overrideRelPath: full relative path from root (e.g. "notes/my-file.md") produced
+        // by smart placement. When set, uploads to root with that relative path so parent
+        // directories are created automatically.
+        async function uploadFile(file, overrideRelPath = null) {
             const formData = new FormData();
             formData.append('file', file);
 
+            const url = overrideRelPath
+                ? `/api/files?path=&relative_path=${encodeURIComponent(overrideRelPath)}`
+                : `/api/files?path=${encodeURIComponent(currentPath)}`;
+
             try {
-                const res = await fetch(`/api/files?path=${encodeURIComponent(currentPath)}`, {
-                    method: 'POST',
-                    body: formData
-                });
+                const res = await fetch(url, { method: 'POST', body: formData });
 
                 if (!res.ok) {
                     const err = await res.json();
@@ -5496,21 +5532,68 @@
 
                 let succeeded = 0, failed = 0;
                 const dropState = { count: 0, capped: false };
+                const smartSort = currentPath === '';
+
                 for (const entry of entries) {
                     const collected = await collectEntryFiles(entry, '', dropState);
-                    for (const { file, relPath } of collected) {
+
+                    if (smartSort && entry.isFile) {
+                        // Single file at root: AI-classify and route to correct folder
+                        const { file } = collected[0] || {};
+                        if (!file) continue;
+                        const preview = await readTextPreview(file);
+                        const smartPath = await callSmartPlace(file.name, preview);
                         try {
                             const formData = new FormData();
                             formData.append('file', file);
-                            const url = relPath.includes('/')
-                                ? `/api/files?path=${encodeURIComponent(currentPath)}&relative_path=${encodeURIComponent(relPath)}`
-                                : `/api/files?path=${encodeURIComponent(currentPath)}`;
+                            const url = smartPath
+                                ? `/api/files?path=&relative_path=${encodeURIComponent(smartPath)}`
+                                : `/api/files?path=`;
                             const res = await fetch(url, { method: 'POST', body: formData });
                             if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
                             succeeded++;
                         } catch { failed++; }
+
+                    } else if (smartSort && entry.isDirectory) {
+                        // Folder at root: classify by contents, preserve internal structure
+                        const folderName = entry.name;
+                        const sampleNames = collected.slice(0, 30).map(({ file: f }) => f.name).join(', ');
+                        const smartFolderPath = await callSmartPlace(folderName, `Folder containing: ${sampleNames}`);
+                        // smartFolderPath = e.g. "notes/my-project"; base dir = "notes"
+                        const baseDir = smartFolderPath ? smartFolderPath.split('/')[0] : '';
+
+                        for (const { file, relPath } of collected) {
+                            // relPath already includes folderName (e.g. "my-project/src/main.py")
+                            const uploadPath = baseDir ? `${baseDir}/${relPath}` : relPath;
+                            try {
+                                const formData = new FormData();
+                                formData.append('file', file);
+                                const res = await fetch(
+                                    `/api/files?path=&relative_path=${encodeURIComponent(uploadPath)}`,
+                                    { method: 'POST', body: formData }
+                                );
+                                if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
+                                succeeded++;
+                            } catch { failed++; }
+                        }
+
+                    } else {
+                        // Non-root drop: respect the user's chosen folder
+                        for (const { file, relPath } of collected) {
+                            try {
+                                const formData = new FormData();
+                                formData.append('file', file);
+                                const url = relPath.includes('/')
+                                    ? `/api/files?path=${encodeURIComponent(currentPath)}&relative_path=${encodeURIComponent(relPath)}`
+                                    : `/api/files?path=${encodeURIComponent(currentPath)}`;
+                                const res = await fetch(url, { method: 'POST', body: formData });
+                                if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
+                                succeeded++;
+                            } catch { failed++; }
+                        }
                     }
                 }
+
                 if (succeeded > 0) showToast(`Uploaded ${succeeded} file${succeeded !== 1 ? 's' : ''}`);
                 if (failed > 0) showToast(`${failed} file${failed !== 1 ? 's' : ''} failed`, true);
                 if (dropState.capped) showToast(`Folder too large — only first ${_MAX_UPLOAD_FILES} files uploaded`, true);
