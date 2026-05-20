@@ -3697,7 +3697,7 @@
 <body>
     <div class="app">
         <!-- Sidebar - single glass container with fill-based sections -->
-        <aside class="sidebar glass">
+        <aside class="sidebar glass" id="sidebar">
             <div class="sidebar-header">
                 <img src="/static/logo.png" alt="Santai" onerror="this.style.display='none'" onclick="showDashboard()" style="cursor: pointer;">
                 <h1 onclick="showDashboard()" style="cursor: pointer;">Santai</h1>
@@ -4990,6 +4990,7 @@
         // Move item (drag and drop)
         let draggedItems = null;    // array of { path, name, isDir } for current drag
         let currentDropGroup = null; // <li> currently highlighted as drop target
+        let currentExtDropGroup = null; // <li> highlighted for external file drag
 
         function getFlatVisibleTreeItems() {
             return Array.from(document.querySelectorAll('#tree-view .tree-item'));
@@ -5096,6 +5097,24 @@
             document.getElementById('folder-move-tooltip').classList.remove('visible');
         }
 
+        function applyExtDropHighlight(li) {
+            li.classList.add('drag-drop-target');
+            const svgNS = 'http://www.w3.org/2000/svg';
+            const svg = document.createElementNS(svgNS, 'svg');
+            svg.classList.add('drag-group-svg');
+            svg.appendChild(document.createElementNS(svgNS, 'rect'));
+            li.insertBefore(svg, li.firstChild);
+        }
+
+        function clearExtDropHighlight() {
+            if (currentExtDropGroup) {
+                currentExtDropGroup.classList.remove('drag-drop-target');
+                const svg = currentExtDropGroup.querySelector(':scope > .drag-group-svg');
+                if (svg) svg.remove();
+                currentExtDropGroup = null;
+            }
+        }
+
         function handleDragEnd(event) {
             event.target.classList.remove('dragging');
             clearDropGroupHighlight();
@@ -5106,7 +5125,21 @@
 
         function handleDragOver(event, targetPath, targetIsDir) {
             event.preventDefault();
-            if (!draggedItems) return;
+            if (!draggedItems) {
+                // External file drag over sidebar tree: suppress full-screen drop-zone,
+                // highlight the hovered folder instead.
+                const treeItem = event.target.closest('#tree-view .tree-item');
+                if (!treeItem) return; // not in the sidebar tree — let document handler show overlay
+                event.stopPropagation();
+                event.dataTransfer.dropEffect = 'copy';
+                const groupLi = findGroupLi(treeItem, targetIsDir);
+                if (groupLi !== currentExtDropGroup) {
+                    clearExtDropHighlight();
+                    currentExtDropGroup = groupLi;
+                    if (currentExtDropGroup) applyExtDropHighlight(currentExtDropGroup);
+                }
+                return;
+            }
 
             // For file targets, drop lands in the file's parent folder
             const dropFolder = targetIsDir ? targetPath : targetPath.split('/').slice(0, -1).join('/');
@@ -5148,7 +5181,16 @@
             event.preventDefault();
             clearDropGroupHighlight();
 
-            if (!draggedItems) return;
+            if (!draggedItems) {
+                // External file drop onto a specific tree folder
+                clearExtDropHighlight();
+                document.getElementById('drop-zone').classList.remove('show');
+                if (!event.dataTransfer.items || !event.dataTransfer.items.length) return;
+                event.stopPropagation(); // prevent document drop handler
+                const dropFolder = targetIsDir ? targetPath : targetPath.split('/').slice(0, -1).join('/');
+                doExternalUpload(event.dataTransfer, dropFolder);
+                return;
+            }
 
             // For file targets, drop lands in the file's parent folder
             const dropFolder = targetIsDir ? targetPath : targetPath.split('/').slice(0, -1).join('/');
@@ -5457,22 +5499,10 @@
         // Show smart-sort results as a bot message (hides suggestion chips automatically).
         function appendSortNotification(placements) {
             if (!placements.length) return;
-            let md;
-            if (placements.length === 1) {
-                const p = placements[0];
-                md = `Sorted \`${p.name}\` → \`${p.dest}\``;
-            } else if (placements.length <= 6) {
-                const lines = placements.map(p => `- \`${p.name}\` → \`${p.dest}\``);
-                md = `Sorted ${placements.length} files:\n${lines.join('\n')}`;
-            } else {
-                const byFolder = {};
-                for (const p of placements) {
-                    const folder = p.dest.split('/')[0];
-                    byFolder[folder] = (byFolder[folder] || 0) + 1;
-                }
-                const parts = Object.entries(byFolder).map(([f, n]) => `\`${f}/\` (${n})`);
-                md = `Sorted ${placements.length} files → ${parts.join(', ')}`;
-            }
+            const n = placements.length;
+            const label = n === 1 ? 'Uploaded 1 file:' : `Uploaded ${n} files:`;
+            const lines = placements.map(p => `- ${p.dest}`);
+            const md = `${label}\n\n${lines.join('\n')}`;
             appendChatMessage('assistant', md);
         }
 
@@ -5562,104 +5592,124 @@
             }
         });
 
+        // Shared handler for external file drops; targetFolder='' triggers smart sort.
+        async function doExternalUpload(dataTransfer, targetFolder) {
+            if (!dataTransfer.items || !dataTransfer.items.length) return;
+            const entries = Array.from(dataTransfer.items)
+                .map(item => item.webkitGetAsEntry?.())
+                .filter(Boolean);
+
+            let succeeded = 0, failed = 0;
+            const dropState = { count: 0, capped: false };
+            const smartSort = targetFolder === '';
+            const sortedPlacements = [];
+
+            for (const entry of entries) {
+                const collected = await collectEntryFiles(entry, '', dropState);
+
+                if (smartSort && entry.isFile) {
+                    const { file } = collected[0] || {};
+                    if (!file) continue;
+                    const preview = await readTextPreview(file);
+                    const smartPath = await callSmartPlace(file.name, preview);
+                    try {
+                        const formData = new FormData();
+                        formData.append('file', file);
+                        const url = smartPath
+                            ? `/api/files?path=&relative_path=${encodeURIComponent(smartPath)}`
+                            : `/api/files?path=`;
+                        const res = await fetch(url, { method: 'POST', body: formData });
+                        if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
+                        succeeded++;
+                        if (smartPath) sortedPlacements.push({ name: file.name, dest: smartPath });
+                    } catch { failed++; }
+
+                } else if (smartSort && entry.isDirectory) {
+                    const folderName = entry.name;
+                    const sampleNames = collected.slice(0, 30).map(({ file: f }) => f.name).join(', ');
+                    const smartFolderPath = await callSmartPlace(folderName, `Folder containing: ${sampleNames}`);
+                    const baseDir = smartFolderPath ? smartFolderPath.split('/')[0] : '';
+                    for (const { file, relPath } of collected) {
+                        const uploadPath = baseDir ? `${baseDir}/${relPath}` : relPath;
+                        try {
+                            const formData = new FormData();
+                            formData.append('file', file);
+                            const res = await fetch(
+                                `/api/files?path=&relative_path=${encodeURIComponent(uploadPath)}`,
+                                { method: 'POST', body: formData }
+                            );
+                            if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
+                            succeeded++;
+                        } catch { failed++; }
+                    }
+                    if (smartFolderPath) sortedPlacements.push({ name: folderName + '/', dest: smartFolderPath + '/' });
+
+                } else {
+                    for (const { file, relPath } of collected) {
+                        try {
+                            const formData = new FormData();
+                            formData.append('file', file);
+                            const url = relPath.includes('/')
+                                ? `/api/files?path=${encodeURIComponent(targetFolder)}&relative_path=${encodeURIComponent(relPath)}`
+                                : `/api/files?path=${encodeURIComponent(targetFolder)}`;
+                            const res = await fetch(url, { method: 'POST', body: formData });
+                            if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
+                            succeeded++;
+                        } catch { failed++; }
+                    }
+                }
+            }
+            appendSortNotification(sortedPlacements);
+            if (succeeded > 0) showToast(`Uploaded ${succeeded} file${succeeded !== 1 ? 's' : ''}`);
+            if (failed > 0) showToast(`${failed} file${failed !== 1 ? 's' : ''} failed`, true);
+            if (dropState.capped) showToast(`Folder too large — only first ${_MAX_UPLOAD_FILES} files uploaded`, true);
+            loadFiles(currentPath);
+            loadTree();
+        }
+
         // Drag and drop (external files only - not internal moves)
+
+        // Suppress the full-screen overlay whenever the drag is anywhere over the sidebar.
+        document.getElementById('sidebar').addEventListener('dragover', (e) => {
+            if (!draggedItems) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.dataTransfer.dropEffect = 'copy';
+                document.getElementById('drop-zone').classList.remove('show');
+            }
+        });
+
+        document.getElementById('sidebar').addEventListener('dragleave', (e) => {
+            // When leaving the sidebar entirely, clear any per-folder highlight.
+            if (!draggedItems && !e.currentTarget.contains(e.relatedTarget)) {
+                clearExtDropHighlight();
+            }
+        });
+
         document.addEventListener('dragover', (e) => {
             e.preventDefault();
-            // Only show drop zone for external file drags, not internal moves
             if (!draggedItems) {
+                // Tree item ondragover calls stopPropagation, so this only fires outside the tree
+                clearExtDropHighlight();
                 document.getElementById('drop-zone').classList.add('show');
             }
         });
 
         document.addEventListener('dragleave', (e) => {
             if (e.relatedTarget === null) {
+                clearExtDropHighlight();
                 document.getElementById('drop-zone').classList.remove('show');
             }
         });
 
         document.addEventListener('drop', async (e) => {
             e.preventDefault();
+            clearExtDropHighlight();
             document.getElementById('drop-zone').classList.remove('show');
-
-            // Only handle file uploads if not an internal drag
-            if (!draggedItems && e.dataTransfer.items && e.dataTransfer.items.length > 0) {
-                const entries = Array.from(e.dataTransfer.items)
-                    .map(item => item.webkitGetAsEntry?.())
-                    .filter(Boolean);
-
-                let succeeded = 0, failed = 0;
-                const dropState = { count: 0, capped: false };
-                const smartSort = currentPath === '';
-                const sortedPlacements = [];
-
-                for (const entry of entries) {
-                    const collected = await collectEntryFiles(entry, '', dropState);
-
-                    if (smartSort && entry.isFile) {
-                        // Single file at root: AI-classify and route to correct folder
-                        const { file } = collected[0] || {};
-                        if (!file) continue;
-                        const preview = await readTextPreview(file);
-                        const smartPath = await callSmartPlace(file.name, preview);
-                        try {
-                            const formData = new FormData();
-                            formData.append('file', file);
-                            const url = smartPath
-                                ? `/api/files?path=&relative_path=${encodeURIComponent(smartPath)}`
-                                : `/api/files?path=`;
-                            const res = await fetch(url, { method: 'POST', body: formData });
-                            if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
-                            succeeded++;
-                            if (smartPath) sortedPlacements.push({ name: file.name, dest: smartPath });
-                        } catch { failed++; }
-
-                    } else if (smartSort && entry.isDirectory) {
-                        // Folder at root: classify by contents, preserve internal structure
-                        const folderName = entry.name;
-                        const sampleNames = collected.slice(0, 30).map(({ file: f }) => f.name).join(', ');
-                        const smartFolderPath = await callSmartPlace(folderName, `Folder containing: ${sampleNames}`);
-                        // smartFolderPath = e.g. "notes/my-project"; base dir = "notes"
-                        const baseDir = smartFolderPath ? smartFolderPath.split('/')[0] : '';
-
-                        for (const { file, relPath } of collected) {
-                            // relPath already includes folderName (e.g. "my-project/src/main.py")
-                            const uploadPath = baseDir ? `${baseDir}/${relPath}` : relPath;
-                            try {
-                                const formData = new FormData();
-                                formData.append('file', file);
-                                const res = await fetch(
-                                    `/api/files?path=&relative_path=${encodeURIComponent(uploadPath)}`,
-                                    { method: 'POST', body: formData }
-                                );
-                                if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
-                                succeeded++;
-                            } catch { failed++; }
-                        }
-                        if (smartFolderPath) sortedPlacements.push({ name: folderName + '/', dest: smartFolderPath + '/' });
-
-                    } else {
-                        // Non-root drop: respect the user's chosen folder
-                        for (const { file, relPath } of collected) {
-                            try {
-                                const formData = new FormData();
-                                formData.append('file', file);
-                                const url = relPath.includes('/')
-                                    ? `/api/files?path=${encodeURIComponent(currentPath)}&relative_path=${encodeURIComponent(relPath)}`
-                                    : `/api/files?path=${encodeURIComponent(currentPath)}`;
-                                const res = await fetch(url, { method: 'POST', body: formData });
-                                if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
-                                succeeded++;
-                            } catch { failed++; }
-                        }
-                    }
-                }
-                appendSortNotification(sortedPlacements);
-
-                if (succeeded > 0) showToast(`Uploaded ${succeeded} file${succeeded !== 1 ? 's' : ''}`);
-                if (failed > 0) showToast(`${failed} file${failed !== 1 ? 's' : ''} failed`, true);
-                if (dropState.capped) showToast(`Folder too large — only first ${_MAX_UPLOAD_FILES} files uploaded`, true);
-                loadFiles(currentPath);
-                loadTree();
+            // Tree item ondrop calls stopPropagation for external drops, so this
+            // only fires when the drop lands outside the tree (main content area).
+            if (!draggedItems) {
+                await doExternalUpload(e.dataTransfer, currentPath);
             }
         });
 
