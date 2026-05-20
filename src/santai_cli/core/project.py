@@ -5,8 +5,9 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
 
-SANTAI_REQUIRED_DIRS = ["media", "history", "notes"]
-SANTAI_DIRS = [*SANTAI_REQUIRED_DIRS]
+# Canonical Santai directories. These are recommended (created by `santai init`)
+# but not enforced — projects are free to add, rename, or omit them.
+SANTAI_DIRS = ["media", "history", "notes"]
 
 
 @dataclass
@@ -102,28 +103,18 @@ class SantaiProject:
         return self.root / "notes"
 
 
-def is_santai_project(path: Path) -> bool:
-    """Check if the given path is a Santai project.
-
-    A Santai project has media/, history/, and notes/ directories.
-    """
-    if not path.is_dir():
-        return False
-
-    return all((path / dir_name).is_dir() for dir_name in SANTAI_REQUIRED_DIRS)
-
-
 def get_project(path: Path | None = None) -> SantaiProject | None:
-    """Get the Santai project from the given path or current directory.
+    """Get the Santai project at the given path or current directory.
 
-    Returns None if the path is not a Santai project.
+    Any existing directory is treated as a project — the canonical media/,
+    history/, and notes/ layout is recommended but not enforced.
     """
     if path is None:
         path = Path.cwd()
 
     path = path.resolve()
 
-    if not is_santai_project(path):
+    if not path.is_dir():
         return None
 
     return SantaiProject(root=path, name=path.name)

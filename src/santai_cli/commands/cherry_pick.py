@@ -9,7 +9,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from santai_cli.core.project import SANTAI_DIRS, is_santai_project
+from santai_cli.core.project import SANTAI_DIRS
 
 console = Console()
 
@@ -24,7 +24,7 @@ IGNORED_DIRECTORIES = {
 
 
 def _validate_project(path_str: str, label: str = "Path") -> Path:
-    """Resolve and validate that *path_str* points to a Santai project.
+    """Resolve and validate that *path_str* points to an existing directory.
 
     Returns the resolved ``Path`` on success or raises ``typer.Exit(1)``.
     """
@@ -36,14 +36,6 @@ def _validate_project(path_str: str, label: str = "Path") -> Path:
 
     if not resolved.is_dir():
         console.print(f"[red]Error: {label} '{path_str}' is not a directory.[/red]")
-        raise typer.Exit(1)
-
-    if not is_santai_project(resolved):
-        console.print(f"[red]Error: '{path_str}' is not a valid Santai project.[/red]")
-        console.print(
-            "[yellow]A Santai project must have media/, history/, "
-            "and notes/ directories.[/yellow]"
-        )
         raise typer.Exit(1)
 
     return resolved

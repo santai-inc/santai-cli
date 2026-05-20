@@ -9,7 +9,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, status
 
-from santai_cli.core.project import SANTAI_DIRS, is_santai_project
+from santai_cli.core.project import SANTAI_DIRS
 from santai_cli.server.models import (
     CherryPickRequest,
     CherryPickResponse,
@@ -71,7 +71,7 @@ def _resolve_path(path_str: str) -> Path:
 
 
 def _validate_santai_project(path: Path, label: str = "Path") -> None:
-    """Validate that a path is a valid Santai project.
+    """Validate that a path points to an existing directory.
 
     Raises HTTPException if validation fails.
     """
@@ -84,15 +84,6 @@ def _validate_santai_project(path: Path, label: str = "Path") -> None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"{label} '{path}' is not a directory",
-        )
-    if not is_santai_project(path):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                f"{label} '{path}' is not a valid Santai project. "
-                "Must contain media/, history/, and notes/ "
-                "directories."
-            ),
         )
 
 

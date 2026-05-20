@@ -10,8 +10,6 @@ from typing import Annotated
 import typer
 from rich.console import Console
 
-from santai_cli.core.project import is_santai_project
-
 console = Console()
 
 # Directories to exclude when copying/merging
@@ -105,7 +103,7 @@ def _merge_tree(
 
 
 def _validate_source(path_str: str) -> Path:
-    """Resolve and validate a source path as a Santai project.
+    """Resolve and validate that *path_str* points to an existing directory.
 
     Returns the resolved Path on success, or raises typer.Exit on failure.
     """
@@ -117,14 +115,6 @@ def _validate_source(path_str: str) -> Path:
 
     if not source_path.is_dir():
         console.print(f"[red]Error: Source path '{path_str}' is not a directory.[/red]")
-        raise typer.Exit(1)
-
-    if not is_santai_project(source_path):
-        console.print(f"[red]Error: '{path_str}' is not a valid Santai project.[/red]")
-        console.print(
-            "[yellow]A Santai project must have media/, history/, "
-            "and notes/ directories.[/yellow]"
-        )
         raise typer.Exit(1)
 
     return source_path
@@ -243,18 +233,6 @@ def merge(
         )
     console.print()
 
-    console.print("Project structure:")
-    console.print(f"  {project_name}/")
-    console.print("  ├── .git/")
-    console.print("  ├── .pre-commit-config.yaml")
-    console.print("  ├── rumdl.toml")
-    console.print("  ├── AGENTS.md")
-    console.print("  ├── README.md")
-    console.print("  ├── CLAUDE.md")
-    console.print("  ├── media/")
-    console.print("  ├── history/")
-    console.print("  └── notes/")
-    console.print()
     console.print("Next steps:")
     console.print(f"  cd {project_name}")
     console.print("  santai ui      # Launch TUI dashboard")

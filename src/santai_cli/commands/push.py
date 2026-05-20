@@ -14,7 +14,6 @@ from rich.console import Console
 
 from santai_cli.commands.auth import DEFAULT_HUB_URL, load_credentials
 from santai_cli.core.hub import create_base, get_backend_url, resolve_base_id
-from santai_cli.core.project import is_santai_project
 
 console = Console()
 
@@ -70,14 +69,6 @@ def push(
     import urllib.request
 
     project_dir = Path.cwd()
-
-    if not is_santai_project(project_dir):
-        console.print("[red]Error: Not a Santai project.[/red]")
-        console.print(
-            "[yellow]A Santai project must have media/, history/, "
-            "and notes/ directories.[/yellow]"
-        )
-        raise typer.Exit(1)
 
     creds = load_credentials()
     if not creds:
