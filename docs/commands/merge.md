@@ -18,7 +18,7 @@ santai merge SOURCE1 SOURCE2 DESTINATION
 
 ## Behavior
 
-1. Validates that both sources are valid Santai projects
+1. Validates that both source paths are existing directories
 2. Copies the primary project (`SOURCE1`) fully to the destination (excluding `.git` and cache directories)
 3. Merges the secondary project (`SOURCE2`) — copies files that don't already exist in the destination
 4. **Conflicts**: If a file exists in both projects at the same relative path, the primary project's version wins and the secondary file is skipped

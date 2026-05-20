@@ -28,7 +28,7 @@ santai cherry-pick SOURCE DESTINATION FILES...
 
 ## Behavior
 
-1. Validates that both source and destination are valid Santai projects
+1. Validates that both source and destination paths are existing directories
 2. Resolves each target path:
     - Direct relative paths (e.g., `notes/idea.md`)
     - Bare filenames searched across Santai directories (e.g., `idea.md`)

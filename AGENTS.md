@@ -33,7 +33,7 @@ Entry point: `santai_cli.cli:app` (Typer application)
 
 1. Create `src/santai_cli/commands/yourcommand.py` with a single function
 2. Use `Annotated[..., typer.Argument/Option(...)]` for parameters
-3. Use `is_santai_project()` / `get_project()` from `core/project.py` for validation
+3. Use `get_project()` from `core/project.py` to load the project (directory-structure validation is no longer enforced)
 4. Import in `cli.py` and register with `app.command(name="yourcommand")(mod.func)`
 
 ## Santai Project Directories

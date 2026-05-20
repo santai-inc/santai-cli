@@ -17,7 +17,7 @@ santai copy SOURCE DESTINATION
 
 ## Behavior
 
-1. Validates that the source is a valid Santai project (contains `media/`, `history/`, `notes/`)
+1. Validates that the source path is an existing directory
 2. Creates the destination directory
 3. Copies all project files, **excluding**:
     - `.git/`

@@ -17,20 +17,19 @@ santai push [NAME]
 ## Prerequisites
 
 - Must be logged in (`santai login`)
-- Must be run from within a valid Santai project directory
+- Must be run from within an existing directory
 
 ## Behavior
 
-1. Validates the current directory is a Santai project
-2. Packages the project into a zip archive, **excluding**:
+1. Packages the current directory into a zip archive, **excluding**:
     - `.git/`
     - `.ruff_cache/`
     - `.rumdl_cache/`
     - `__pycache__/`
     - `.venv/`
     - `node_modules/`
-3. Validates the archive is under 50 MB
-4. Uploads to Santai Hub
+2. Validates the archive is under 50 MB
+3. Uploads to Santai Hub
 
 ## Examples
 
@@ -54,7 +53,6 @@ The maximum upload size is **50 MB** (compressed). If your project exceeds this,
 
 | Error | Cause |
 |-------|-------|
-| Not a Santai project | Missing required directories |
 | Not logged in | Run `santai login` first |
 | Archive exceeds 50 MB | Project too large after compression |
 | Session expired | Re-authenticate with `santai login` |
