@@ -4954,14 +4954,15 @@
             document.getElementById('rename-input').select();
         }
 
-        // Top-level folders that santai web depends on at startup
-        const SANTAI_DIRS = ['notes', 'wiki', 'resources', 'codebases', 'history'];
+        // Canonical top-level folders created by `santai init`. Deleting them
+        // is allowed (the layout is recommended, not enforced) but worth a nudge.
+        const SANTAI_DIRS = ['media', 'history', 'notes'];
 
         // Delete item directly (from button)
         async function deleteItem(path, name, isDir) {
             const isSantaiDir = isDir && SANTAI_DIRS.includes(path);
             const msg = isSantaiDir
-                ? `Delete folder "${name}" and all its contents?\n\nWarning: "${name}" is a standard santai folder — deleting it may prevent santai web from launching.`
+                ? `Delete folder "${name}" and all its contents?\n\n"${name}" is one of the recommended santai folders — you can recreate it later if needed.`
                 : isDir
                 ? `Delete folder "${name}" and all its contents?`
                 : `Delete "${name}"?`;
@@ -5223,7 +5224,7 @@
             if (!newName || !selectedItem) return;
 
             if (SANTAI_DIRS.includes(selectedItem.path)) {
-                if (!confirm(`"${selectedItem.name}" is a standard santai folder — renaming it may prevent santai web from launching. Continue?`)) return;
+                if (!confirm(`"${selectedItem.name}" is one of the recommended santai folders — rename anyway?`)) return;
             }
 
             try {
@@ -5252,7 +5253,7 @@
             if (!selectedItem) return;
             const isSantaiDir = selectedItem.is_dir && SANTAI_DIRS.includes(selectedItem.path);
             const deleteMsg = isSantaiDir
-                ? `Delete folder "${selectedItem.name}" and all its contents?\n\nWarning: "${selectedItem.name}" is a standard santai folder — deleting it may prevent santai web from launching.`
+                ? `Delete folder "${selectedItem.name}" and all its contents?\n\n"${selectedItem.name}" is one of the recommended santai folders — you can recreate it later if needed.`
                 : selectedItem.is_dir
                 ? `Delete folder "${selectedItem.name}" and all its contents?`
                 : `Delete "${selectedItem.name}"?`;
