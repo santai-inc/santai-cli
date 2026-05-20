@@ -338,7 +338,7 @@ def get_notes(project: SantaiProject) -> list[NoteEntry]:
 # Patterns for detecting links in markdown files
 # Matches: [text](path) and [[wikilink]]
 MARKDOWN_LINK_PATTERN = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
-WIKILINK_PATTERN = re.compile(r"\[\[([^\]|]+)(?:\|[^\]]+)?\]\]")
+WIKILINK_PATTERN = re.compile(r"\[\[([^\]|]+)(?:\|([^\]]+))?\]\]")
 
 
 _SKIP_DIRS = frozenset({"__pycache__", "node_modules", ".venv", "venv", ".git"})
