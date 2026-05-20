@@ -1,0 +1,60 @@
+---
+name: smoke-test
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  lint:
+    name: lint + type check (warn-only)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          persist-credentials: false
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
+        with:
+          enable-cache: true
+      - name: Set up Python
+        run: uv python install 3.13
+      - name: Install dev deps
+        run: uv sync --frozen
+      - name: ruff check
+        continue-on-error: true
+        run: uv run ruff check
+      - name: ruff format --check
+        continue-on-error: true
+        run: uv run ruff format --check
+      - name: ty check
+        continue-on-error: true
+        run: uv run ty check src
+
+  build:
+    name: build + import smoke (${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          persist-credentials: false
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
+        with:
+          enable-cache: true
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+      - name: Build wheel + sdist
+        run: uv build
+      - name: Install built wheel into clean venv
+        run: |
+          uv venv --python ${{ matrix.python-version }} .smoke-venv
+          uv pip install --python .smoke-venv/bin/python dist/*.whl
+      - name: Run santai --help
+        run: .smoke-venv/bin/santai --help
