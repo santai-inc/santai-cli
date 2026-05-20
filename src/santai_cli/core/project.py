@@ -1,7 +1,9 @@
 """Project detection and data loading for Santai projects."""
 
+import math
 import re
-from dataclasses import dataclass
+from collections import Counter
+from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
 
@@ -59,7 +61,8 @@ class GraphEdge:
 
     source: str  # Source file id
     target: str  # Target file id
-    link_text: str  # The text that was linked
+    link_text: str = ""  # The text that was linked
+    edge_type: str = field(default="reference")  # "reference" or "semantic"
 
 
 @dataclass
@@ -338,16 +341,18 @@ MARKDOWN_LINK_PATTERN = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
 WIKILINK_PATTERN = re.compile(r"\[\[([^\]|]+)(?:\|[^\]]+)?\]\]")
 
 
-def _get_directory_name(file_path: Path, project_root: Path) -> str:
-    """Get the santai directory name for a file."""
-    try:
-        relative = file_path.relative_to(project_root)
-        parts = relative.parts
-        if parts and parts[0] in SANTAI_DIRS:
-            return parts[0]
-    except ValueError:
-        pass
-    return "other"
+_SKIP_DIRS = frozenset({"__pycache__", "node_modules", ".venv", "venv", ".git"})
+
+# Project meta-files that should never appear as graph nodes
+_GRAPH_EXCLUDE_NAMES_LOWER = frozenset(
+    {
+        "agents.md",
+        "claude.md",
+        "readme.md",
+        "readme.rst",
+        "rumdl.toml",
+    }
+)
 
 
 def _extract_links(content: str) -> list[tuple[str, str]]:
@@ -439,65 +444,362 @@ def _resolve_link(
     return None
 
 
+_STOP_WORDS = frozenset(
+    {
+        "a",
+        "an",
+        "and",
+        "are",
+        "as",
+        "at",
+        "be",
+        "been",
+        "by",
+        "can",
+        "did",
+        "do",
+        "for",
+        "from",
+        "had",
+        "has",
+        "have",
+        "he",
+        "her",
+        "him",
+        "his",
+        "how",
+        "if",
+        "in",
+        "is",
+        "it",
+        "its",
+        "my",
+        "no",
+        "not",
+        "of",
+        "on",
+        "or",
+        "our",
+        "she",
+        "so",
+        "than",
+        "that",
+        "the",
+        "their",
+        "them",
+        "then",
+        "there",
+        "these",
+        "they",
+        "this",
+        "those",
+        "through",
+        "to",
+        "up",
+        "was",
+        "we",
+        "were",
+        "what",
+        "when",
+        "which",
+        "who",
+        "will",
+        "with",
+        "would",
+        "you",
+        "your",
+        "very",
+        "also",
+        "all",
+        "any",
+        "both",
+        "each",
+        "few",
+        "more",
+        "most",
+        "one",
+        "other",
+        "same",
+        "such",
+        "about",
+        "but",
+        "into",
+        "here",
+        "just",
+        "over",
+        "only",
+    }
+)
+
+_MARKDOWN_STRIP = re.compile(
+    r"```.*?```|`[^`]+`|\[([^\]]+)\]\([^)]+\)|\[\[([^\]|]+)(?:\|[^\]]+)?\]\]|#{1,6} |[*_~]",
+    re.DOTALL,
+)
+
+
+def _tokenize(text: str) -> list[str]:
+    """Strip markdown syntax and return meaningful lowercase words (min 3 chars)."""
+    cleaned = _MARKDOWN_STRIP.sub(lambda m: m.group(1) or m.group(2) or " ", text)
+    words = re.findall(r"[a-z]{3,}", cleaned.lower())
+    return [w for w in words if w not in _STOP_WORDS]
+
+
+def _tfidf_vectors(
+    file_contents: dict[str, str],
+) -> dict[str, dict[str, float]]:
+    """Return a TF-IDF vector (sparse dict) per file id."""
+    doc_terms: dict[str, Counter] = {}
+    for file_id, content in file_contents.items():
+        tokens = _tokenize(content)
+        if len(tokens) >= 20:  # skip very short files
+            doc_terms[file_id] = Counter(tokens)
+
+    n = len(doc_terms)
+    if n < 2:
+        return {}
+
+    df: Counter = Counter()
+    for terms in doc_terms.values():
+        df.update(terms.keys())
+
+    # Smoothed IDF: log((1+n)/(1+df)) + 1  — keeps shared terms at reduced weight
+    # instead of zeroing them out, which breaks small corpora (e.g. n=2).
+    idf = {term: math.log((1 + n) / (1 + count)) + 1.0 for term, count in df.items()}
+
+    vectors: dict[str, dict[str, float]] = {}
+    for file_id, terms in doc_terms.items():
+        total = sum(terms.values())
+        vectors[file_id] = {
+            term: (count / total) * idf[term] for term, count in terms.items()
+        }
+    return vectors
+
+
+def _cosine(a: dict[str, float], b: dict[str, float]) -> float:
+    dot = sum(a.get(t, 0.0) * v for t, v in b.items())
+    if dot == 0.0:
+        return 0.0
+    mag_a = math.sqrt(sum(v * v for v in a.values()))
+    mag_b = math.sqrt(sum(v * v for v in b.values()))
+    return dot / (mag_a * mag_b) if mag_a and mag_b else 0.0
+
+
+def _name_tokens(filename: str) -> set[str]:
+    """Extract meaningful alpha tokens from a filename (no extension, no digits)."""
+    stem = Path(filename).stem.lower()
+    words = re.findall(r"[a-z]{3,}", stem)
+    return {w for w in words if w not in _STOP_WORDS}
+
+
+def _compute_name_edges(
+    nodes: list[GraphNode],
+    existing_pairs: set[tuple[str, str]],
+) -> list[GraphEdge]:
+    """Connect files that share significant filename tokens (e.g. assignment series)."""
+    token_to_ids: dict[str, list[str]] = {}
+    for node in nodes:
+        for token in _name_tokens(node.name):
+            token_to_ids.setdefault(token, []).append(node.id)
+
+    edges: list[GraphEdge] = []
+    # Normalize to sorted pairs so direction-sensitive existing_pairs don't miss dedup
+    seen = {(min(a, b), max(a, b)) for a, b in existing_pairs}
+    for node_ids in token_to_ids.values():
+        if len(node_ids) < 2:
+            continue
+        for i, id_a in enumerate(node_ids):
+            for id_b in node_ids[i + 1 :]:
+                pair = (min(id_a, id_b), max(id_a, id_b))
+                if pair in seen:
+                    continue
+                seen.add(pair)
+                edges.append(GraphEdge(source=id_a, target=id_b, edge_type="name"))
+    return edges
+
+
+def _compute_semantic_edges(
+    file_contents: dict[str, str],
+    existing_pairs: set[tuple[str, str]],
+    threshold: float = 0.15,
+    max_per_node: int = 3,
+) -> list[GraphEdge]:
+    """Add semantic edges between topically related files that lack explicit links."""
+    vectors = _tfidf_vectors(file_contents)
+    ids = list(vectors.keys())
+
+    # Score all candidate pairs
+    scored: list[tuple[float, str, str]] = []
+    for i, id_a in enumerate(ids):
+        for id_b in ids[i + 1 :]:
+            if (id_a, id_b) in existing_pairs or (id_b, id_a) in existing_pairs:
+                continue
+            sim = _cosine(vectors[id_a], vectors[id_b])
+            if sim >= threshold:
+                scored.append((sim, id_a, id_b))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+
+    budget: Counter = Counter()
+    edges: list[GraphEdge] = []
+    for sim, id_a, id_b in scored:
+        if budget[id_a] >= max_per_node or budget[id_b] >= max_per_node:
+            continue
+        edges.append(
+            GraphEdge(
+                source=id_a,
+                target=id_b,
+                link_text=f"~{sim:.2f}",
+                edge_type="semantic",
+            )
+        )
+        budget[id_a] += 1
+        budget[id_b] += 1
+
+    return edges
+
+
+def _add_file_to_graph(
+    file_path: Path,
+    directory: str,
+    project_root: Path,
+    nodes: list[GraphNode],
+    file_map: dict[str, Path],
+    file_contents: dict[str, str],
+    text_extensions: set[str],
+) -> None:
+    """Add a single file to the graph data structures."""
+    if file_path.name.lower() in _GRAPH_EXCLUDE_NAMES_LOWER:
+        return
+    try:
+        relative_path = file_path.relative_to(project_root)
+        file_id = str(relative_path)
+        stat = file_path.stat()
+
+        nodes.append(
+            GraphNode(
+                id=file_id,
+                name=file_path.name,
+                directory=directory,
+                file_type=file_path.suffix.lower() if file_path.suffix else "(no ext)",
+                size_bytes=stat.st_size,
+            )
+        )
+        file_map[file_id] = file_path
+
+        if file_path.suffix.lower() in text_extensions:
+            try:
+                file_contents[file_id] = file_path.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                pass
+
+    except (OSError, ValueError):
+        pass
+
+
 def get_file_graph(project: SantaiProject) -> FileGraph:
     """Build a graph of files and their backlinks.
 
-    Scans all markdown and text files in the project directories,
-    extracts links, and builds a graph representation.
+    Scans all files in the project: known santai dirs, root-level files
+    (shown as "unassigned"), and any other root-level subdirectories.
     """
     nodes: list[GraphNode] = []
     edges: list[GraphEdge] = []
     file_map: dict[str, Path] = {}  # file_id -> Path
     file_contents: dict[str, str] = {}  # file_id -> content
 
-    # Collect all text-based files
-    text_extensions = {".md", ".txt", ".markdown"}
+    text_extensions = {
+        ".md",
+        ".txt",
+        ".markdown",
+        # Code files — tokenizer extracts identifiers and comments
+        ".py",
+        ".cpp",
+        ".cc",
+        ".cxx",
+        ".c",
+        ".h",
+        ".hpp",
+        ".js",
+        ".ts",
+        ".jsx",
+        ".tsx",
+        ".java",
+        ".rb",
+        ".go",
+        ".rs",
+        ".cs",
+        ".swift",
+        ".kt",
+        ".scala",
+        ".sql",
+        ".sh",
+        # Markup / config / data — often contain meaningful prose or keys
+        ".html",
+        ".htm",
+        ".json",
+        ".yaml",
+        ".yml",
+        ".toml",
+        ".xml",
+        ".csv",
+    }
 
+    # Known santai subdirectories
     for dir_name in SANTAI_DIRS:
         dir_path = project.root / dir_name
         if not dir_path.is_dir():
             continue
 
         for file_path in dir_path.rglob("*"):
-            if not file_path.is_file():
+            if not file_path.is_file() or file_path.name.startswith("."):
                 continue
-            if file_path.name.startswith("."):
-                continue
+            _add_file_to_graph(
+                file_path,
+                dir_name,
+                project.root,
+                nodes,
+                file_map,
+                file_contents,
+                text_extensions,
+            )
 
-            try:
-                relative_path = file_path.relative_to(project.root)
-                file_id = str(relative_path)
-                stat = file_path.stat()
-
-                # Create node for all files
-                nodes.append(
-                    GraphNode(
-                        id=file_id,
-                        name=file_path.name,
-                        directory=dir_name,
-                        file_type=file_path.suffix.lower()
-                        if file_path.suffix
-                        else "(no ext)",
-                        size_bytes=stat.st_size,
-                    )
+    # Root-level files (directly in project root) → "unassigned"
+    # Plus non-SANTAI, non-hidden root subdirectories
+    santai_and_skip = set(SANTAI_DIRS) | _SKIP_DIRS
+    for entry in project.root.iterdir():
+        if entry.name.startswith("."):
+            continue
+        if entry.is_file():
+            _add_file_to_graph(
+                entry,
+                "unassigned",
+                project.root,
+                nodes,
+                file_map,
+                file_contents,
+                text_extensions,
+            )
+        elif entry.is_dir() and entry.name not in santai_and_skip:
+            for file_path in entry.rglob("*"):
+                if not file_path.is_file() or file_path.name.startswith("."):
+                    continue
+                _add_file_to_graph(
+                    file_path,
+                    entry.name,
+                    project.root,
+                    nodes,
+                    file_map,
+                    file_contents,
+                    text_extensions,
                 )
 
-                file_map[file_id] = file_path
-
-                # Read content for text files (for link extraction)
-                if file_path.suffix.lower() in text_extensions:
-                    try:
-                        content = file_path.read_text(encoding="utf-8")
-                        file_contents[file_id] = content
-                    except UnicodeDecodeError:
-                        pass
-
-            except (OSError, ValueError):
-                continue
-
-    # Extract links and create edges
+    # Extract links and create reference edges — only from prose/markdown files,
+    # not code files (whose [text](url) in comments isn't meaningful graph structure)
+    _prose_extensions = {".md", ".txt", ".markdown"}
     for source_id, content in file_contents.items():
         source_path = file_map[source_id]
+        if source_path.suffix.lower() not in _prose_extensions:
+            continue
         links = _extract_links(content)
 
         for link_text, link_target in links:
@@ -510,5 +812,13 @@ def get_file_graph(project: SantaiProject) -> FileGraph:
                         link_text=link_text,
                     )
                 )
+
+    # Add semantic edges for topically related files with no explicit link
+    existing_pairs = {(e.source, e.target) for e in edges}
+    edges.extend(_compute_semantic_edges(file_contents, existing_pairs))
+
+    # Add name-based edges for files sharing significant filename tokens
+    existing_pairs = {(e.source, e.target) for e in edges}
+    edges.extend(_compute_name_edges(nodes, existing_pairs))
 
     return FileGraph(nodes=nodes, edges=edges)

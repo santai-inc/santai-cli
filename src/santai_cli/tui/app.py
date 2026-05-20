@@ -249,8 +249,39 @@ class GraphPanel(Static):
         "history": "#b1b9f9",  # lavender
         "notes": "#d77757",  # terracotta
         "wiki": "#f5c542",  # gold
-        "other": "#6b6560",  # warm gray
+        "unassigned": "#9b9ba8",  # muted blue-gray for root-level files
+        "other": "#6b6560",  # warm gray fallback
     }
+
+    # Matches the web UI _extraDirPalette — same order so the same dir gets
+    # the same color in both surfaces.
+    _EXTRA_PALETTE = [
+        "#f97316",  # orange
+        "#22d3ee",  # cyan
+        "#d946ef",  # fuchsia
+        "#84cc16",  # lime
+        "#0f766e",  # dark teal
+        "#fb923c",  # peach-orange
+        "#a21caf",  # deep magenta
+        "#0e7490",  # dark cyan
+    ]
+
+    @classmethod
+    def get_dir_color(cls, dir_name: str) -> str:
+        """Return a stable color for any directory name."""
+        if dir_name in cls.DIR_COLORS:
+            return cls.DIR_COLORS[dir_name]
+        # Replicate the web UI's Math.imul(31, h) polynomial hash so the same
+        # directory gets the same palette index (and therefore the same color)
+        # on both surfaces.
+        h = 0
+        for c in dir_name:
+            h_u32 = int(h) & 0xFFFFFFFF
+            prod = (31 * h_u32) & 0xFFFFFFFF
+            imul = prod if prod < 0x80000000 else prod - 0x100000000
+            h = imul + ord(c)
+        idx = abs(int(h)) % len(cls._EXTRA_PALETTE)
+        return cls._EXTRA_PALETTE[idx]
 
     def __init__(self, project: SantaiProject, fullscreen: bool = False) -> None:
         super().__init__()
@@ -356,13 +387,18 @@ class GraphPanel(Static):
         self._render_width = render_width
         self._render_height = render_height
 
+        # Build a complete color map for every directory present in the graph
+        all_dirs = {n.directory for n in nodes}
+        dynamic_dir_colors = {d: self.get_dir_color(d) for d in all_dirs}
+        dynamic_dir_colors["other"] = self.DIR_COLORS["other"]
+
         # Render the force-directed graph
         result = render_graph(
             nodes=nodes,
             edges=edges,
             width=render_width,
             height=render_height,
-            dir_colors=self.DIR_COLORS,
+            dir_colors=dynamic_dir_colors,
             selected_id=self._selected_id,
             highlight_ids=self._highlight_ids,
             show_labels=True,
@@ -373,8 +409,29 @@ class GraphPanel(Static):
         self._node_positions = result.node_positions
         self._node_map = result.node_map
 
-        # Build output
+        # Build output — legend and stats come FIRST so they are never clipped
+        # by the container height in the non-scrollable panel view.
         lines = []
+
+        # Legend: reflect exactly what is rendered (uses `nodes`, not graph_data)
+        dirs_present = {n.directory for n in nodes}
+        known_order = ["resources", "codebases", "history", "notes", "wiki"]
+        legend_parts = []
+        for dir_name in known_order:
+            if dir_name in dirs_present:
+                color = self.get_dir_color(dir_name)
+                label = dir_name[:12] + "…" if len(dir_name) > 13 else dir_name
+                legend_parts.append(f"[{color}]●[/{color}] {label}")
+        for dir_name in sorted(
+            dirs_present - set(known_order) - {"unassigned", "other"}
+        ):
+            color = self.get_dir_color(dir_name)
+            label = dir_name[:12] + "…" if len(dir_name) > 13 else dir_name
+            legend_parts.append(f"[{color}]●[/{color}] {label}")
+        if "unassigned" in dirs_present:
+            color = self.get_dir_color("unassigned")
+            legend_parts.append(f"[{color}]●[/{color}] unassigned")
+        lines.append(" ".join(legend_parts))
 
         # Stats header with search/filter indicators
         total_nodes = len(graph_data.nodes)
@@ -410,23 +467,9 @@ class GraphPanel(Static):
         # The graph visualization
         lines.append(result.markup)
 
-        # Legend
-        lines.append("")
-        dirs_present = {n.directory for n in graph_data.nodes}
-        legend_parts = []
-        for dir_name in ["resources", "codebases", "history", "notes", "wiki"]:
-            if dir_name in dirs_present:
-                color = self.DIR_COLORS.get(dir_name, self.DIR_COLORS["other"])
-                legend_parts.append(f"[{color}]●[/{color}] {dir_name}")
-        for dir_name in dirs_present:
-            if dir_name not in ["resources", "codebases", "history", "notes", "wiki"]:
-                color = self.DIR_COLORS.get(dir_name, self.DIR_COLORS["other"])
-                legend_parts.append(f"[{color}]●[/{color}] {dir_name}")
-        lines.append(" ".join(legend_parts))
-
         if graph_data.edges:
             lines.append(
-                "[dim]⬢ hub (5+)  ◆ connected (3+)  ● node"
+                "\n[dim]⬢ hub (5+)  ◆ connected (3+)  ● node"
                 "  ◈ match  ◉ selected  c=clear[/dim]"
             )
 
@@ -1356,8 +1399,6 @@ class GraphSearchScreen(ModalScreen):
         """Render the results list with selection highlight."""
         results_widget = self.query_one("#graph-search-results", Static)
 
-        dir_colors = GraphPanel.DIR_COLORS
-
         if not self._results:
             query = self.query_one("#graph-search-input", Input).value.strip()
             if query:
@@ -1368,7 +1409,7 @@ class GraphSearchScreen(ModalScreen):
 
         lines = []
         for i, node in enumerate(self._results):
-            color = dir_colors.get(node.directory, dir_colors.get("other", "#6b6560"))
+            color = GraphPanel.get_dir_color(node.directory)
             is_selected = i == self._selected_index
 
             # Selection indicator
@@ -1420,6 +1461,10 @@ class GraphFilterScreen(ModalScreen):
         Binding("3", "toggle_3", "history"),
         Binding("4", "toggle_4", "notes"),
         Binding("5", "toggle_5", "wiki"),
+        Binding("6", "toggle_6", "dir 6", show=False),
+        Binding("7", "toggle_7", "dir 7", show=False),
+        Binding("8", "toggle_8", "dir 8", show=False),
+        Binding("9", "toggle_9", "dir 9", show=False),
         Binding("a", "select_all", "All"),
         Binding("x", "clear_all", "None"),
     ]
@@ -1431,11 +1476,11 @@ class GraphFilterScreen(ModalScreen):
     ) -> None:
         super().__init__()
         self._project = project
-        # If no filter is active, all dirs are selected
-        if current_filter is None:
-            self._selected: set[str] = set(self.DIRS)
-        else:
-            self._selected = set(current_filter)
+        self._no_initial_filter = current_filter is None
+        # Temporary default; on_mount will expand to all available dirs if no filter
+        self._selected: set[str] = (
+            set(current_filter) if current_filter else set(self.DIRS)
+        )
         self._available_dirs: set[str] = set()
 
     def compose(self) -> ComposeResult:
@@ -1457,11 +1502,13 @@ class GraphFilterScreen(ModalScreen):
         self._dir_counts: dict[str, int] = {}
         for n in nodes:
             self._dir_counts[n.directory] = self._dir_counts.get(n.directory, 0) + 1
+        # When no filter was active, select everything (including dynamic dirs)
+        if self._no_initial_filter:
+            self._selected = set(self._available_dirs)
         self._update_display()
 
     def _update_display(self) -> None:
         body = self.query_one("#filter-body", Static)
-        dir_colors = GraphPanel.DIR_COLORS
 
         lines = []
         lines.append("")
@@ -1469,7 +1516,7 @@ class GraphFilterScreen(ModalScreen):
         lines.append("")
 
         for i, d in enumerate(self.DIRS, 1):
-            color = dir_colors.get(d, dir_colors.get("other", "#6b6560"))
+            color = GraphPanel.get_dir_color(d)
             count = self._dir_counts.get(d, 0)
             is_on = d in self._selected
             available = d in self._available_dirs
@@ -1486,10 +1533,15 @@ class GraphFilterScreen(ModalScreen):
 
             lines.append(f"  [{i}]{checkbox} {label}")
 
-        # Show any extra directories not in the standard list
-        extra_dirs = self._available_dirs - set(self.DIRS)
-        for d in sorted(extra_dirs):
-            color = dir_colors.get(d, dir_colors.get("other", "#6b6560"))
+        # Dynamic dirs: alphabetically, with "unassigned" at the end
+        # Keys 6-9 are assigned to the first 4 extra dirs in order
+        extra_dirs = sorted(self._available_dirs - set(self.DIRS) - {"unassigned"})
+        all_extra = extra_dirs + (
+            ["unassigned"] if "unassigned" in self._available_dirs else []
+        )
+        for idx, d in enumerate(all_extra):
+            key_hint = f"[{idx + 6}]" if idx < 4 else "   "
+            color = GraphPanel.get_dir_color(d)
             count = self._dir_counts.get(d, 0)
             is_on = d in self._selected
             if is_on:
@@ -1498,7 +1550,7 @@ class GraphFilterScreen(ModalScreen):
             else:
                 checkbox = "  ○"
                 label = f"[dim]{d}/ ({count} files)[/dim]"
-            lines.append(f"     {checkbox} {label}")
+            lines.append(f"  {key_hint}{checkbox} {label}")
 
         lines.append("")
 
@@ -1510,7 +1562,10 @@ class GraphFilterScreen(ModalScreen):
         total_count = sum(self._dir_counts.values())
         lines.append(f"  Showing: [bold]{selected_count}[/bold] of {total_count} files")
         lines.append("")
-        lines.append("  [dim]1-5 = toggle directory · a = all · x = none[/dim]")
+        extra_key_hint = " · 6-9 = extra dirs" if all_extra else ""
+        lines.append(
+            f"  [dim]1-5 = toggle directory{extra_key_hint} · a = all · x = none[/dim]"
+        )
         lines.append("  [dim]Enter = apply · Esc = cancel[/dim]")
 
         body.update("\n".join(lines))
@@ -1537,6 +1592,26 @@ class GraphFilterScreen(ModalScreen):
     def action_toggle_5(self) -> None:
         self._toggle_dir("wiki")
 
+    def _toggle_extra_dir(self, idx: int) -> None:
+        extra_dirs = sorted(self._available_dirs - set(self.DIRS) - {"unassigned"})
+        all_extra = extra_dirs + (
+            ["unassigned"] if "unassigned" in self._available_dirs else []
+        )
+        if 0 <= idx < len(all_extra):
+            self._toggle_dir(all_extra[idx])
+
+    def action_toggle_6(self) -> None:
+        self._toggle_extra_dir(0)
+
+    def action_toggle_7(self) -> None:
+        self._toggle_extra_dir(1)
+
+    def action_toggle_8(self) -> None:
+        self._toggle_extra_dir(2)
+
+    def action_toggle_9(self) -> None:
+        self._toggle_extra_dir(3)
+
     def action_select_all(self) -> None:
         self._selected = set(self.DIRS) | self._available_dirs
         self._update_display()
@@ -1547,9 +1622,9 @@ class GraphFilterScreen(ModalScreen):
 
     def key_enter(self) -> None:
         """Apply the filter."""
-        all_dirs = set(self.DIRS) | self._available_dirs
-        if self._selected >= all_dirs or not self._selected:
-            # All selected or none selected = no filter
+        # Compare against available dirs only — standard dirs with no files
+        # are irrelevant and would prevent this check from ever being True.
+        if not self._selected or self._selected >= self._available_dirs:
             filter_dirs = None
         else:
             filter_dirs = set(self._selected)
