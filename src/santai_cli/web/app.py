@@ -1,5 +1,6 @@
 """FastAPI web application for Santai."""
 
+import logging
 import os
 import re
 import shutil
@@ -141,8 +142,61 @@ def _update_markdown_links(root_dir: Path, old_abs: Path, new_abs: Path) -> None
       from the file's new directory, and links whose targets also moved are left alone
       (relative path within the subtree is unchanged).
 
-    Wikilinks ([[name]]) are not touched — they resolve by filename, not path.
+    Only root-relative wikilinks are rewritten; filename-only wikilinks are left alone
+    since they resolve by lookup, not path.
     """
+
+    def _make_replacer(link_base: Path, md_file: Path, file_moved: bool):
+        def replacer(match: re.Match) -> str:
+            text = match.group(1)
+            target = match.group(2)
+
+            if target.startswith(("http://", "https://", "mailto:", "#")):
+                return match.group(0)
+
+            fragment = ""
+            if "#" in target:
+                target, frag = target.split("#", 1)
+                fragment = "#" + frag
+                if not target:
+                    return match.group(0)
+
+            resolved = (link_base / target).resolve()
+
+            if resolved == old_abs:
+                new_target_abs = new_abs
+            elif resolved.is_relative_to(old_abs):
+                new_target_abs = new_abs / resolved.relative_to(old_abs)
+            elif file_moved:
+                # File moved but this link points outside the moved subtree —
+                # recompute the relative path from the new file location.
+                new_target_abs = resolved
+            else:
+                return match.group(0)
+
+            try:
+                new_rel = os.path.relpath(new_target_abs, md_file.parent).replace(
+                    "\\", "/"
+                )
+            except ValueError:
+                return match.group(0)
+            return f"[{text}]({new_rel}{fragment})"
+
+        return replacer
+
+    def _wikilink_replacer(match: re.Match) -> str:
+        inner = match.group(1).strip()
+        display = match.group(2)
+        resolved = (root_dir / inner).resolve()
+        if resolved == old_abs:
+            new_target = str(new_abs.relative_to(root_dir)).replace("\\", "/")
+        elif resolved.is_relative_to(old_abs):
+            new_target_abs = new_abs / resolved.relative_to(old_abs)
+            new_target = str(new_target_abs.relative_to(root_dir)).replace("\\", "/")
+        else:
+            return match.group(0)
+        return f"[[{new_target}|{display}]]" if display else f"[[{new_target}]]"
+
     for md_file in root_dir.rglob("*.md"):
         if not md_file.is_file():
             continue
@@ -163,68 +217,19 @@ def _update_markdown_links(root_dir: Path, old_abs: Path, new_abs: Path) -> None
         except OSError:
             continue
 
-        def _make_replacer(link_base: Path, md_file: Path, file_moved: bool):
-            def replacer(match: re.Match) -> str:
-                text = match.group(1)
-                target = match.group(2)
-
-                if target.startswith(("http://", "https://", "mailto:", "#")):
-                    return match.group(0)
-
-                fragment = ""
-                if "#" in target:
-                    target, frag = target.split("#", 1)
-                    fragment = "#" + frag
-                    if not target:
-                        return match.group(0)
-
-                resolved = (link_base / target).resolve()
-
-                if resolved == old_abs:
-                    new_target_abs = new_abs
-                elif resolved.is_relative_to(old_abs):
-                    new_target_abs = new_abs / resolved.relative_to(old_abs)
-                elif file_moved:
-                    # File moved but this link points outside the moved subtree —
-                    # recompute the relative path from the new file location.
-                    new_target_abs = resolved
-                else:
-                    return match.group(0)
-
-                new_rel = os.path.relpath(new_target_abs, md_file.parent).replace(
-                    "\\", "/"
-                )
-                return f"[{text}]({new_rel}{fragment})"
-
-            return replacer
+        if old_abs.name not in content:
+            continue
 
         new_content = MARKDOWN_LINK_PATTERN.sub(
             _make_replacer(link_base, md_file, file_moved), content
         )
-
-        # Also update wikilinks [[path]] — resolved from project root, not file dir.
-        def _wikilink_replacer(match: re.Match) -> str:
-            inner = match.group(1).strip()
-            display = match.group(2)
-            resolved = (root_dir / inner).resolve()
-            if resolved == old_abs:
-                new_target = str(new_abs.relative_to(root_dir)).replace("\\", "/")
-            elif resolved.is_relative_to(old_abs):
-                new_target_abs = new_abs / resolved.relative_to(old_abs)
-                new_target = str(new_target_abs.relative_to(root_dir)).replace(
-                    "\\", "/"
-                )
-            else:
-                return match.group(0)
-            return f"[[{new_target}|{display}]]" if display else f"[[{new_target}]]"
-
         new_content = WIKILINK_PATTERN.sub(_wikilink_replacer, new_content)
 
         if new_content != content:
             try:
                 md_file.write_text(new_content, encoding="utf-8")
-            except OSError:
-                pass
+            except OSError as exc:
+                logging.warning("Failed to update links in %s: %s", md_file, exc)
 
 
 def create_app(project: SantaiProject) -> FastAPI:

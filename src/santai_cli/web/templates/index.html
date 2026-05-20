@@ -4258,6 +4258,17 @@
             }
         }
 
+        // Collapse `..` segments in a slash-separated path string.
+        // e.g. "wiki/../notes/foo.md" → "notes/foo.md"
+        function normalizePath(p) {
+            const out = [];
+            for (const seg of p.split('/')) {
+                if (seg === '..') out.pop();
+                else if (seg !== '.') out.push(seg);
+            }
+            return out.join('/');
+        }
+
         // File Preview Functions
         async function openFilePreview(path, historyMode = 'clear') {
             if (historyMode === 'push') {
@@ -4318,7 +4329,7 @@
                                 // Resolve the path: try relative to current file's directory
                                 // first, then fall back to root-relative (for wikilinks).
                                 const currentDir = path.split('/').slice(0, -1).join('/');
-                                const relPath = currentDir ? `${currentDir}/${href}` : href;
+                                const relPath = normalizePath(currentDir ? `${currentDir}/${href}` : href);
                                 let resolvedPath = null;
 
                                 try {
@@ -4956,9 +4967,15 @@
             document.getElementById('rename-input').select();
         }
 
+        // Top-level folders that santai web depends on at startup
+        const SANTAI_DIRS = ['notes', 'wiki', 'resources', 'codebases', 'history'];
+
         // Delete item directly (from button)
         async function deleteItem(path, name, isDir) {
-            const msg = isDir
+            const isSantaiDir = isDir && SANTAI_DIRS.includes(path);
+            const msg = isSantaiDir
+                ? `Delete folder "${name}" and all its contents?\n\nWarning: "${name}" is a standard santai folder — deleting it may prevent santai web from launching.`
+                : isDir
                 ? `Delete folder "${name}" and all its contents?`
                 : `Delete "${name}"?`;
             if (!confirm(msg)) return;
@@ -5218,6 +5235,10 @@
             const newName = document.getElementById('rename-input').value.trim();
             if (!newName || !selectedItem) return;
 
+            if (SANTAI_DIRS.includes(selectedItem.path)) {
+                if (!confirm(`"${selectedItem.name}" is a standard santai folder — renaming it may prevent santai web from launching. Continue?`)) return;
+            }
+
             try {
                 const res = await fetch('/api/files/rename', {
                     method: 'POST',
@@ -5242,7 +5263,10 @@
         // Delete
         async function deleteSelected() {
             if (!selectedItem) return;
-            const deleteMsg = selectedItem.is_dir
+            const isSantaiDir = selectedItem.is_dir && SANTAI_DIRS.includes(selectedItem.path);
+            const deleteMsg = isSantaiDir
+                ? `Delete folder "${selectedItem.name}" and all its contents?\n\nWarning: "${selectedItem.name}" is a standard santai folder — deleting it may prevent santai web from launching.`
+                : selectedItem.is_dir
                 ? `Delete folder "${selectedItem.name}" and all its contents?`
                 : `Delete "${selectedItem.name}"?`;
             if (!confirm(deleteMsg)) return;
@@ -5759,7 +5783,7 @@
                          ondragover="handleDragOver(event, '${node.path}', ${node.is_dir})"
                          ondragleave="handleDragLeave(event)"
                          ondrop="handleDrop(event, '${node.path}', ${node.is_dir})"
-                         ${node.is_dir ? `onmouseenter="if(selectedItems.size>0)showFolderMoveTooltip(event,'${node.name.replace(/'/g, "\\'")}')" onmouseleave="hideFolderMoveTooltip()"` : ''}
+                         ${node.is_dir ? `onmouseenter="if(selectedItems.size>0&&draggedItems)showFolderMoveTooltip(event,'${node.name.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,"\\'")}')" onmouseleave="hideFolderMoveTooltip()"` : ''}
                          onclick="handleTreeClick(event, '${node.path}', ${node.is_dir}, ${hasChildren})"
                          ondblclick="handleTreeDblClick(event, '${node.path}', ${node.is_dir})">`;
 
@@ -8439,7 +8463,8 @@
         const _legendObserver = new MutationObserver(() => updateFloatingLegend());
         _legendObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
 
-        // Also hook into graph fullscreen toggle
+        // Wrap toggleGraphFullscreen so the floating legend stays in sync after every
+        // fullscreen toggle without modifying the original function definition.
         const _origToggleGraphFullscreen = toggleGraphFullscreen;
         toggleGraphFullscreen = function(animated = true) {
             _origToggleGraphFullscreen(animated);
