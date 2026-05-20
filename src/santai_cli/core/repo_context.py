@@ -59,31 +59,31 @@ def _build_file_tree(root: Path, max_depth: int = 4) -> str:
     return "\n".join(lines)
 
 
-def _get_media_summary(project: SantaiProject) -> str:
-    """Get a summary of media files in the project.
-
-    Args:
-        project: The Santai project.
-
-    Returns:
-        Summary string of media.
-    """
-    media_path = project.media_path
-
+def _get_resources_summary(project: SantaiProject) -> str:
+    """Get a summary of media files and recent notes in the project."""
     summary_parts = []
 
+    media_path = project.root / "media"
     if media_path.is_dir():
         files = [f for f in media_path.rglob("*") if f.is_file()]
         if files:
             summary_parts.append(f"Media ({len(files)} files):")
             for f in sorted(files)[:20]:
-                rel = f.relative_to(media_path)
-                summary_parts.append(f"  - {rel}")
+                summary_parts.append(f"  - {f.relative_to(media_path)}")
+
+    # Legacy resources/ support while migration is in progress
+    resources_path = project.resources_path
+    if resources_path.is_dir():
+        files = [f for f in resources_path.rglob("*") if f.is_file()]
+        if files:
+            summary_parts.append(f"Media ({len(files)} files):")
+            for f in sorted(files)[:20]:
+                summary_parts.append(f"  - {f.relative_to(resources_path)}")
 
     if not summary_parts:
         return ""
 
-    return f"## Media Summary\n\n{'=' * 40}\n\n" + "\n".join(summary_parts)
+    return f"## Media & Resources\n\n{'=' * 40}\n\n" + "\n".join(summary_parts)
 
 
 def build_repo_context(project: SantaiProject) -> RepoContext:
@@ -103,7 +103,7 @@ def build_repo_context(project: SantaiProject) -> RepoContext:
     return RepoContext(
         project=project,
         file_tree=_build_file_tree(project.root),
-        media_summary=_get_media_summary(project),
+        media_summary=_get_resources_summary(project),
     )
 
 
@@ -137,9 +137,21 @@ def build_repo_context_prompt(context: RepoContext) -> str:
     sections.extend(
         [
             "",
+            "## File Organization",
+            "This project organizes files into three knowledge-base folders:",
+            "- **notes/** — personal notes, summaries, AI research, documentation, how-to guides, tutorials, reference pages",
+            "- **media/** — media files, images, audio, video, PDFs, templates, archives, binary data",
+            "- **history/** — logs, changelogs, versioned records (use `YYYY-MM-DD-brief-description.md` format)",
+            "",
+            "**When writing files:**",
+            "- Always place files under one of these three folders (e.g. `notes/my-summary.md`, not just `my-summary.md`)",
+            "- Choose descriptive, lowercase, hyphenated filenames that reflect the content",
+            "- **Proactively expand context**: when a conversation produces knowledge worth preserving — a summary, a research finding, meeting notes, a decision — write it to `notes/` without waiting to be asked",
+            "- Keep the original extension when moving or referencing existing files",
+            "",
             "## Important Guidelines",
             "- You can see the file tree above, but you do NOT have the file contents in context.",
-            "- IMPORTANT: Whenever a user asks a question that could be answered by a file in this project (notes, media, history, or any other file), you MUST call read_file to read the relevant file(s) before answering. Never answer knowledge-base questions from memory — always fetch fresh content with the tool.",
+            "- IMPORTANT: Whenever a user asks a question that could be answered by a file in this project (notes/, media/, history/, or any other file), you MUST call read_file to read the relevant file(s) before answering. Never answer knowledge-base questions from memory — always fetch fresh content with the tool.",
             "- If multiple files might be relevant, read each one before responding.",
             "- Use [[wikilinks]] or markdown links when referencing project files.",
             "- IMPORTANT: If a read_file result includes 'truncated: true', the file was cut off. Acknowledge this to the user rather than treating the partial content as complete.",

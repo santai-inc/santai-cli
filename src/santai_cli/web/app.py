@@ -371,6 +371,21 @@ async def _suggest_file_placement(
 
     if ext in _MEDIA_EXTS:
         return {"path": f"media/{slug}", "reasoning": "Media file"}
+    if is_folder:
+        # Scan the file manifest to detect media-dominant folders
+        manifest_text = content.replace("Folder containing:", "").strip()
+        names = [n.strip() for n in manifest_text.split(",") if n.strip()]
+        if names:
+            media_count = sum(
+                1
+                for n in names
+                if "." in n and n.rsplit(".", 1)[-1].lower() in _MEDIA_EXTS
+            )
+            if media_count / len(names) > 0.5:
+                return {
+                    "path": f"media/{slug}",
+                    "reasoning": "Folder containing mostly media files",
+                }
     return {"path": f"notes/{slug}", "reasoning": "Default to notes"}
 
 

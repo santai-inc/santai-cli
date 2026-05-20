@@ -3094,6 +3094,21 @@
         }
         .chat-file-pill a:hover { text-decoration: underline; }
 
+        .chat-sort-notification {
+            padding: 4px 10px 4px 9px;
+            margin: 3px 0 5px;
+            font-size: 11.5px;
+            color: var(--text-muted, #6b7280);
+            border-left: 2px solid #16a34a;
+            border-radius: 0 4px 4px 0;
+            line-height: 1.6;
+        }
+        .chat-sort-notification code {
+            font-family: monospace;
+            font-size: 11px;
+            color: #16a34a;
+        }
+
         .chat-msg {
             padding: 10px 14px;
             border-radius: 18px;
@@ -5361,22 +5376,54 @@
             if (files.length === 0) return;
             const capped = files.length > _MAX_UPLOAD_FILES;
             const batch = capped ? files.slice(0, _MAX_UPLOAD_FILES) : files;
-            const results = await Promise.allSettled(batch.map(file => {
-                const relPath = file.webkitRelativePath;
-                const formData = new FormData();
-                formData.append('file', file);
-                const url = relPath
-                    ? `/api/files?path=${encodeURIComponent(currentPath)}&relative_path=${encodeURIComponent(relPath)}`
-                    : `/api/files?path=${encodeURIComponent(currentPath)}`;
-                return fetch(url, { method: 'POST', body: formData }).then(async res => {
-                    if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
-                });
-            }));
-            const succeeded = results.filter(r => r.status === 'fulfilled').length;
-            const failed = results.filter(r => r.status === 'rejected').length;
-            if (succeeded > 0) showToast(`Uploaded ${succeeded} file${succeeded !== 1 ? 's' : ''}`);
-            if (failed > 0) showToast(`${failed} file${failed !== 1 ? 's' : ''} failed`, true);
-            if (capped) showToast(`Folder too large — only first ${_MAX_UPLOAD_FILES} files uploaded`, true);
+
+            if (currentPath === '') {
+                // Smart sort: classify the folder as a unit then route everything under the chosen base dir
+                const folderName = batch[0]?.webkitRelativePath.split('/')[0] || '';
+                const sampleNames = batch.slice(0, 30).map(f => f.name).join(', ');
+                const smartFolderPath = await callSmartPlace(folderName, `Folder containing: ${sampleNames}`);
+                const baseDir = smartFolderPath ? smartFolderPath.split('/')[0] : '';
+
+                const results = await Promise.allSettled(batch.map(file => {
+                    const relPath = file.webkitRelativePath;
+                    const uploadPath = baseDir ? `${baseDir}/${relPath}` : relPath;
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    return fetch(
+                        `/api/files?path=&relative_path=${encodeURIComponent(uploadPath)}`,
+                        { method: 'POST', body: formData }
+                    ).then(async res => {
+                        if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
+                    });
+                }));
+
+                const succeeded = results.filter(r => r.status === 'fulfilled').length;
+                const failed = results.filter(r => r.status === 'rejected').length;
+                const dest = smartFolderPath ? smartFolderPath + '/' : folderName + '/';
+                if (succeeded > 0) showToast(`Uploaded ${folderName}/ → ${dest}`);
+                if (failed > 0) showToast(`${failed} file${failed !== 1 ? 's' : ''} failed`, true);
+                if (capped) showToast(`Folder too large — only first ${_MAX_UPLOAD_FILES} files uploaded`, true);
+                if (smartFolderPath) appendSortNotification([{ name: folderName + '/', dest }]);
+            } else {
+                // Non-root: respect the user's chosen folder
+                const results = await Promise.allSettled(batch.map(file => {
+                    const relPath = file.webkitRelativePath;
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    const url = relPath
+                        ? `/api/files?path=${encodeURIComponent(currentPath)}&relative_path=${encodeURIComponent(relPath)}`
+                        : `/api/files?path=${encodeURIComponent(currentPath)}`;
+                    return fetch(url, { method: 'POST', body: formData }).then(async res => {
+                        if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
+                    });
+                }));
+                const succeeded = results.filter(r => r.status === 'fulfilled').length;
+                const failed = results.filter(r => r.status === 'rejected').length;
+                if (succeeded > 0) showToast(`Uploaded ${succeeded} file${succeeded !== 1 ? 's' : ''}`);
+                if (failed > 0) showToast(`${failed} file${failed !== 1 ? 's' : ''} failed`, true);
+                if (capped) showToast(`Folder too large — only first ${_MAX_UPLOAD_FILES} files uploaded`, true);
+            }
+
             loadFiles(currentPath);
             loadTree();
         }
@@ -5422,18 +5469,54 @@
             } catch { return null; }
         }
 
+        // Insert a quiet notification row into the chat panel showing smart-sort results.
+        function appendSortNotification(placements) {
+            const msgs = document.getElementById('chat-messages');
+            if (!msgs || !placements.length) return;
+            const note = document.createElement('div');
+            note.className = 'chat-sort-notification';
+            if (placements.length === 1) {
+                const p = placements[0];
+                const nameCode = document.createElement('code');
+                nameCode.textContent = p.name;
+                const destCode = document.createElement('code');
+                destCode.textContent = p.dest;
+                note.append('Sorted ', nameCode, ' → ', destCode);
+            } else {
+                const byFolder = {};
+                for (const p of placements) {
+                    const folder = p.dest.split('/')[0];
+                    byFolder[folder] = (byFolder[folder] || 0) + 1;
+                }
+                note.append(`Sorted ${placements.length} files → `);
+                let first = true;
+                for (const [f, n] of Object.entries(byFolder)) {
+                    if (!first) note.append(', ');
+                    const fc = document.createElement('code');
+                    fc.textContent = f + '/';
+                    note.append(fc, ` (${n})`);
+                    first = false;
+                }
+            }
+            msgs.appendChild(note);
+            msgs.scrollTop = msgs.scrollHeight;
+        }
+
         async function handleFileSelect(event) {
             const files = event.target.files;
+            const placements = [];
             for (const file of files) {
                 if (currentPath === '') {
                     const preview = await readTextPreview(file);
                     const smartPath = await callSmartPlace(file.name, preview);
                     await uploadFile(file, smartPath);
+                    if (smartPath) placements.push({ name: file.name, dest: smartPath });
                 } else {
                     await uploadFile(file);
                 }
             }
             event.target.value = '';
+            appendSortNotification(placements);
             loadFiles(currentPath);
             loadTree();
         }
@@ -5491,7 +5574,7 @@
                     throw new Error(err.detail || 'Upload failed');
                 }
 
-                showToast(`Uploaded ${file.name}`);
+                showToast(overrideRelPath ? `Uploaded → ${overrideRelPath}` : `Uploaded ${file.name}`);
             } catch (err) {
                 showToast(err.message, true);
             }
@@ -5533,6 +5616,7 @@
                 let succeeded = 0, failed = 0;
                 const dropState = { count: 0, capped: false };
                 const smartSort = currentPath === '';
+                const sortedPlacements = [];
 
                 for (const entry of entries) {
                     const collected = await collectEntryFiles(entry, '', dropState);
@@ -5552,6 +5636,7 @@
                             const res = await fetch(url, { method: 'POST', body: formData });
                             if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
                             succeeded++;
+                            if (smartPath) sortedPlacements.push({ name: file.name, dest: smartPath });
                         } catch { failed++; }
 
                     } else if (smartSort && entry.isDirectory) {
@@ -5576,6 +5661,7 @@
                                 succeeded++;
                             } catch { failed++; }
                         }
+                        if (smartFolderPath) sortedPlacements.push({ name: folderName + '/', dest: smartFolderPath + '/' });
 
                     } else {
                         // Non-root drop: respect the user's chosen folder
@@ -5593,6 +5679,7 @@
                         }
                     }
                 }
+                appendSortNotification(sortedPlacements);
 
                 if (succeeded > 0) showToast(`Uploaded ${succeeded} file${succeeded !== 1 ? 's' : ''}`);
                 if (failed > 0) showToast(`${failed} file${failed !== 1 ? 's' : ''} failed`, true);
