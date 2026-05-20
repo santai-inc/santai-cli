@@ -1,5 +1,6 @@
 """FastAPI web application for Santai."""
 
+import logging
 import os
 import re
 import shutil
@@ -16,6 +17,8 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from santai_cli.core.project import (
+    MARKDOWN_LINK_PATTERN,
+    WIKILINK_PATTERN,
     SantaiProject,
     get_directory_stats,
     get_file_graph,
@@ -127,6 +130,106 @@ def get_file_tree(
         tree.append(node)
 
     return tree
+
+
+def _update_markdown_links(root_dir: Path, old_abs: Path, new_abs: Path) -> None:
+    """Rewrite markdown links across the project after a file/folder move or rename.
+
+    Two cases are handled for every .md file found:
+    - Outside the moved item: any link that resolved to old_abs (or inside it) is
+      rewritten to point to the equivalent path under new_abs.
+    - Inside the moved item: outbound links whose targets didn't move are recomputed
+      from the file's new directory, and links whose targets also moved are left alone
+      (relative path within the subtree is unchanged).
+
+    Only root-relative wikilinks are rewritten; filename-only wikilinks are left alone
+    since they resolve by lookup, not path.
+    """
+
+    def _make_replacer(link_base: Path, md_file: Path, file_moved: bool):
+        def replacer(match: re.Match) -> str:
+            text = match.group(1)
+            target = match.group(2)
+
+            if target.startswith(("http://", "https://", "mailto:", "#")):
+                return match.group(0)
+
+            fragment = ""
+            if "#" in target:
+                target, frag = target.split("#", 1)
+                fragment = "#" + frag
+                if not target:
+                    return match.group(0)
+
+            resolved = (link_base / target).resolve()
+
+            if resolved == old_abs:
+                new_target_abs = new_abs
+            elif resolved.is_relative_to(old_abs):
+                new_target_abs = new_abs / resolved.relative_to(old_abs)
+            elif file_moved:
+                # File moved but this link points outside the moved subtree —
+                # recompute the relative path from the new file location.
+                new_target_abs = resolved
+            else:
+                return match.group(0)
+
+            try:
+                new_rel = os.path.relpath(new_target_abs, md_file.parent).replace(
+                    "\\", "/"
+                )
+            except ValueError:
+                return match.group(0)
+            return f"[{text}]({new_rel}{fragment})"
+
+        return replacer
+
+    def _wikilink_replacer(match: re.Match) -> str:
+        inner = match.group(1).strip()
+        display = match.group(2)
+        resolved = (root_dir / inner).resolve()
+        if resolved == old_abs:
+            new_target = str(new_abs.relative_to(root_dir)).replace("\\", "/")
+        elif resolved.is_relative_to(old_abs):
+            new_target_abs = new_abs / resolved.relative_to(old_abs)
+            new_target = str(new_target_abs.relative_to(root_dir)).replace("\\", "/")
+        else:
+            return match.group(0)
+        return f"[[{new_target}|{display}]]" if display else f"[[{new_target}]]"
+
+    for md_file in root_dir.rglob("*.md"):
+        if not md_file.is_file():
+            continue
+
+        # Work out where this file's links were authored from.
+        # If the file was inside the moved subtree its links were written relative
+        # to its OLD location; we need to resolve them from there.
+        if md_file == new_abs or (new_abs.is_dir() and md_file.is_relative_to(new_abs)):
+            suffix = md_file.relative_to(new_abs) if new_abs.is_dir() else Path(".")
+            link_base = (old_abs / suffix).parent
+            file_moved = True
+        else:
+            link_base = md_file.parent
+            file_moved = False
+
+        try:
+            content = md_file.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+
+        if old_abs.name not in content:
+            continue
+
+        new_content = MARKDOWN_LINK_PATTERN.sub(
+            _make_replacer(link_base, md_file, file_moved), content
+        )
+        new_content = WIKILINK_PATTERN.sub(_wikilink_replacer, new_content)
+
+        if new_content != content:
+            try:
+                md_file.write_text(new_content, encoding="utf-8")
+            except OSError as exc:
+                logging.warning("Failed to update links in %s: %s", md_file, exc)
 
 
 def create_app(project: SantaiProject) -> FastAPI:
@@ -393,7 +496,9 @@ def create_app(project: SantaiProject) -> FastAPI:
                 status_code=409, detail="A file with that name already exists"
             )
 
+        old_abs = target.resolve()
         target.rename(new_path)
+        _update_markdown_links(root_dir, old_abs, new_path.resolve())
         return {
             "message": "Renamed successfully",
             "path": str(new_path.relative_to(root_dir)),
@@ -444,22 +549,6 @@ def create_app(project: SantaiProject) -> FastAPI:
     @app.post("/api/files/move")
     async def move_file(req: MoveRequest) -> dict[str, str]:
         """Move a file or directory to a new location."""
-        # Protected top-level paths that cannot be moved
-        protected_paths = {
-            "history",
-            "media",
-            "notes",
-            "AGENTS.md",
-            "CLAUDE.md",
-            "README.md",
-            "rumdl.toml",
-        }
-
-        if req.source_path in protected_paths:
-            raise HTTPException(
-                status_code=403, detail="Cannot move protected files or folders"
-            )
-
         source = safe_path(req.source_path)
         target_dir = safe_path(req.target_folder)
 
@@ -486,6 +575,7 @@ def create_app(project: SantaiProject) -> FastAPI:
                 pass  # Not a subdirectory, OK to proceed
 
         shutil.move(str(source), str(new_path))
+        _update_markdown_links(root_dir, source, new_path)
         return {
             "message": "Moved successfully",
             "path": str(new_path.relative_to(root_dir)),

@@ -1024,7 +1024,7 @@
             display: none;
             align-items: center;
             justify-content: center;
-            z-index: 1001;
+            z-index: 1004;
         }
 
         .modal-overlay.show {
@@ -4190,6 +4190,11 @@
          * passed through DOMPurify to prevent XSS from untrusted content.
          */
         function safeMarkdown(md) {
+            // Convert [[path]] and [[path|display]] to standard markdown links
+            // before marked sees the content, so they render as clickable <a> tags.
+            md = md.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, path, text) =>
+                `[${text || path}](${path})`
+            );
             const raw = (typeof marked !== 'undefined') ? marked.parse(md) : md;
             return (typeof DOMPurify !== 'undefined') ? DOMPurify.sanitize(raw) : raw.replace(/<[^>]*>/g, '');
         }
@@ -4200,6 +4205,7 @@
         let lastClickedPath = null;    // anchor for shift-range selection
         let files = [];
         let previewPath = null;
+        let previewHistory = []; // paths navigated via markdown links, for back-button
         let previewReturnClusterId = null; // set when a file is opened from a cluster list
         function hasPreviewContent() {
             const header = document.getElementById('preview-file-header');
@@ -4218,12 +4224,44 @@
             if (main) main.classList.remove('preview-open');
             document.body.classList.remove('preview-open');
             resizeGraphIfFullscreen();
+            // Re-center graph in non-fullscreen mode when preview closes.
+            // Reading clientWidth after the class removal forces a synchronous reflow so
+            // we get real dimensions before the first paint — no corner-flash.
+            if (!document.querySelector('.graph-panel.fullscreen') && window.currentSimulation && window.graphSvg && window.graphZoom) {
+                const container = document.querySelector('.graph-container');
+                const svg = d3.select('#graph-svg');
+                // clientWidth access forces layout; returns 0 if still hidden
+                if (container && svg && container.clientWidth > 0) {
+                    const svgW = +svg.attr('width') || 0;
+                    const svgH = +svg.attr('height') || 0;
+                    const dimensionsLost = svgW === 0 || svgH === 0;
+                    if (dimensionsLost) {
+                        svg.attr('width', container.clientWidth).attr('height', container.clientHeight);
+                        fitAllNodes(false);
+                    } else if (!window.graphUserHasMoved) {
+                        fitAllNodes(false);
+                    }
+                }
+            }
+        }
+
+        // Collapse `..` segments in a slash-separated path string.
+        // e.g. "wiki/../notes/foo.md" → "notes/foo.md"
+        function normalizePath(p) {
+            const out = [];
+            for (const seg of p.split('/')) {
+                if (seg === '..') out.pop();
+                else if (seg !== '.') out.push(seg);
+            }
+            return out.join('/');
         }
 
         // File Preview Functions
-        async function openFilePreview(path) {
-            if (document.body.classList.contains('graph-is-fullscreen')) {
-                toggleGraphFullscreen();
+        async function openFilePreview(path, historyMode = 'clear') {
+            if (historyMode === 'push') {
+                if (previewPath) previewHistory.push(previewPath);
+            } else if (historyMode === 'clear') {
+                previewHistory = [];
             }
             previewPath = path;
             updateTreePreviewState();
@@ -4275,34 +4313,36 @@
                             const href = link.getAttribute('href');
                             // Check if it's a relative link (local file)
                             if (href && !href.startsWith('http://') && !href.startsWith('https://') && !href.startsWith('mailto:') && !href.startsWith('#')) {
-                                // Resolve the path relative to current file's directory
+                                // Resolve the path: try relative to current file's directory
+                                // first, then fall back to root-relative (for wikilinks).
                                 const currentDir = path.split('/').slice(0, -1).join('/');
-                                const newPath = currentDir ? `${currentDir}/${href}` : href;
+                                const relPath = normalizePath(currentDir ? `${currentDir}/${href}` : href);
+                                let resolvedPath = null;
 
-                                // Check if file exists
                                 try {
-                                    const checkRes = await fetch(`/api/files/content?path=${encodeURIComponent(newPath)}`);
-                                    if (!checkRes.ok) {
-                                        // File doesn't exist - disable link
-                                        link.style.color = 'var(--text-muted)';
-                                        link.style.textDecoration = 'line-through';
-                                        link.style.cursor = 'not-allowed';
-                                        link.title = 'File not found';
-                                        link.addEventListener('click', (e) => e.preventDefault());
-                                        return;
+                                    let checkRes = await fetch(`/api/files/content?path=${encodeURIComponent(relPath)}`);
+                                    if (checkRes.ok) {
+                                        resolvedPath = relPath;
+                                    } else if (currentDir) {
+                                        checkRes = await fetch(`/api/files/content?path=${encodeURIComponent(href)}`);
+                                        if (checkRes.ok) resolvedPath = href;
                                     }
-                                } catch {
-                                    // Error checking - disable link
+                                } catch { /* fall through to broken-link handling */ }
+
+                                if (!resolvedPath) {
                                     link.style.color = 'var(--text-muted)';
+                                    link.style.textDecoration = 'line-through';
                                     link.style.cursor = 'not-allowed';
+                                    link.title = 'File not found';
                                     link.addEventListener('click', (e) => e.preventDefault());
                                     return;
                                 }
 
-                                // File exists - open in new tab
+                                // File exists - open preview and reveal in tree
                                 link.addEventListener('click', (e) => {
                                     e.preventDefault();
-                                    window.open(`/?preview=${encodeURIComponent(newPath)}`, '_blank');
+                                    openFilePreview(resolvedPath, 'push');
+                                    revealInTree(resolvedPath);
                                 });
                             } else if (href && (href.startsWith('http://') || href.startsWith('https://'))) {
                                 // External link - open in new window
@@ -4348,6 +4388,7 @@
 
         function resetPreviewState() {
             previewPath = null;
+            previewHistory = [];
             updateTreePreviewState();
             previewReturnClusterId = null;
             window.activeClusterId = null;
@@ -4376,8 +4417,18 @@
 
             const panel = document.getElementById('preview-panel');
             if (panel) panel.classList.remove('fullscreen');
+
+            // Capture and clear before state changes so hidePreviewPanel doesn't observe
+            // a stale flag, then restore graph fullscreen after the preview is gone.
+            const shouldRestoreGraph = _previewFullscreenRestoredGraph;
+            _previewFullscreenRestoredGraph = false;
+
             resetPreviewState();
             hidePreviewPanel();
+
+            if (shouldRestoreGraph) {
+                toggleGraphFullscreen(false);
+            }
         }
 
         function togglePreviewFullscreen() {
@@ -4406,7 +4457,7 @@
 
             if (!isFullscreen && _previewFullscreenRestoredGraph) {
                 _previewFullscreenRestoredGraph = false;
-                toggleGraphFullscreen();
+                toggleGraphFullscreen(false);
             }
 
             expandIcon.style.display = isFullscreen ? 'none' : 'block';
@@ -4778,17 +4829,14 @@
                 return;
             }
 
-            const protectedFilePaths = ['history', 'media', 'notes', 'AGENTS.md', 'CLAUDE.md', 'README.md', 'rumdl.toml'];
             let html = '<div class="file-grid">';
             for (const item of items) {
-                const isProtected = protectedFilePaths.includes(item.path);
-                const canDrag = !isProtected;
                 html += `<div class="file-item"
                      data-path="${item.path}"
                      data-is-dir="${item.is_dir}"
                      data-name="${item.name}"
-                     ${canDrag ? 'draggable="true"' : ''}
-                     ${canDrag ? `ondragstart="handleDragStart(event, '${item.path}', '${item.name}', ${item.is_dir})"` : ''}
+                     draggable="true"
+                     ondragstart="handleDragStart(event, '${item.path}', '${item.name}', ${item.is_dir})"
                      ondragend="handleDragEnd(event)"
                      ${item.is_dir ? `ondragover="handleDragOver(event, '${item.path}', true)"` : ''}
                      ${item.is_dir ? 'ondragleave="handleDragLeave(event)"' : ''}
@@ -4803,8 +4851,7 @@
                         <div class="file-name">${item.name}</div>
                         <div class="file-meta">${item.is_dir ? 'Folder' : item.size_formatted}</div>
                     </div>`;
-                if (!isProtected) {
-                    html += `<div class="file-actions">
+                html += `<div class="file-actions">
                         <button class="file-action-btn edit-btn" onclick="event.stopPropagation(); editItem('${item.path}', '${item.name}')" title="Rename">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
@@ -4816,7 +4863,6 @@
                             </svg>
                         </button>
                     </div>`;
-                }
                 html += `</div>`;
             }
             html += '</div>';
@@ -4908,9 +4954,15 @@
             document.getElementById('rename-input').select();
         }
 
+        // Top-level folders that santai web depends on at startup
+        const SANTAI_DIRS = ['notes', 'wiki', 'resources', 'codebases', 'history'];
+
         // Delete item directly (from button)
         async function deleteItem(path, name, isDir) {
-            const msg = isDir
+            const isSantaiDir = isDir && SANTAI_DIRS.includes(path);
+            const msg = isSantaiDir
+                ? `Delete folder "${name}" and all its contents?\n\nWarning: "${name}" is a standard santai folder — deleting it may prevent santai web from launching.`
+                : isDir
                 ? `Delete folder "${name}" and all its contents?`
                 : `Delete "${name}"?`;
             if (!confirm(msg)) return;
@@ -4935,15 +4987,8 @@
         }
 
         // Move item (drag and drop)
-        const protectedPaths = ['history', 'media', 'notes', 'AGENTS.md', 'CLAUDE.md', 'README.md', 'rumdl.toml'];
         let draggedItems = null;    // array of { path, name, isDir } for current drag
         let currentDropGroup = null; // <li> currently highlighted as drop target
-
-        function isProtectedPath(path) {
-            // Only top-level names are protected — files inside (e.g. notes/my-note.md)
-            // are intentionally moveable; only the folder itself is locked.
-            return protectedPaths.includes(path);
-        }
 
         function getFlatVisibleTreeItems() {
             return Array.from(document.querySelectorAll('#tree-view .tree-item'));
@@ -4969,6 +5014,18 @@
             });
         }
 
+        function revealInTree(filePath) {
+            const parts = filePath.split('/');
+            for (let i = 1; i < parts.length; i++) {
+                expandedPaths.add(parts.slice(0, i).join('/'));
+            }
+            renderTree();
+            requestAnimationFrame(() => {
+                const el = document.querySelector('#tree-view .tree-item.tree-previewing');
+                if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            });
+        }
+
         // Returns the <li> that should receive the drag-drop-target highlight.
         // For folders: the folder's own <li> (wraps header + children).
         // For files inside a named folder: that folder's <li>.
@@ -4987,10 +5044,6 @@
         }
 
         function handleDragStart(event, path, name, isDir) {
-            if (isProtectedPath(path)) {
-                event.preventDefault();
-                return;
-            }
             // If this item is part of a multi-selection, drag all selected items
             if (selectedItems.size > 1 && selectedItems.has(path)) {
                 draggedItems = [];
@@ -5021,6 +5074,7 @@
         }
 
         function clearDropGroupHighlight() {
+            hideFolderMoveTooltip();
             if (currentDropGroup) {
                 currentDropGroup.classList.remove('drag-drop-target');
                 const svg = currentDropGroup.querySelector(':scope > .drag-group-svg');
@@ -5029,9 +5083,22 @@
             }
         }
 
+        function showFolderMoveTooltip(event, folderName) {
+            const tooltip = document.getElementById('folder-move-tooltip');
+            tooltip.textContent = `Move to ${folderName}`;
+            tooltip.style.left = (event.clientX + 12) + 'px';
+            tooltip.style.top = (event.clientY + 12) + 'px';
+            tooltip.classList.add('visible');
+        }
+
+        function hideFolderMoveTooltip() {
+            document.getElementById('folder-move-tooltip').classList.remove('visible');
+        }
+
         function handleDragEnd(event) {
             event.target.classList.remove('dragging');
             clearDropGroupHighlight();
+            hideFolderMoveTooltip();
             document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over', 'invalid'));
             draggedItems = null;
         }
@@ -5045,7 +5112,7 @@
 
             const primary = draggedItems[0];
             const isNoOp = primary.path === dropFolder
-                || (draggedItems.length === 1 && primary.path.split('/').slice(0, -1).join('/') === dropFolder)
+                || draggedItems.every(item => item.path.split('/').slice(0, -1).join('/') === dropFolder)
                 || (draggedItems.length === 1 && primary.isDir && (dropFolder === primary.path || dropFolder.startsWith(primary.path + '/')));
 
             if (isNoOp) {
@@ -5054,6 +5121,9 @@
             }
 
             event.dataTransfer.dropEffect = 'move';
+
+            const folderName = dropFolder.split('/').pop() || 'root directory';
+            showFolderMoveTooltip(event, folderName);
 
             const treeItem = event.target.closest('#tree-view .tree-item');
             if (!treeItem) return;
@@ -5093,9 +5163,12 @@
             // Save items before async (draggedItems gets nulled by handleDragEnd)
             const items = draggedItems.slice();
 
-            // Filter to moveable items — skip protected top-level paths so files
-            // inside locked folders (notes/*, media/*, etc.) still move correctly
-            const moveable = items.filter(item => !isProtectedPath(item.path));
+            // Filter to items that actually need to move: skip items already in the
+            // target folder and dirs being dropped into themselves
+            const moveable = items.filter(item =>
+                item.path.split('/').slice(0, -1).join('/') !== dropFolder &&
+                !(item.isDir && (dropFolder === item.path || dropFolder.startsWith(item.path + '/')))
+            );
             if (moveable.length === 0) return;
 
             if (moveable.length === 1) {
@@ -5149,6 +5222,10 @@
             const newName = document.getElementById('rename-input').value.trim();
             if (!newName || !selectedItem) return;
 
+            if (SANTAI_DIRS.includes(selectedItem.path)) {
+                if (!confirm(`"${selectedItem.name}" is a standard santai folder — renaming it may prevent santai web from launching. Continue?`)) return;
+            }
+
             try {
                 const res = await fetch('/api/files/rename', {
                     method: 'POST',
@@ -5173,7 +5250,10 @@
         // Delete
         async function deleteSelected() {
             if (!selectedItem) return;
-            const deleteMsg = selectedItem.is_dir
+            const isSantaiDir = selectedItem.is_dir && SANTAI_DIRS.includes(selectedItem.path);
+            const deleteMsg = isSantaiDir
+                ? `Delete folder "${selectedItem.name}" and all its contents?\n\nWarning: "${selectedItem.name}" is a standard santai folder — deleting it may prevent santai web from launching.`
+                : selectedItem.is_dir
                 ? `Delete folder "${selectedItem.name}" and all its contents?`
                 : `Delete "${selectedItem.name}"?`;
             if (!confirm(deleteMsg)) return;
@@ -5379,6 +5459,14 @@
                 showToast(err.message, true);
             }
         }
+
+        // Clear tree drag state when drag leaves the tree panel
+        document.querySelector('.tree-container').addEventListener('dragleave', (e) => {
+            if (!draggedItems) return;
+            if (!e.currentTarget.contains(e.relatedTarget)) {
+                clearDropGroupHighlight();
+            }
+        });
 
         // Drag and drop (external files only - not internal moves)
         document.addEventListener('dragover', (e) => {
@@ -5667,12 +5755,8 @@
 
             let html = '<li>';
 
-            // Check if this is a protected path
-            const protectedPaths = ['history', 'media', 'notes', 'AGENTS.md', 'CLAUDE.md', 'README.md', 'rumdl.toml'];
-            const isProtected = protectedPaths.includes(node.path);
-
             // Tree item
-            const canDrag = node.path && !isProtected;
+            const canDrag = !!node.path;
             const isSelected = selectedItems.has(node.path);
             const isPreviewing = !isSelected && node.path === previewPath;
             // Suppress folder-active green while a multi-selection is in progress
@@ -5686,6 +5770,7 @@
                          ondragover="handleDragOver(event, '${node.path}', ${node.is_dir})"
                          ondragleave="handleDragLeave(event)"
                          ondrop="handleDrop(event, '${node.path}', ${node.is_dir})"
+                         ${node.is_dir ? `onmouseenter="if(selectedItems.size>0&&draggedItems)showFolderMoveTooltip(event,'${node.name.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,"\\'")}')" onmouseleave="hideFolderMoveTooltip()"` : ''}
                          onclick="handleTreeClick(event, '${node.path}', ${node.is_dir}, ${hasChildren})"
                          ondblclick="handleTreeDblClick(event, '${node.path}', ${node.is_dir})">`;
 
@@ -5702,9 +5787,9 @@
             }
             html += `<span class="tree-name">${displayName}</span>`;
 
-            // Action buttons (only for non-root and non-protected items) — rendered
+            // Action buttons (only for non-root items) — rendered
             // before the toggle so the chevron stays anchored at the far right.
-            if (node.path && !isProtected) {
+            if (node.path) {
                 html += `<span class="tree-actions">
                     <button class="tree-action-btn edit-btn" onclick="event.stopPropagation(); editItem('${node.path}', '${node.name}')" title="Rename">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -6170,6 +6255,7 @@
         function renderGraph(data) {
             // Store data for re-rendering on resize/fullscreen
             window.lastGraphData = data;
+            window.graphUserHasMoved = false;
 
             const container = document.querySelector('.graph-container');
             const svg = d3.select('#graph-svg');
@@ -6350,6 +6436,7 @@
                 .scaleExtent([0.1, 4])
                 .on('zoom', (event) => {
                     g.attr('transform', event.transform);
+                    if (event.sourceEvent) window.graphUserHasMoved = true;
                 });
 
             svg.call(zoom);
@@ -6360,6 +6447,7 @@
 
             // Add double-click to reset zoom
             svg.on('dblclick.zoom', () => {
+                window.graphUserHasMoved = false;
                 fitAllNodes(true);
             });
 
@@ -7472,7 +7560,7 @@
 
             if (!isFullscreen && _previewFullscreenRestoredGraph) {
                 _previewFullscreenRestoredGraph = false;
-                toggleGraphFullscreen();
+                toggleGraphFullscreen(false);
             }
 
             if (isFullscreen) {
@@ -8145,6 +8233,12 @@
         }
 
         function goBackFromPreview() {
+            if (previewHistory.length > 0) {
+                const previousPath = previewHistory.pop();
+                openFilePreview(previousPath, 'keep');
+                revealInTree(previousPath);
+                return;
+            }
             if (previewReturnClusterId !== null) {
                 const id = previewReturnClusterId;
                 previewReturnClusterId = null;
@@ -8320,7 +8414,7 @@
         let _graphPanelNextSibling = null;
         let _previewFullscreenRestoredGraph = false;
 
-        function toggleGraphFullscreen() {
+        function toggleGraphFullscreen(animated = true) {
             const panel = document.querySelector('.graph-panel');
             const expandIcon = document.getElementById('fullscreen-icon-expand');
             const collapseIcon = document.getElementById('fullscreen-icon-collapse');
@@ -8377,7 +8471,7 @@
                     svg.attr('width', null).attr('height', null);
                     svg.attr('width', container.clientWidth).attr('height', container.clientHeight);
                 }
-                fitAllNodes(true);
+                fitAllNodes(animated);
             });
         }
 
@@ -8479,10 +8573,11 @@
         const _legendObserver = new MutationObserver(() => updateFloatingLegend());
         _legendObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
 
-        // Also hook into graph fullscreen toggle
+        // Wrap toggleGraphFullscreen so the floating legend stays in sync after every
+        // fullscreen toggle without modifying the original function definition.
         const _origToggleGraphFullscreen = toggleGraphFullscreen;
-        toggleGraphFullscreen = function() {
-            _origToggleGraphFullscreen();
+        toggleGraphFullscreen = function(animated = true) {
+            _origToggleGraphFullscreen(animated);
             setTimeout(updateFloatingLegend, 60);
             // Run again after the delayed renderGraph (300ms for exit) to clean up
             // orphaned floating legends created by the re-render.
@@ -8507,5 +8602,6 @@
         setupScrollFade('.preview-content');
     </script>
     <div class="graph-tooltip" id="graph-tooltip"></div>
+    <div class="graph-tooltip" id="folder-move-tooltip"></div>
 </body>
 </html>
