@@ -28,7 +28,7 @@ santai cherry-pick SOURCE DESTINATION FILES...
 
 ## Behavior
 
-1. Validates that both source and destination are valid Santai projects
+1. Validates that both source and destination paths are existing directories
 2. Resolves each target path:
     - Direct relative paths (e.g., `notes/idea.md`)
     - Bare filenames searched across Santai directories (e.g., `idea.md`)
@@ -51,7 +51,7 @@ santai cherry-pick ./kb-large ./kb-small notes/idea.md
 Cherry-pick an entire directory and a specific file:
 
 ```bash
-santai cherry-pick ./research ./writing wiki/ resources/outline.md
+santai cherry-pick ./research ./writing media/ media/outline.md
 ```
 
 Preview what would be copied:
@@ -63,13 +63,13 @@ santai cherry-pick . ../other-kb notes/ --dry-run
 Overwrite all conflicts without prompting:
 
 ```bash
-santai cherry-pick ./source ./dest wiki/architecture.md --overwrite
+santai cherry-pick ./source ./dest media/architecture.md --overwrite
 ```
 
 Skip existing files silently:
 
 ```bash
-santai cherry-pick ./source ./dest resources/ --skip
+santai cherry-pick ./source ./dest media/ --skip
 ```
 
 !!! tip

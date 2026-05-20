@@ -253,16 +253,10 @@ def create_app(project: SantaiProject) -> FastAPI:
         # Build file trees for each directory
         file_tree = [
             {
-                "name": "resources",
-                "path": "resources",
+                "name": "media",
+                "path": "media",
                 "is_dir": True,
-                "children": get_file_tree(project.resources_path, project.root),
-            },
-            {
-                "name": "codebases",
-                "path": "codebases",
-                "is_dir": True,
-                "children": get_file_tree(project.codebases_path, project.root),
+                "children": get_file_tree(project.media_path, project.root),
             },
             {
                 "name": "history",
@@ -275,12 +269,6 @@ def create_app(project: SantaiProject) -> FastAPI:
                 "path": "notes",
                 "is_dir": True,
                 "children": get_file_tree(project.notes_path, project.root),
-            },
-            {
-                "name": "wiki",
-                "path": "wiki",
-                "is_dir": True,
-                "children": get_file_tree(project.wiki_path, project.root),
             },
         ]
 
@@ -302,11 +290,9 @@ def create_app(project: SantaiProject) -> FastAPI:
         """Return project statistics as JSON."""
         stats = get_directory_stats(project)
         return {
-            "resources_count": stats.resources_count,
-            "codebases_count": stats.codebases_count,
+            "media_count": stats.media_count,
             "history_count": stats.history_count,
             "notes_count": stats.notes_count,
-            "wiki_count": stats.wiki_count,
             "total_size_bytes": stats.total_size_bytes,
             "total_size_formatted": format_size(stats.total_size_bytes),
             "file_types": stats.file_types,

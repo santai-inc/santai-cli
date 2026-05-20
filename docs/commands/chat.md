@@ -64,7 +64,7 @@ Load an agent profile to set a specialized system prompt:
 ```bash
 santai chat --agent research
 santai chat --agent documentation
-santai chat --agent wiki
+santai chat --agent linting
 ```
 
 See [Agent Profiles](../agents.md) for details on each agent.
@@ -93,11 +93,11 @@ santai chat --agent research --model gpt-4o
 Switch agents mid-session:
 
 ```
-You: /agent wiki
-Switched to agent: wiki
+You: /agent research
+Switched to agent: research
 Conversation history cleared.
 
-You: What pages should I add to the wiki?
+You: What are the tradeoffs between REST and GraphQL?
 ```
 
 ## Streaming

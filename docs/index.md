@@ -1,6 +1,6 @@
 # Santai CLI
 
-**Santai CLI** is a project management tool designed for organizing knowledge, resources, and code references into a structured workspace. It provides a terminal UI, a web dashboard, and an AI-powered chat interface to help you manage and navigate your project context.
+**Santai CLI** is a project management tool designed for organizing knowledge and reference materials into a structured workspace. It provides a terminal UI, a web dashboard, and an AI-powered chat interface to help you manage and navigate your project context.
 
 ## What is a Santai Project?
 
@@ -8,11 +8,9 @@ A Santai project is a directory with a defined structure for organizing informat
 
 | Directory | Purpose |
 |-----------|---------|
-| `resources/` | Reference materials — markdown, PDFs, images, documents |
-| `codebases/` | Code repositories and references |
+| `media/` | Reference materials — markdown, PDFs, images, documents |
 | `history/` | Dated markdown entries documenting major changes and decisions |
 | `notes/` | General notes, scratch space, and quick thoughts |
-| `wiki/` | Important context for grounding AI agents and solidifying project knowledge |
 
 Santai provides tools to create, browse, analyze, and chat about this structure through three interfaces: a CLI, a TUI dashboard, and a web dashboard.
 

@@ -6,7 +6,6 @@ This directory contains agent definitions purpose-built for Santai project workf
 
 ### Context Management
 
-- **[wiki.md](wiki.md)** - Curates the wiki/ directory as the authoritative source of project knowledge
 - **[documentation.md](documentation.md)** - Creates and maintains documentation across all santai directories
 - **[summarizer.md](summarizer.md)** - Condenses project context into clear, actionable summaries
 - **[research.md](research.md)** - Investigates topics and gathers context for the project knowledge base
@@ -24,7 +23,7 @@ These agent definitions are designed to be used **directly** as subagents in Cla
 Tell your AI assistant to use an agent definition:
 
 ```
-"Use agents/wiki.md as a subagent to organize our project knowledge"
+"Use agents/documentation.md as a subagent to organize our project knowledge"
 "Spawn a subagent from agents/research.md to investigate this topic"
 "Act as the agent defined in agents/summarizer.md to summarize recent history"
 ```
@@ -74,15 +73,14 @@ Agents that analyze and provide information without making changes:
 
 ### Content-Modifying Agents
 Agents that can create and edit project files:
-- Wiki, Documentation, Linting
+- Documentation, Linting
 
 ### Typical Workflows
 
-1. **Knowledge capture**: Research -> Documentation -> Wiki
+1. **Knowledge capture**: Research -> Documentation
 2. **Project onboarding**: Summarizer (produce overview from all directories)
 3. **Content quality**: Linting (scan all directories for issues)
 4. **Decision recording**: Research -> Documentation (write history entry)
-5. **Context grounding**: Wiki (curate key knowledge for AI agents)
 
 ## Related Resources
 

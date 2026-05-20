@@ -22,11 +22,9 @@ Each directory is created with a `.gitkeep` file so it is tracked by git:
 
 | Directory | Purpose |
 |-----------|---------|
-| `resources/` | Reference materials — markdown, PDFs, images, documents |
-| `codebases/` | Code repositories and references |
+| `media/` | Reference materials — markdown, PDFs, images, documents |
 | `history/` | Dated markdown entries documenting major changes and decisions |
 | `notes/` | General notes, scratch space, quick thoughts |
-| `wiki/` | Curated knowledge for AI agent context grounding |
 
 ### Files
 

@@ -22,7 +22,7 @@ def ui(
     """Launch the TUI dashboard.
 
     Displays a terminal-based user interface with:
-    - Directory tree showing resources/, codebases/, history/
+    - Directory tree showing media/, history/, notes/
     - Dashboard with file statistics, types, and recent files
 
     Press 'q' to quit, 'r' to refresh, 't' to see theme options.
@@ -30,13 +30,10 @@ def ui(
     # Set theme
     ThemeManager.set_theme(theme)
 
-    # Get project
+    # Get project (any directory is treated as a project)
     project = get_project(Path.cwd())
     if project is None:
-        console.print(
-            "[red]Error: Not a Santai project. "
-            "Run 'santai init' to initialize a project.[/red]"
-        )
+        console.print("[red]Error: current directory does not exist.[/red]")
         raise typer.Exit(1)
 
     # Launch TUI

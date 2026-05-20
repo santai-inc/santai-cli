@@ -9,8 +9,6 @@ from typing import Annotated
 import typer
 from rich.console import Console
 
-from santai_cli.core.project import is_santai_project
-
 console = Console()
 
 # Directories to exclude when copying
@@ -100,15 +98,6 @@ def copy(
         console.print(f"[red]Error: Source path '{source}' is not a directory.[/red]")
         raise typer.Exit(1)
 
-    # Validate source is a Santai project
-    if not is_santai_project(source_path):
-        console.print(f"[red]Error: '{source}' is not a valid Santai project.[/red]")
-        console.print(
-            "[yellow]A Santai project must have resources/, codebases/, history/, "
-            "notes/, and wiki/ directories.[/yellow]"
-        )
-        raise typer.Exit(1)
-
     # Resolve destination path
     dest_path = (Path.cwd() / destination).resolve()
 
@@ -161,20 +150,6 @@ def copy(
     console.print(
         f"[green]Successfully copied Santai project to: {project_name}[/green]"
     )
-    console.print()
-    console.print("Project structure:")
-    console.print(f"  {project_name}/")
-    console.print("  ├── .git/")
-    console.print("  ├── .pre-commit-config.yaml")
-    console.print("  ├── rumdl.toml")
-    console.print("  ├── AGENTS.md")
-    console.print("  ├── README.md")
-    console.print("  ├── CLAUDE.md")
-    console.print("  ├── resources/")
-    console.print("  ├── codebases/")
-    console.print("  ├── history/")
-    console.print("  ├── notes/")
-    console.print("  └── wiki/")
     console.print()
     console.print("Next steps:")
     console.print(f"  cd {project_name}")

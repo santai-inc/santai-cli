@@ -91,8 +91,8 @@ _COMMANDS: list[dict[str, str | list[str]]] = [
         "summary": "Initialize a new Santai project.",
         "detail": (
             "Creates a new directory (or uses the current directory) with a\n"
-            "Git repository, the standard folder structure (resources/,\n"
-            "codebases/, history/, notes/), starter files (AGENTS.md,\n"
+            "Git repository, the standard folder structure (media/,\n"
+            "history/, notes/), starter files (AGENTS.md,\n"
             "README.md, CLAUDE.md), and pre-commit hooks with rumdl for\n"
             "markdown linting via prek."
         ),
@@ -256,8 +256,7 @@ def _print_verbose_help() -> None:
     # -- Project Structure ---------------------------------------------
     console.print("[bold underline]Project Structure[/bold underline]\n")
     dirs = [
-        ("resources/", "Reference materials and documents"),
-        ("codebases/", "Code snippets and repositories"),
+        ("media/", "Reference materials and documents"),
         ("history/", "Timeline entries (YYYY-MM-DD-description.md)"),
         ("notes/", "Personal notes and documentation"),
     ]

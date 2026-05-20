@@ -101,19 +101,15 @@ class StatsPanel(Static):
         dir_table = self.query_one("#dir-stats-table", DataTable)
         dir_table.clear(columns=True)
         dir_table.add_columns("Directory", "Files")
-        dir_table.add_row("resources", str(stats.resources_count))
-        dir_table.add_row("codebases", str(stats.codebases_count))
+        dir_table.add_row("media", str(stats.media_count))
         dir_table.add_row("history", str(stats.history_count))
         dir_table.add_row("notes", str(stats.notes_count))
-        dir_table.add_row("wiki", str(stats.wiki_count))
         dir_table.add_row(
             "[bold]Total[/bold]",
             f"[bold]{
-                stats.resources_count
-                + stats.codebases_count
+                stats.media_count
                 + stats.history_count
                 + stats.notes_count
-                + stats.wiki_count
             }[/bold]",
         )
         dir_table.add_row("Size", format_size(stats.total_size_bytes))
@@ -244,11 +240,9 @@ class GraphPanel(Static):
 
     # Directory color codes — warm palette inspired by Obsidian graph
     DIR_COLORS = {
-        "resources": "#4eba65",  # green
-        "codebases": "#06B6D4",  # cyan
+        "media": "#4eba65",  # green
         "history": "#b1b9f9",  # lavender
         "notes": "#d77757",  # terracotta
-        "wiki": "#f5c542",  # gold
         "unassigned": "#9b9ba8",  # muted blue-gray for root-level files
         "other": "#6b6560",  # warm gray fallback
     }
@@ -346,7 +340,7 @@ class GraphPanel(Static):
 
         if not graph_data.nodes:
             content_widget.update(
-                "[dim]No files found. Add files to resources/, notes/, etc.[/dim]"
+                "[dim]No files found. Add files to media/, notes/, etc.[/dim]"
             )
             self._node_positions = {}
             self._render_width = 0
@@ -415,7 +409,7 @@ class GraphPanel(Static):
 
         # Legend: reflect exactly what is rendered (uses `nodes`, not graph_data)
         dirs_present = {n.directory for n in nodes}
-        known_order = ["resources", "codebases", "history", "notes", "wiki"]
+        known_order = ["media", "history", "notes"]
         legend_parts = []
         for dir_name in known_order:
             if dir_name in dirs_present:
@@ -605,14 +599,12 @@ class MoveFileScreen(ModalScreen):
 
     BINDINGS = [
         Binding("escape", "dismiss", "Cancel"),
-        Binding("1", "move_1", "resources"),
-        Binding("2", "move_2", "codebases"),
-        Binding("3", "move_3", "history"),
-        Binding("4", "move_4", "notes"),
-        Binding("5", "move_5", "wiki"),
+        Binding("1", "move_1", "media"),
+        Binding("2", "move_2", "history"),
+        Binding("3", "move_3", "notes"),
     ]
 
-    DIRS = ["resources", "codebases", "history", "notes", "wiki"]
+    DIRS = ["media", "history", "notes"]
 
     def __init__(self, file_path: Path, project: SantaiProject) -> None:
         super().__init__()
@@ -643,7 +635,7 @@ class MoveFileScreen(ModalScreen):
             marker = " [dim](current)[/dim]" if d == current_dir else ""
             lines.append(f"  [{i}] {d}/{marker}")
         lines.append("")
-        lines.append("[dim]Press 1-5 to move, Esc to cancel[/dim]")
+        lines.append("[dim]Press 1-3 to move, Esc to cancel[/dim]")
         body.update("\n".join(lines))
 
     def _move_to(self, dest_dir: str) -> None:
@@ -666,19 +658,13 @@ class MoveFileScreen(ModalScreen):
         self.dismiss()
 
     def action_move_1(self) -> None:
-        self._move_to("resources")
+        self._move_to("media")
 
     def action_move_2(self) -> None:
-        self._move_to("codebases")
-
-    def action_move_3(self) -> None:
         self._move_to("history")
 
-    def action_move_4(self) -> None:
+    def action_move_3(self) -> None:
         self._move_to("notes")
-
-    def action_move_5(self) -> None:
-        self._move_to("wiki")
 
 
 class NoteDetailScreen(ModalScreen):
@@ -1456,11 +1442,11 @@ class GraphFilterScreen(ModalScreen):
 
     BINDINGS = [
         Binding("escape", "dismiss", "Close"),
-        Binding("1", "toggle_1", "resources"),
-        Binding("2", "toggle_2", "codebases"),
-        Binding("3", "toggle_3", "history"),
-        Binding("4", "toggle_4", "notes"),
-        Binding("5", "toggle_5", "wiki"),
+        Binding("1", "toggle_1", "media"),
+        Binding("2", "toggle_2", "history"),
+        Binding("3", "toggle_3", "notes"),
+        Binding("4", "toggle_4", "dir 4", show=False),
+        Binding("5", "toggle_5", "dir 5", show=False),
         Binding("6", "toggle_6", "dir 6", show=False),
         Binding("7", "toggle_7", "dir 7", show=False),
         Binding("8", "toggle_8", "dir 8", show=False),
@@ -1469,7 +1455,7 @@ class GraphFilterScreen(ModalScreen):
         Binding("x", "clear_all", "None"),
     ]
 
-    DIRS = ["resources", "codebases", "history", "notes", "wiki"]
+    DIRS = ["media", "history", "notes"]
 
     def __init__(
         self, project: SantaiProject, current_filter: set[str] | None = None
@@ -1534,13 +1520,13 @@ class GraphFilterScreen(ModalScreen):
             lines.append(f"  [{i}]{checkbox} {label}")
 
         # Dynamic dirs: alphabetically, with "unassigned" at the end
-        # Keys 6-9 are assigned to the first 4 extra dirs in order
+        # Keys 4-9 are assigned to the first 6 extra dirs in order
         extra_dirs = sorted(self._available_dirs - set(self.DIRS) - {"unassigned"})
         all_extra = extra_dirs + (
             ["unassigned"] if "unassigned" in self._available_dirs else []
         )
         for idx, d in enumerate(all_extra):
-            key_hint = f"[{idx + 6}]" if idx < 4 else "   "
+            key_hint = f"[{idx + 4}]" if idx < 6 else "   "
             color = GraphPanel.get_dir_color(d)
             count = self._dir_counts.get(d, 0)
             is_on = d in self._selected
@@ -1562,9 +1548,9 @@ class GraphFilterScreen(ModalScreen):
         total_count = sum(self._dir_counts.values())
         lines.append(f"  Showing: [bold]{selected_count}[/bold] of {total_count} files")
         lines.append("")
-        extra_key_hint = " · 6-9 = extra dirs" if all_extra else ""
+        extra_key_hint = " · 4-9 = extra dirs" if all_extra else ""
         lines.append(
-            f"  [dim]1-5 = toggle directory{extra_key_hint} · a = all · x = none[/dim]"
+            f"  [dim]1-3 = toggle directory{extra_key_hint} · a = all · x = none[/dim]"
         )
         lines.append("  [dim]Enter = apply · Esc = cancel[/dim]")
 
@@ -1578,19 +1564,13 @@ class GraphFilterScreen(ModalScreen):
         self._update_display()
 
     def action_toggle_1(self) -> None:
-        self._toggle_dir("resources")
+        self._toggle_dir("media")
 
     def action_toggle_2(self) -> None:
-        self._toggle_dir("codebases")
-
-    def action_toggle_3(self) -> None:
         self._toggle_dir("history")
 
-    def action_toggle_4(self) -> None:
+    def action_toggle_3(self) -> None:
         self._toggle_dir("notes")
-
-    def action_toggle_5(self) -> None:
-        self._toggle_dir("wiki")
 
     def _toggle_extra_dir(self, idx: int) -> None:
         extra_dirs = sorted(self._available_dirs - set(self.DIRS) - {"unassigned"})
@@ -1600,17 +1580,23 @@ class GraphFilterScreen(ModalScreen):
         if 0 <= idx < len(all_extra):
             self._toggle_dir(all_extra[idx])
 
-    def action_toggle_6(self) -> None:
+    def action_toggle_4(self) -> None:
         self._toggle_extra_dir(0)
 
-    def action_toggle_7(self) -> None:
+    def action_toggle_5(self) -> None:
         self._toggle_extra_dir(1)
 
-    def action_toggle_8(self) -> None:
+    def action_toggle_6(self) -> None:
         self._toggle_extra_dir(2)
 
-    def action_toggle_9(self) -> None:
+    def action_toggle_7(self) -> None:
         self._toggle_extra_dir(3)
+
+    def action_toggle_8(self) -> None:
+        self._toggle_extra_dir(4)
+
+    def action_toggle_9(self) -> None:
+        self._toggle_extra_dir(5)
 
     def action_select_all(self) -> None:
         self._selected = set(self.DIRS) | self._available_dirs

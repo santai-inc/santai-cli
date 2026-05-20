@@ -33,18 +33,16 @@ Entry point: `santai_cli.cli:app` (Typer application)
 
 1. Create `src/santai_cli/commands/yourcommand.py` with a single function
 2. Use `Annotated[..., typer.Argument/Option(...)]` for parameters
-3. Use `is_santai_project()` / `get_project()` from `core/project.py` for validation
+3. Use `get_project()` from `core/project.py` to load the project (directory-structure validation is no longer enforced)
 4. Import in `cli.py` and register with `app.command(name="yourcommand")(mod.func)`
 
 ## Santai Project Directories
 
 Defined in `SANTAI_DIRS` in `src/santai_cli/core/project.py`:
 
-- **resources/** - Reference materials (markdown, PDFs, images, documents)
-- **codebases/** - Code repositories and references
+- **media/** - Reference materials (markdown, PDFs, images, documents)
 - **history/** - Markdown documentation of major changes and decisions
 - **notes/** - General notes, scratch space, and quick thoughts
-- **wiki/** - Context for grounding AI agents
 
 When adding a new directory, update references across `core/project.py`, `commands/init.py`, `tui/app.py`, `web/app.py`, and `web/templates/index.html`.
 

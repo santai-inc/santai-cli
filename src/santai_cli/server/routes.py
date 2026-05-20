@@ -9,7 +9,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, status
 
-from santai_cli.core.project import SANTAI_DIRS, is_santai_project
+from santai_cli.core.project import SANTAI_DIRS
 from santai_cli.server.models import (
     CherryPickRequest,
     CherryPickResponse,
@@ -46,14 +46,11 @@ This directory is managed by Santai.
 
 ## Directory Structure
 
-- **resources/** - Reference materials including markdown files, PDFs, images, \
+- **media/** - Reference materials including markdown files, PDFs, images, \
 and other documents
-- **codebases/** - Code repositories and references
 - **history/** - Markdown documentation of major changes and decisions \
 (supplements git history)
 - **notes/** - General notes, scratch space, and quick thoughts
-- **wiki/** - Important context for grounding AI agents and solidifying \
-project knowledge
 """
 
 _README_MD_TEMPLATE = """\
@@ -74,7 +71,7 @@ def _resolve_path(path_str: str) -> Path:
 
 
 def _validate_santai_project(path: Path, label: str = "Path") -> None:
-    """Validate that a path is a valid Santai project.
+    """Validate that a path points to an existing directory.
 
     Raises HTTPException if validation fails.
     """
@@ -87,15 +84,6 @@ def _validate_santai_project(path: Path, label: str = "Path") -> None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"{label} '{path}' is not a directory",
-        )
-    if not is_santai_project(path):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                f"{label} '{path}' is not a valid Santai project. "
-                "Must contain resources/, codebases/, history/, and notes/ "
-                "directories."
-            ),
         )
 
 
@@ -179,7 +167,7 @@ async def api_init(req: InitRequest) -> InitResponse:
     _run_command(["git", "init"], cwd=target)
 
     # Create directory structure
-    for dir_name in ["resources", "codebases", "history", "notes", "wiki"]:
+    for dir_name in ["media", "history", "notes"]:
         (target / dir_name).mkdir(exist_ok=True)
         (target / dir_name / ".gitkeep").touch()
 

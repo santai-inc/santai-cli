@@ -434,7 +434,7 @@ def render_graph(
     """
     if not nodes:
         return RenderedGraph(
-            markup="[dim]No files found. Add files to resources/, notes/, etc.[/dim]",
+            markup="[dim]No files found. Add files to media/, notes/, etc.[/dim]",
             node_positions={},
             node_map={},
         )

@@ -16,11 +16,9 @@ This directory is managed by Santai.
 
 ## Directory Structure
 
-- **resources/** - Reference materials including markdown files, PDFs, images, and other documents
-- **codebases/** - Code repositories and references
+- **media/** - Reference materials including markdown files, PDFs, images, and other documents
 - **history/** - Markdown documentation of major changes and decisions (supplements git history)
 - **notes/** - General notes, scratch space, and quick thoughts
-- **wiki/** - Important context for grounding AI agents and solidifying project knowledge
 
 ## Pre-commit Hooks
 
@@ -41,14 +39,6 @@ The `notes/` directory is for general notes and scratch space:
 - Use `.md` or `.txt` files
 - Name files descriptively (e.g., `meeting-notes.md`, `ideas.txt`)
 - Notes are displayed with previews in the dashboard
-
-## Wiki Convention
-
-The `wiki/` directory is for important context grounding:
-
-- Add files that contain particularly important project knowledge
-- Use wiki entries to highlight context for AI agents
-- Supports `.md` and `.txt` files
 """
 
 README_MD_TEMPLATE = """\
@@ -144,7 +134,7 @@ def init(
 
     Creates a new directory (or uses current directory) with:
     - Git repository
-    - resources/, codebases/, history/, notes/, wiki/ folders
+    - media/, history/, notes/ folders
     - AGENTS.md, README.md, CLAUDE.md
     - Pre-commit hooks with rumdl for markdown linting (using prek)
     """
@@ -184,7 +174,7 @@ def init(
 
     # Create directories
     console.print("Creating directory structure...")
-    for dir_name in ["resources", "codebases", "history", "notes", "wiki"]:
+    for dir_name in ["media", "history", "notes"]:
         (target_path / dir_name).mkdir(exist_ok=True)
         # Add .gitkeep to keep empty directories in git
         (target_path / dir_name / ".gitkeep").touch()
@@ -245,11 +235,9 @@ def init(
     console.print("  ├── AGENTS.md")
     console.print("  ├── README.md")
     console.print("  ├── CLAUDE.md")
-    console.print("  ├── resources/")
-    console.print("  ├── codebases/")
+    console.print("  ├── media/")
     console.print("  ├── history/")
-    console.print("  ├── notes/")
-    console.print("  └── wiki/")
+    console.print("  └── notes/")
     console.print()
     console.print("Next steps:")
     console.print(f"  cd {project_name}" if name != "." else "")

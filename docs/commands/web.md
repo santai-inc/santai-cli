@@ -17,7 +17,7 @@ santai web [OPTIONS]
 
 ## Requirements
 
-Must be run from within a valid Santai project directory.
+Must be run from within an existing directory.
 
 ## Features
 
