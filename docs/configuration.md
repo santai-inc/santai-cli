@@ -38,7 +38,7 @@ OPENAI_API_BASE_URL=https://your-proxy-url.example.com/
 | `OPENAI_API_KEY` | At least one provider | — | Your OpenAI (or OpenAI-compatible) API key |
 | `OPENAI_MODEL` | No | `gpt-4o` | Default OpenAI model |
 | `OPENAI_API_BASE_URL` | No | `https://api.openai.com/v1` | Custom OpenAI-compatible endpoint (e.g. LiteLLM, Azure). When set, `OPENAI_API_KEY` should match the proxy. |
-| `SANTAI_HUB_URL` | No | `http://localhost:3000` | Santai Hub URL for push/pull/auth |
+| `SANTAI_HUB_URL` | No | `https://hub.sant.ai` | Santai Hub URL for push/pull/auth |
 
 You need at least one provider key configured for AI chat. You can configure both to have access to models from both providers.
 

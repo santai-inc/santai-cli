@@ -20,15 +20,18 @@ santai login [OPTIONS]
 
 | Option | Short | Default | Description |
 |--------|-------|---------|-------------|
-| `--hub-url` | — | `SANTAI_HUB_URL` or `http://localhost:3000` | Santai Hub URL |
+| `--hub-url` | — | `SANTAI_HUB_URL` or `https://hub.sant.ai` | Santai Hub URL |
 | `--port` | `-p` | Auto-detected | Fixed port for callback server (useful for SSH tunneling) |
 
 ### Behavior
 
 1. Starts a local HTTP server to receive the authentication callback
-2. Opens your browser to the Hub's CLI authentication page
+2. Opens your browser to the Hub's CLI authentication page (defaults to `https://hub.sant.ai/auth/cli`)
 3. After you authenticate in the browser, the Hub redirects back to the local server with a token
 4. The token and username are saved to `~/.config/santai/credentials.json`
+
+If a browser cannot be opened automatically (e.g. on a headless machine), the
+auth URL is printed so you can open it manually on another device.
 
 ### Examples
 
@@ -98,7 +101,7 @@ If the Hub is unreachable (offline), it falls back to showing the cached usernam
 Logged in as johndoe
   Name:  John Doe
   Email: john@example.com
-  Hub:   http://localhost:3000
+  Hub:   https://hub.sant.ai
   Expires: 2025-05-17T08:00:00Z
 ```
 
@@ -108,4 +111,4 @@ Logged in as johndoe
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `SANTAI_HUB_URL` | `http://localhost:3000` | Override the default Hub URL for all auth commands |
+| `SANTAI_HUB_URL` | `https://hub.sant.ai` | Override the default Hub URL for all auth commands (e.g. for self-hosted instances or local development) |

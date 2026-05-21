@@ -18,7 +18,7 @@ console = Console()
 
 CREDENTIALS_DIR = Path.home() / ".config" / "santai"
 CREDENTIALS_FILE = CREDENTIALS_DIR / "credentials.json"
-DEFAULT_HUB_URL = "http://localhost:3000"
+DEFAULT_HUB_URL = "https://hub.sant.ai"
 
 
 def _get_hub_url() -> str:
@@ -131,9 +131,20 @@ def login(
     server_ready.wait()
 
     auth_url = f"{hub}/auth/cli?callback_port={port}"
-    console.print("Opening browser to authenticate...")
-    console.print(f"  [dim]{auth_url}[/dim]\n")
-    webbrowser.open(auth_url)
+    try:
+        opened = webbrowser.open(auth_url)
+    except webbrowser.Error:
+        opened = False
+
+    if opened:
+        console.print("Opening browser to authenticate...")
+        console.print(f"  [dim]{auth_url}[/dim]\n")
+    else:
+        console.print(
+            "[yellow]Could not open a browser automatically.[/yellow] "
+            "Open this URL to authenticate:"
+        )
+        console.print(f"  [bold]{auth_url}[/bold]\n")
     console.print("Waiting for authentication (press Ctrl+C to cancel)...")
 
     try:
