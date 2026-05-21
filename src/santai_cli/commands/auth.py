@@ -113,7 +113,8 @@ def login(
             self.end_headers()
             self.wfile.write(
                 b"<html><body><h2>Authenticated!</h2>"
-                b"<p>You can close this tab and return to your terminal.</p></body></html>"
+                b"<p>You can close this tab and return to your terminal.</p>"
+                b"</body></html>"
             )
             got_callback.set()
 
@@ -141,7 +142,7 @@ def login(
     except KeyboardInterrupt:
         console.print("\n[yellow]Login cancelled.[/yellow]")
         server.server_close()
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
     server.server_close()
 
@@ -189,9 +190,8 @@ def whoami() -> None:
             data = json.loads(resp.read())
             user = data.get("user", {})
             session = data.get("session", {})
-            console.print(
-                f"Logged in as [bold]{user.get('username', creds.get('username', 'unknown'))}[/bold]"
-            )
+            username = user.get("username", creds.get("username", "unknown"))
+            console.print(f"Logged in as [bold]{username}[/bold]")
             console.print(f"  Name:  {user.get('name', 'N/A')}")
             console.print(f"  Email: {user.get('email', 'N/A')}")
             console.print(f"  Hub:   [dim]{hub}[/dim]")
@@ -200,14 +200,17 @@ def whoami() -> None:
     except urllib.error.HTTPError as e:
         if e.code == 401:
             console.print(
-                "[yellow]Session expired. Run [bold]santai login[/bold] to re-authenticate.[/yellow]"
+                "[yellow]Session expired. Run [bold]santai login[/bold] "
+                "to re-authenticate.[/yellow]"
             )
             _clear_credentials()
-            raise typer.Exit(1)
+            raise typer.Exit(1) from e
         console.print(f"[red]Failed to verify session: HTTP {e.code}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
     except (urllib.error.URLError, TimeoutError):
+        username = creds.get("username", "unknown")
         console.print(
-            f"Logged in as [bold]{creds.get('username', 'unknown')}[/bold]  [dim](offline — could not reach hub)[/dim]"
+            f"Logged in as [bold]{username}[/bold]  "
+            "[dim](offline — could not reach hub)[/dim]"
         )
         console.print(f"  Hub: [dim]{hub}[/dim]")

@@ -424,6 +424,8 @@ def _stream_assistant_response(state: _ChatState) -> str | None:
                     provider_config,
                     state.model,
                 ):
+                    if not isinstance(chunk, str):
+                        continue
                     full_text += chunk
                     live.update(Markdown(full_text))
                 return full_text

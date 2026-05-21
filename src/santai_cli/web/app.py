@@ -960,8 +960,8 @@ def create_app(project: SantaiProject) -> FastAPI:
         provider_errors: dict[str, dict[str, str]] = {}
         for provider_name, provider_config in config.providers.items():
 
-            def _err(kind: str) -> dict[str, str]:
-                return {"type": kind, "display": provider_config.name}
+            def _err(kind: str, pc=provider_config) -> dict[str, str]:
+                return {"type": kind, "display": pc.name}
 
             if provider_config.base_url:
                 # Fetch model list from LiteLLM proxy
@@ -1054,10 +1054,11 @@ def create_app(project: SantaiProject) -> FastAPI:
         seen: set[str] = set()
         deduped: list[dict[str, str | bool]] = []
         for m in models:
-            if m["display"] not in seen:
-                seen.add(m["display"])
+            display = str(m["display"])
+            if display not in seen:
+                seen.add(display)
                 deduped.append(m)
-        deduped.sort(key=lambda m: m["display"].lower())
+        deduped.sort(key=lambda m: str(m["display"]).lower())
         return {
             "models": deduped,
             "configured": config.has_any_provider,
@@ -1202,7 +1203,9 @@ def create_app(project: SantaiProject) -> FastAPI:
         # Read existing values
         existing: dict[str, str] = {}
         if env_path.is_file():
-            existing = dict(dotenv_values(env_path))
+            existing = {
+                k: v for k, v in dotenv_values(env_path).items() if v is not None
+            }
 
         # Update with new values (empty string = leave unchanged)
         if req.anthropic_api_key is not None and req.anthropic_api_key.strip():

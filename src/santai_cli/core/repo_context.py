@@ -138,11 +138,25 @@ def build_repo_context_prompt(context: RepoContext) -> str:
         [
             "",
             "## Important Guidelines",
-            "- You can see the file tree above, but you do NOT have the file contents in context.",
-            "- IMPORTANT: Whenever a user asks a question that could be answered by a file in this project (notes, media, history, or any other file), you MUST call read_file to read the relevant file(s) before answering. Never answer knowledge-base questions from memory — always fetch fresh content with the tool.",
+            (
+                "- You can see the file tree above, but you do NOT have the "
+                "file contents in context."
+            ),
+            (
+                "- IMPORTANT: Whenever a user asks a question that could be "
+                "answered by a file in this project (notes, media, history, or "
+                "any other file), you MUST call read_file to read the relevant "
+                "file(s) before answering. Never answer knowledge-base "
+                "questions from memory — always fetch fresh content with the "
+                "tool."
+            ),
             "- If multiple files might be relevant, read each one before responding.",
             "- Use [[wikilinks]] or markdown links when referencing project files.",
-            "- IMPORTANT: If a read_file result includes 'truncated: true', the file was cut off. Acknowledge this to the user rather than treating the partial content as complete.",
+            (
+                "- IMPORTANT: If a read_file result includes 'truncated: "
+                "true', the file was cut off. Acknowledge this to the user "
+                "rather than treating the partial content as complete."
+            ),
         ]
     )
 
@@ -150,7 +164,11 @@ def build_repo_context_prompt(context: RepoContext) -> str:
         [
             "",
             "## Available Tools",
-            "You have access to the following tools. WHEN THE USER ASKS YOU TO CREATE OR WRITE A FILE, YOU MUST USE THE write_file TOOL - DO NOT JUST TELL THEM HOW TO DO IT:",
+            (
+                "You have access to the following tools. WHEN THE USER ASKS "
+                "YOU TO CREATE OR WRITE A FILE, YOU MUST USE THE write_file "
+                "TOOL - DO NOT JUST TELL THEM HOW TO DO IT:"
+            ),
             "",
             "- **write_file**: Write content to a file. Creates directories as needed.",
             "  Arguments: filepath (string), content (string)",
@@ -165,17 +183,34 @@ def build_repo_context_prompt(context: RepoContext) -> str:
             "- **mkdir**: Create a directory. Creates parent directories as needed.",
             "  Arguments: path (string)",
             "",
-            "- **move**: Move a file or directory to a new location. Prefer this over manually copying and deleting.",
+            (
+                "- **move**: Move a file or directory to a new location. "
+                "Prefer this over manually copying and deleting."
+            ),
             "  Arguments: source (string), destination (string)",
             "",
             "- **remove_file**: Remove a file.",
             "  Arguments: filepath (string)",
             "",
-            "- **remove_dir**: Remove a directory. If empty, deletes immediately. If non-empty, the tool returns a CONFIRM_REQUIRED message — show only that message to the user (do not add any preamble or narration), then wait for confirmation before calling again with confirmed=true.",
+            (
+                "- **remove_dir**: Remove a directory. If empty, deletes "
+                "immediately. If non-empty, the tool returns a "
+                "CONFIRM_REQUIRED message — show only that message to the user "
+                "(do not add any preamble or narration), then wait for "
+                "confirmation before calling again with confirmed=true."
+            ),
             "  Arguments: path (string), confirmed (boolean, optional)",
             "",
-            "IMPORTANT: When the user asks you to create, write, or edit a file, use the write_file tool - do not describe how to do it or suggest commands.",
-            "IMPORTANT: For remove_dir, call the tool first without narrating — do not say you are about to delete anything. Let the tool result determine what to say.",
+            (
+                "IMPORTANT: When the user asks you to create, write, or edit a "
+                "file, use the write_file tool - do not describe how to do it "
+                "or suggest commands."
+            ),
+            (
+                "IMPORTANT: For remove_dir, call the tool first without "
+                "narrating — do not say you are about to delete anything. Let "
+                "the tool result determine what to say."
+            ),
         ]
     )
 

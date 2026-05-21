@@ -133,8 +133,10 @@ def push(
         body_parts: list[bytes] = []
 
         body_parts.append(f"--{boundary}\r\n".encode())
+        filename = f"{quote(project_name)}.zip"
         body_parts.append(
-            f'Content-Disposition: form-data; name="file"; filename="{quote(project_name)}.zip"\r\n'.encode()
+            f'Content-Disposition: form-data; name="file"; '
+            f'filename="{filename}"\r\n'.encode()
         )
         body_parts.append(b"Content-Type: application/zip\r\n\r\n")
         body_parts.append(zip_bytes)
@@ -164,9 +166,10 @@ def push(
         except urllib.error.HTTPError as e:
             if e.code == 401:
                 console.print(
-                    "[yellow]Session expired. Run [bold]santai login[/bold] to re-authenticate.[/yellow]"
+                    "[yellow]Session expired. Run [bold]santai login[/bold] "
+                    "to re-authenticate.[/yellow]"
                 )
-                raise typer.Exit(1)
+                raise typer.Exit(1) from e
             body_text = e.read().decode(errors="replace")
             try:
                 err_data = json.loads(body_text)
@@ -174,9 +177,9 @@ def push(
             except json.JSONDecodeError:
                 msg = body_text
             console.print(f"[red]Push failed (HTTP {e.code}): {msg}[/red]")
-            raise typer.Exit(1)
-        except (urllib.error.URLError, TimeoutError):
+            raise typer.Exit(1) from e
+        except (urllib.error.URLError, TimeoutError) as e:
             console.print("[red]Could not reach the hub. Check your connection.[/red]")
-            raise typer.Exit(1)
+            raise typer.Exit(1) from e
     finally:
         tmp_path.unlink(missing_ok=True)

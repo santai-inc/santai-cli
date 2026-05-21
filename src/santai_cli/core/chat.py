@@ -54,7 +54,9 @@ TOOLS = [
             "properties": {
                 "filepath": {
                     "type": "string",
-                    "description": "The file path to write to (relative to project root)",
+                    "description": (
+                        "The file path to write to (relative to project root)"
+                    ),
                 },
                 "content": {
                     "type": "string",
@@ -101,7 +103,9 @@ TOOLS = [
             "properties": {
                 "path": {
                     "type": "string",
-                    "description": "The directory path to create (relative to project root)",
+                    "description": (
+                        "The directory path to create (relative to project root)"
+                    ),
                 },
             },
             "required": ["path"],
@@ -124,20 +128,26 @@ TOOLS = [
     {
         "name": "remove_dir",
         "description": (
-            "Remove a directory. If the directory is empty, it is deleted immediately. "
-            "If it has contents, the tool returns a warning — relay the warning to the user "
-            "and ask for confirmation. Once the user confirms, call again with confirmed=true."
+            "Remove a directory. If the directory is empty, it is deleted "
+            "immediately. If it has contents, the tool returns a warning — relay "
+            "the warning to the user and ask for confirmation. Once the user "
+            "confirms, call again with confirmed=true."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "path": {
                     "type": "string",
-                    "description": "The directory path to remove (relative to project root)",
+                    "description": (
+                        "The directory path to remove (relative to project root)"
+                    ),
                 },
                 "confirmed": {
                     "type": "boolean",
-                    "description": "Set to true after the user has confirmed deletion of a non-empty directory.",
+                    "description": (
+                        "Set to true after the user has confirmed deletion of a "
+                        "non-empty directory."
+                    ),
                 },
             },
             "required": ["path"],
@@ -145,7 +155,10 @@ TOOLS = [
     },
     {
         "name": "move",
-        "description": "Move a file or directory to a new location. Prefer this over manually copying and deleting.",
+        "description": (
+            "Move a file or directory to a new location. Prefer this over "
+            "manually copying and deleting."
+        ),
         "input_schema": {
             "type": "object",
             "properties": {
@@ -573,9 +586,10 @@ def _tool_read_file(tool_call: dict[str, Any], project_root: Path | None) -> str
         content = path.read_text(encoding="utf-8")
         max_len = 100000
         if len(content) > max_len:
-            content = (
-                content[:max_len]
-                + f"\n... (truncated: true, showed {max_len} of {len(content)} total bytes — use read_file with start_line/end_line to read a specific range)"
+            content = content[:max_len] + (
+                f"\n... (truncated: true, showed {max_len} of {len(content)} "
+                "total bytes — use read_file with start_line/end_line to read "
+                "a specific range)"
             )
         return content
     except Exception as e:
@@ -735,7 +749,8 @@ async def get_response(
     """
     chunks: list[str] = []
     async for chunk in stream_response(session, provider, provider_config, model):
-        chunks.append(chunk)
+        if isinstance(chunk, str):
+            chunks.append(chunk)
     return "".join(chunks)
 
 
