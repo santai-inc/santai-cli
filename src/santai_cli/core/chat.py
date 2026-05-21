@@ -161,6 +161,24 @@ TOOLS = [
             "required": ["source", "destination"],
         },
     },
+    {
+        "name": "answer",
+        "description": (
+            "Send a final response to the user. "
+            "Call this ONLY after ALL requested operations (file writes, moves, deletes) are fully complete. "
+            "Do not call it mid-task."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string",
+                    "description": "The response to send to the user",
+                },
+            },
+            "required": ["content"],
+        },
+    },
 ]
 
 TOOLS_OPENAI = [
@@ -330,53 +348,79 @@ async def stream_response(
         {"event": "file_written", "path": "..."}.
     """
     target_model = model or provider_config.model
-    max_tool_turns = 10
+    max_tool_turns = 20
 
-    for _ in range(max_tool_turns):
+    for iteration in range(max_tool_turns):
+        is_last = iteration == max_tool_turns - 1
+        # First turn: force any tool to prevent plain-text-only responses.
+        # Last turn: force answer() so the loop always terminates with a reply.
+        if is_last:
+            force_tool: bool | str = "answer"
+        elif iteration == 0:
+            force_tool = True
+        else:
+            force_tool = False
+
         if provider == "anthropic":
             text, tool_calls = await _stream_anthropic_with_tools(
-                session, provider_config.api_key, target_model
-            )
-        elif provider == "openai":
-            text, tool_calls = await _stream_openai_with_tools(
-                session, provider_config.api_key, target_model, provider_config.base_url
+                session, provider_config.api_key, target_model, force_tool=force_tool
             )
         else:
             text, tool_calls = await _stream_openai_with_tools(
-                session, provider_config.api_key, target_model, provider_config.base_url
+                session,
+                provider_config.api_key,
+                target_model,
+                provider_config.base_url,
+                force_tool=force_tool,
             )
 
+        # Fallback: provider ignored forced tool_choice and returned plain text.
         if not tool_calls:
             if text:
                 yield text
             break
 
         results = []
+        answer_content: str | None = None
+
         for tool_call in tool_calls:
-            tool_name = tool_call.get("name", "unknown")
-            yield {"event": "tool_call", "name": tool_name}
-            result = execute_tool(tool_call, session.project_root)
-            results.append((tool_name, tool_call, result))
             tool_name = tool_call.get("name", "")
-            if tool_name in ("write_file", "move"):
+            if tool_name == "answer":
                 try:
-                    args = json.loads(tool_call.get("arguments", "{}"))
+                    args = json.loads(tool_call.get("arguments", "{}") or "{}")
                 except json.JSONDecodeError:
                     args = {}
-                path = (
-                    args.get("destination")
-                    if tool_name == "move"
-                    else args.get("filepath")
-                )
-                if path:
-                    yield {"event": "file_written", "path": path}
+                answer_content = args.get("content", "")
+                results.append((tool_name, tool_call, json.dumps({"success": True})))
+            else:
+                yield {"event": "tool_call", "name": tool_name}
+                result = execute_tool(tool_call, session.project_root)
+                results.append((tool_name, tool_call, result))
+                if tool_name in ("write_file", "move"):
+                    try:
+                        args = json.loads(tool_call.get("arguments", "{}"))
+                    except json.JSONDecodeError:
+                        args = {}
+                    path = (
+                        args.get("destination")
+                        if tool_name == "move"
+                        else args.get("filepath")
+                    )
+                    if path:
+                        yield {"event": "file_written", "path": path}
+
         session.add_tool_turn(tool_calls, results)
+
+        if answer_content is not None:
+            yield answer_content
+            break
 
 
 async def _stream_anthropic_with_tools(
     session: ChatSession,
     api_key: str,
     model: str,
+    force_tool: bool | str = False,
 ) -> tuple[str, list[dict[str, Any]]]:
     """Stream from Anthropic API with tool support.
 
@@ -394,6 +438,10 @@ async def _stream_anthropic_with_tools(
     }
     if session.system_prompt:
         kwargs["system"] = session.system_prompt
+    if force_tool is True:
+        kwargs["tool_choice"] = {"type": "any"}
+    elif isinstance(force_tool, str):
+        kwargs["tool_choice"] = {"type": "tool", "name": force_tool}
 
     pending_tool: dict[str, Any] | None = None
 
@@ -430,6 +478,7 @@ async def _stream_openai_with_tools(
     api_key: str,
     model: str,
     base_url: str | None = None,
+    force_tool: bool | str = False,
 ) -> tuple[str, list[dict[str, Any]]]:
     """Stream from OpenAI API with tool support.
 
@@ -466,7 +515,21 @@ async def _stream_openai_with_tools(
         create_kwargs["max_tokens"] = _max_tokens_for_model(model)
     if model in _DISABLE_THINKING_MODELS:
         create_kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
-    stream = await client.chat.completions.create(**create_kwargs)  # type: ignore[arg-type]
+    # Force tool use when requested (skip for models known to not support it).
+    if model not in _NO_SYSTEM_ROLE_MODELS:
+        if force_tool is True:
+            create_kwargs["tool_choice"] = "required"
+        elif isinstance(force_tool, str):
+            create_kwargs["tool_choice"] = {
+                "type": "function",
+                "function": {"name": force_tool},
+            }
+    try:
+        stream = await client.chat.completions.create(**create_kwargs)  # type: ignore[arg-type]
+    except Exception:
+        # Some providers reject forced tool_choice — retry without it.
+        create_kwargs.pop("tool_choice", None)
+        stream = await client.chat.completions.create(**create_kwargs)  # type: ignore[arg-type]
 
     async for chunk in stream:
         if chunk.choices and chunk.choices[0].delta:
