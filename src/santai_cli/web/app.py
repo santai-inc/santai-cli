@@ -72,6 +72,15 @@ class SettingsRequest(BaseModel):
     openai_api_key: str | None = None
 
 
+class CloudPushRequest(BaseModel):
+    include_env: bool = False
+
+
+class CloudPullRequest(BaseModel):
+    name: str
+    dest: str | None = None
+
+
 class SmartPlaceRequest(BaseModel):
     filename: str
     content: str = ""
@@ -1414,5 +1423,317 @@ def create_app(project: SantaiProject) -> FastAPI:
         load_dotenv(env_path, override=True)
 
         return {"status": "saved"}
+
+    # === Cloud Push / Pull Endpoints ===
+
+    _CLOUD_IGNORED_DIRS = {
+        ".git",
+        ".ruff_cache",
+        ".rumdl_cache",
+        "__pycache__",
+        ".venv",
+        "node_modules",
+    }
+    _CLOUD_SENSITIVE = {".env", "credentials.json"}
+    _CLOUD_MAX_BYTES = 50 * 1024 * 1024
+
+    @app.get("/api/cloud/status")
+    async def cloud_status() -> dict[str, Any]:
+        """Return whether the user is logged in to the Santai cloud."""
+        from santai_cli.commands.auth import load_credentials
+
+        creds = load_credentials()
+        if not creds:
+            return {"logged_in": False, "username": None}
+        return {"logged_in": True, "username": creds.get("username")}
+
+    @app.post("/api/cloud/push")
+    async def cloud_push(req: CloudPushRequest) -> StreamingResponse:
+        """Push the current project to the cloud, streaming SSE progress events."""
+        import asyncio
+        import json as _json
+        import urllib.error
+        import urllib.request
+        import zipfile
+        from urllib.parse import quote
+
+        from santai_cli.commands.auth import DEFAULT_HUB_URL, load_credentials
+        from santai_cli.core.hub import create_base, get_backend_url, resolve_base_id
+
+        def _sse(data: dict) -> str:
+            return f"data: {_json.dumps(data)}\n\n"
+
+        async def event_gen():
+            creds = load_credentials()
+            if not creds:
+                yield _sse(
+                    {
+                        "type": "error",
+                        "message": "Not logged in. Run 'santai login' first.",
+                    }
+                )
+                return
+
+            ignored_files = set(_CLOUD_SENSITIVE)
+            if req.include_env:
+                ignored_files.discard(".env")
+
+            project_name = project.name
+            backend = get_backend_url(creds.get("hub_url", DEFAULT_HUB_URL))
+
+            yield _sse({"type": "status", "message": f"Looking up {project_name}..."})
+
+            base_id = await asyncio.to_thread(
+                resolve_base_id, backend, creds["token"], project_name
+            )
+            if not base_id:
+                yield _sse({"type": "status", "message": f"Creating {project_name}..."})
+                base_id = await asyncio.to_thread(
+                    create_base, backend, creds["token"], project_name
+                )
+                if not base_id:
+                    yield _sse(
+                        {
+                            "type": "error",
+                            "message": f"Failed to create project '{project_name}'.",
+                        }
+                    )
+                    return
+
+            yield _sse({"type": "status", "message": "Packaging..."})
+
+            def build_zip() -> bytes | str:
+                import tempfile as _tmp
+
+                with _tmp.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
+                    tmp_path = Path(tmp.name)
+                try:
+                    with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as zf:
+                        for fp in sorted(project.root.rglob("*")):
+                            if not fp.is_file():
+                                continue
+                            rel = fp.relative_to(project.root)
+                            if any(part in _CLOUD_IGNORED_DIRS for part in rel.parts):
+                                continue
+                            if rel.name in ignored_files:
+                                continue
+                            zf.write(fp, rel)
+                    size = tmp_path.stat().st_size
+                    if size > _CLOUD_MAX_BYTES:
+                        return (
+                            f"Archive is {format_size(size)}, exceeds the 50 MB limit."
+                        )
+                    return tmp_path.read_bytes()
+                finally:
+                    tmp_path.unlink(missing_ok=True)
+
+            result = await asyncio.to_thread(build_zip)
+            if isinstance(result, str):
+                yield _sse({"type": "error", "message": result})
+                return
+
+            zip_bytes: bytes = result
+            yield _sse(
+                {
+                    "type": "status",
+                    "message": f"Uploading ({format_size(len(zip_bytes))})...",
+                }
+            )
+
+            def upload(data: bytes) -> dict | str:
+                boundary = "----SantaiWebUpload"
+                body = b"".join(
+                    [
+                        f"--{boundary}\r\n".encode(),
+                        f'Content-Disposition: form-data; name="file"; filename="{quote(project_name)}.zip"\r\n'.encode(),
+                        b"Content-Type: application/zip\r\n\r\n",
+                        data,
+                        b"\r\n",
+                        f"--{boundary}--\r\n".encode(),
+                    ]
+                )
+                upload_req = urllib.request.Request(
+                    f"{backend}/bases/{base_id}/upload",
+                    data=body,
+                    method="POST",
+                    headers={
+                        "Authorization": f"Bearer {creds['token']}",
+                        "Content-Type": f"multipart/form-data; boundary={boundary}",
+                    },
+                )
+                try:
+                    with urllib.request.urlopen(upload_req, timeout=120) as resp:
+                        return _json.loads(resp.read())
+                except urllib.error.HTTPError as e:
+                    if e.code == 401:
+                        return "Session expired. Run 'santai login' to re-authenticate."
+                    body_text = e.read().decode(errors="replace")
+                    try:
+                        err_data = _json.loads(body_text)
+                        return f"Push failed: {err_data.get('error', body_text)}"
+                    except _json.JSONDecodeError:
+                        return f"Push failed (HTTP {e.code}): {body_text}"
+                except (urllib.error.URLError, TimeoutError):
+                    return "Could not reach the hub. Check your connection."
+
+            upload_result = await asyncio.to_thread(upload, zip_bytes)
+            if isinstance(upload_result, str):
+                yield _sse({"type": "error", "message": upload_result})
+                return
+
+            yield _sse({"type": "done", "version": upload_result.get("version", "?")})
+
+        return StreamingResponse(
+            event_gen(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
+
+    @app.post("/api/cloud/pull")
+    async def cloud_pull(req: CloudPullRequest) -> StreamingResponse:
+        """Pull a project from the cloud into a sibling directory, streaming SSE progress."""
+        import asyncio
+        import json as _json
+        import urllib.error
+        import urllib.request
+        import zipfile
+
+        from santai_cli.commands.auth import DEFAULT_HUB_URL, load_credentials
+        from santai_cli.core.hub import get_backend_url, resolve_base_id
+
+        def _sse(data: dict) -> str:
+            return f"data: {_json.dumps(data)}\n\n"
+
+        async def event_gen():
+            creds = load_credentials()
+            if not creds:
+                yield _sse(
+                    {
+                        "type": "error",
+                        "message": "Not logged in. Run 'santai login' first.",
+                    }
+                )
+                return
+
+            if req.dest:
+                dest_path = (project.root.parent / req.dest).resolve()
+            else:
+                dest_path = (project.root.parent / req.name).resolve()
+
+            if dest_path.exists():
+                yield _sse(
+                    {
+                        "type": "error",
+                        "message": f"'{dest_path.name}' already exists in {dest_path.parent}.",
+                    }
+                )
+                return
+
+            backend = get_backend_url(creds.get("hub_url", DEFAULT_HUB_URL))
+
+            yield _sse({"type": "status", "message": f"Looking up {req.name}..."})
+
+            base_id = await asyncio.to_thread(
+                resolve_base_id, backend, creds["token"], req.name
+            )
+            if not base_id:
+                yield _sse(
+                    {"type": "error", "message": f"Project '{req.name}' not found."}
+                )
+                return
+
+            def get_download_info() -> dict | str:
+                info_req = urllib.request.Request(
+                    f"{backend}/bases/{base_id}/download",
+                    headers={"Authorization": f"Bearer {creds['token']}"},
+                )
+                try:
+                    with urllib.request.urlopen(info_req, timeout=15) as resp:
+                        return _json.loads(resp.read())
+                except urllib.error.HTTPError as e:
+                    if e.code == 401:
+                        return "Session expired. Run 'santai login' to re-authenticate."
+                    if e.code == 404:
+                        return f"Project '{req.name}' not found."
+                    return f"Pull failed (HTTP {e.code})."
+                except (urllib.error.URLError, TimeoutError):
+                    return "Could not reach the hub. Check your connection."
+
+            info = await asyncio.to_thread(get_download_info)
+            if isinstance(info, str):
+                yield _sse({"type": "error", "message": info})
+                return
+
+            download_url = info.get("downloadUrl")
+            if not download_url:
+                yield _sse({"type": "error", "message": "No download URL received."})
+                return
+
+            size = info.get("size", 0)
+            yield _sse(
+                {
+                    "type": "status",
+                    "message": f"Found ({format_size(size)}). Downloading...",
+                }
+            )
+
+            def download_and_extract() -> str | None:
+                import tempfile as _tmp
+
+                with _tmp.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
+                    tmp_path = Path(tmp.name)
+                try:
+                    dl_req = urllib.request.Request(download_url)
+                    with urllib.request.urlopen(dl_req, timeout=120) as resp:
+                        tmp_path.write_bytes(resp.read())
+
+                    dest_path.mkdir(parents=True, exist_ok=True)
+                    with zipfile.ZipFile(tmp_path, "r") as zf:
+                        for member in zf.infolist():
+                            member_path = (dest_path / member.filename).resolve()
+                            try:
+                                member_path.relative_to(dest_path.resolve())
+                            except ValueError:
+                                if dest_path.exists() and not any(dest_path.iterdir()):
+                                    dest_path.rmdir()
+                                return f"Zip contains unsafe path '{member.filename}'."
+                            if member.external_attr >> 28 == 0xA:
+                                if dest_path.exists() and not any(dest_path.iterdir()):
+                                    dest_path.rmdir()
+                                return f"Zip contains symlink '{member.filename}'."
+                        zf.extractall(dest_path)
+                    return None
+                except zipfile.BadZipFile:
+                    if dest_path.exists() and not any(dest_path.iterdir()):
+                        dest_path.rmdir()
+                    return "Downloaded file is not a valid zip."
+                except (urllib.error.URLError, TimeoutError):
+                    if dest_path.exists() and not any(dest_path.iterdir()):
+                        dest_path.rmdir()
+                    return "Download failed. The URL may have expired — try again."
+                finally:
+                    tmp_path.unlink(missing_ok=True)
+
+            yield _sse({"type": "status", "message": "Extracting..."})
+            err = await asyncio.to_thread(download_and_extract)
+            if err:
+                yield _sse({"type": "error", "message": err})
+                return
+
+            yield _sse({"type": "done", "path": str(dest_path)})
+
+        return StreamingResponse(
+            event_gen(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
 
     return app

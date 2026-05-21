@@ -647,6 +647,91 @@
             white-space: nowrap;
         }
 
+        .cloud-section {
+            grid-column: 1 / -1;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            padding-top: 8px;
+            border-top: 1px solid rgba(0,0,0,0.07);
+            margin-top: 2px;
+        }
+
+        .cloud-section-header {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .cloud-btns {
+            display: flex;
+            gap: 6px;
+        }
+
+        .cloud-btns .btn {
+            flex: 1;
+        }
+
+        .cloud-status {
+            font-size: 11px;
+            color: var(--text-muted);
+            min-height: 14px;
+            line-height: 1.4;
+            word-break: break-word;
+        }
+
+        .cloud-status.error { color: #ef4444; }
+        .cloud-status.success { color: var(--accent); }
+
+        .cloud-inline-form {
+            display: none;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .cloud-inline-form.visible { display: flex; }
+
+        .cloud-inline-form input[type="text"] {
+            background: rgba(255,255,255,0.6);
+            border: 1px solid rgba(0,0,0,0.12);
+            border-radius: 8px;
+            padding: 7px 10px;
+            font-size: 12px;
+            color: var(--text-primary);
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .cloud-inline-form input[type="text"]:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .cloud-inline-form label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--text-secondary, var(--text-muted));
+            cursor: pointer;
+        }
+
+        .cloud-form-row {
+            display: flex;
+            gap: 6px;
+        }
+
+        .cloud-form-row .btn {
+            flex: 1;
+            justify-content: center;
+            font-size: 12px;
+        }
+
         .btn {
             background: rgba(255, 255, 255, 0.7);
             border: none;
@@ -3755,6 +3840,50 @@
                             Folder Upload
                         </button>
                     </div>
+                </div>
+                <!-- Cloud sync -->
+                <div class="cloud-section">
+                    <div class="cloud-section-header">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:12px;height:12px;stroke-width:2.5;">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15a4.5 4.5 0 004.5 4.5H18a3.75 3.75 0 001.332-7.257 3 3 0 00-3.758-3.848 5.25 5.25 0 00-10.233 2.33A4.502 4.502 0 002.25 15z" />
+                        </svg>
+                        Cloud
+                    </div>
+                    <div class="cloud-btns">
+                        <button class="btn" id="cloud-push-btn" onclick="cloudPushToggle()" disabled title="Run 'santai login' first">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:15px;height:15px;">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
+                            </svg>
+                            Push
+                        </button>
+                        <button class="btn" id="cloud-pull-btn" onclick="cloudPullToggle()" disabled title="Run 'santai login' first">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:15px;height:15px;">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 01-2.25 2.25M16.5 7.5V18a2.25 2.25 0 002.25 2.25M16.5 7.5V4.875c0-.621-.504-1.125-1.125-1.125H4.5A1.125 1.125 0 003.375 6v12c0 .621.504 1.125 1.125 1.125H5.25M9 8.25v2.25M12 8.25v2.25" />
+                            </svg>
+                            Pull
+                        </button>
+                    </div>
+                    <!-- Push options form -->
+                    <div class="cloud-inline-form" id="cloud-push-form">
+                        <label>
+                            <input type="checkbox" id="cloud-push-include-env">
+                            Include .env file
+                        </label>
+                        <div class="cloud-form-row">
+                            <button class="btn btn-primary" onclick="cloudPushConfirm()">Push</button>
+                            <button class="btn" onclick="cloudPushToggle()">Cancel</button>
+                        </div>
+                    </div>
+                    <!-- Pull name form -->
+                    <div class="cloud-inline-form" id="cloud-pull-form">
+                        <input type="text" id="cloud-pull-name" placeholder="Project name"
+                               onkeydown="if(event.key==='Enter')cloudPullConfirm()">
+                        <div class="cloud-form-row">
+                            <button class="btn btn-primary" onclick="cloudPullConfirm()">Pull</button>
+                            <button class="btn" onclick="cloudPullToggle()">Cancel</button>
+                        </div>
+                    </div>
+                    <span class="cloud-status" id="cloud-status"></span>
                 </div>
             </div>
         </aside>
@@ -8920,6 +9049,152 @@
         setupScrollFade('.tree-container');
         setupScrollFade('.panel-content');
         setupScrollFade('.preview-content');
+
+        // ── Cloud push / pull ────────────────────────────────────────────────
+
+        let _cloudStreaming = false;
+
+        async function initCloudStatus() {
+            try {
+                const res = await fetch('/api/cloud/status');
+                if (!res.ok) return;
+                const data = await res.json();
+                const pushBtn = document.getElementById('cloud-push-btn');
+                const pullBtn = document.getElementById('cloud-pull-btn');
+                if (data.logged_in) {
+                    pushBtn.disabled = false;
+                    pushBtn.title = `Push to cloud${data.username ? ' (' + data.username + ')' : ''}`;
+                    pullBtn.disabled = false;
+                    pullBtn.title = 'Pull a project from cloud';
+                } else {
+                    setCloudStatus("Not logged in — run 'santai login'", 'error');
+                }
+            } catch { /* ignore network errors on status check */ }
+        }
+
+        function setCloudStatus(msg, type) {
+            const el = document.getElementById('cloud-status');
+            if (!el) return;
+            el.textContent = msg;
+            el.className = 'cloud-status' + (type ? ' ' + type : '');
+        }
+
+        function _setCloudBtnsDisabled(disabled) {
+            const pb = document.getElementById('cloud-push-btn');
+            const pu = document.getElementById('cloud-pull-btn');
+            if (pb) pb.disabled = disabled;
+            if (pu) pu.disabled = disabled;
+        }
+
+        function cloudPushToggle() {
+            if (_cloudStreaming) return;
+            const pushForm = document.getElementById('cloud-push-form');
+            const pullForm = document.getElementById('cloud-pull-form');
+            const opening = !pushForm.classList.contains('visible');
+            pullForm.classList.remove('visible');
+            pushForm.classList.toggle('visible', opening);
+            if (opening) setCloudStatus('');
+        }
+
+        function cloudPullToggle() {
+            if (_cloudStreaming) return;
+            const pushForm = document.getElementById('cloud-push-form');
+            const pullForm = document.getElementById('cloud-pull-form');
+            const opening = !pullForm.classList.contains('visible');
+            pushForm.classList.remove('visible');
+            pullForm.classList.toggle('visible', opening);
+            if (opening) {
+                document.getElementById('cloud-pull-name').value = '';
+                setCloudStatus('');
+                setTimeout(() => document.getElementById('cloud-pull-name').focus(), 50);
+            }
+        }
+
+        async function cloudPushConfirm() {
+            if (_cloudStreaming) return;
+            const includeEnv = document.getElementById('cloud-push-include-env').checked;
+            document.getElementById('cloud-push-form').classList.remove('visible');
+            _cloudStreaming = true;
+            _setCloudBtnsDisabled(true);
+            setCloudStatus('Packaging...');
+            try {
+                const response = await fetch('/api/cloud/push', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({include_env: includeEnv}),
+                });
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({}));
+                    setCloudStatus(err.detail || 'Push failed', 'error');
+                    return;
+                }
+                await _readCloudStream(response);
+            } catch {
+                setCloudStatus('Connection error', 'error');
+            } finally {
+                _cloudStreaming = false;
+                _setCloudBtnsDisabled(false);
+            }
+        }
+
+        async function cloudPullConfirm() {
+            if (_cloudStreaming) return;
+            const name = document.getElementById('cloud-pull-name').value.trim();
+            if (!name) { setCloudStatus('Enter a project name', 'error'); return; }
+            document.getElementById('cloud-pull-form').classList.remove('visible');
+            _cloudStreaming = true;
+            _setCloudBtnsDisabled(true);
+            setCloudStatus('Looking up project...');
+            try {
+                const response = await fetch('/api/cloud/pull', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name}),
+                });
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({}));
+                    setCloudStatus(err.detail || 'Pull failed', 'error');
+                    return;
+                }
+                await _readCloudStream(response);
+            } catch {
+                setCloudStatus('Connection error', 'error');
+            } finally {
+                _cloudStreaming = false;
+                _setCloudBtnsDisabled(false);
+            }
+        }
+
+        async function _readCloudStream(response) {
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            while (true) {
+                const {done, value} = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, {stream: true});
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+                for (const line of lines) {
+                    if (!line.startsWith('data: ')) continue;
+                    try {
+                        const data = JSON.parse(line.slice(6));
+                        if (data.type === 'status') {
+                            setCloudStatus(data.message);
+                        } else if (data.type === 'done') {
+                            const msg = data.version !== undefined
+                                ? `✓ Pushed v${data.version}`
+                                : `✓ Pulled to ${data.path}`;
+                            setCloudStatus(msg, 'success');
+                        } else if (data.type === 'error') {
+                            setCloudStatus(data.message, 'error');
+                        }
+                    } catch { /* ignore malformed SSE lines */ }
+                }
+            }
+        }
+
+        initCloudStatus();
     </script>
     <div class="graph-tooltip" id="graph-tooltip"></div>
     <div class="graph-tooltip" id="folder-move-tooltip"></div>
