@@ -683,6 +683,13 @@ def create_app(project: SantaiProject) -> FastAPI:
             "path": str(new_dir.relative_to(root_dir)),
         }
 
+    @app.post("/api/files/mkdirp")
+    async def make_directory_recursive(path: str = Query(...)) -> dict[str, str]:
+        """Create a directory and all parent directories (no-op if it already exists)."""
+        dir_path = safe_path(path)
+        dir_path.mkdir(parents=True, exist_ok=True)
+        return {"path": str(dir_path.relative_to(root_dir))}
+
     @app.post("/api/files/touch")
     async def touch_file(req: TouchRequest) -> dict[str, str]:
         """Create a new empty file."""

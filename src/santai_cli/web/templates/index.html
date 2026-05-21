@@ -5530,6 +5530,7 @@
         // is preserved as the first path segment).
         // _state = { count, capped } shared across recursive calls to enforce the cap.
         async function collectEntryFiles(entry, relPrefix, _state = { count: 0, capped: false }) {
+            if (!_state.emptyDirs) _state.emptyDirs = [];
             const results = [];
             if (_state.capped) return results;
             if (entry.isFile) {
@@ -5542,18 +5543,24 @@
             } else if (entry.isDirectory) {
                 const dirPath = relPrefix + entry.name + '/';
                 const reader = entry.createReader();
-                // readEntries may return results in batches — keep calling until empty.
+                // Collect ALL children across batches first so we can detect empty dirs.
+                const allChildren = [];
                 let batch;
                 do {
                     batch = await new Promise((resolve, reject) =>
                         reader.readEntries(resolve, reject)
                     );
-                    for (const child of batch) {
+                    allChildren.push(...batch);
+                } while (batch.length > 0);
+                if (allChildren.length === 0) {
+                    _state.emptyDirs.push(dirPath);
+                } else {
+                    for (const child of allChildren) {
                         if (_state.capped) break;
                         const children = await collectEntryFiles(child, dirPath, _state);
                         results.push(...children);
                     }
-                } while (batch.length > 0 && !_state.capped);
+                }
             }
             return results;
         }
@@ -5599,6 +5606,7 @@
             let droppedIsFolder = false; // true if the dropped item was a directory
 
             for (const entry of entries) {
+                dropState.emptyDirs = []; // reset per-entry so we can apply the right prefix
                 const collected = await collectEntryFiles(entry, '', dropState);
 
                 if (smartSort && entry.isFile) {
@@ -5640,6 +5648,10 @@
                             succeeded++;
                         } catch(err) { failed++; showToast(err.message, true); }
                     }
+                    for (const emptyDir of dropState.emptyDirs) {
+                        const mkPath = (baseDir ? `${baseDir}/` : '') + emptyDir.replace(/\/$/, '');
+                        try { await fetch(`/api/files/mkdirp?path=${encodeURIComponent(mkPath)}`, { method: 'POST' }); } catch {}
+                    }
                     if (smartFolderPath) {
                         sortedPlacements.push({ name: folderName + '/', dest: smartFolderPath + '/' });
                         firstSuccessPath = firstSuccessPath || smartFolderPath;
@@ -5663,6 +5675,12 @@
                                     : (relPath || file.name);
                             }
                         } catch(err) { failed++; showToast(err.message, true); }
+                    }
+                    for (const emptyDir of dropState.emptyDirs) {
+                        const mkPath = targetFolder
+                            ? `${targetFolder}/${emptyDir.replace(/\/$/, '')}`
+                            : emptyDir.replace(/\/$/, '');
+                        try { await fetch(`/api/files/mkdirp?path=${encodeURIComponent(mkPath)}`, { method: 'POST' }); } catch {}
                     }
                 }
             }
