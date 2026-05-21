@@ -1737,6 +1737,12 @@ def create_app(project: SantaiProject) -> FastAPI:
                             if member.external_attr >> 28 == 0xA:
                                 return f"Zip contains symlink '{member.filename}'."
                             plan.append((member, target))
+                        # Preserve sensitive local files that are never pushed
+                        preserved: dict[Path, bytes] = {}
+                        for fname in _CLOUD_SENSITIVE:
+                            p = dest_path / fname
+                            if p.is_file():
+                                preserved[p] = p.read_bytes()
                         # Clear existing contents so files absent from the cloud are removed
                         for item in dest_path.iterdir():
                             if item.is_dir():
@@ -1747,6 +1753,9 @@ def create_app(project: SantaiProject) -> FastAPI:
                         for member, target in plan:
                             target.parent.mkdir(parents=True, exist_ok=True)
                             target.write_bytes(zf.read(member))
+                        # Restore preserved files
+                        for p, data in preserved.items():
+                            p.write_bytes(data)
                     return None
                 except zipfile.BadZipFile:
                     return "Downloaded file is not a valid zip."
