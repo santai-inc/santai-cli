@@ -5404,59 +5404,37 @@
             const capped = files.length > _MAX_UPLOAD_FILES;
             const batch = capped ? files.slice(0, _MAX_UPLOAD_FILES) : files;
 
-            if (currentPath === '') {
-                // Smart sort: classify the folder as a unit then route everything under the chosen base dir
-                const folderName = batch[0]?.webkitRelativePath.split('/')[0] || '';
-                const sampleNames = batch.slice(0, 30).map(f => f.name).join(', ');
-                const smartFolderPath = await callSmartPlace(folderName, `Folder containing: ${sampleNames}`);
-                const baseDir = smartFolderPath ? smartFolderPath.split('/')[0] : '';
+            // Always smart sort — the button is not a folder-specific drop target.
+            const folderName = batch[0]?.webkitRelativePath.split('/')[0] || '';
+            const sampleNames = batch.slice(0, 30).map(f => f.name).join(', ');
+            const smartFolderPath = await callSmartPlace(folderName, `Folder containing: ${sampleNames}`);
+            const baseDir = smartFolderPath ? smartFolderPath.split('/')[0] : '';
 
-                const results = await Promise.allSettled(batch.map(file => {
-                    const relPath = file.webkitRelativePath;
-                    const uploadPath = baseDir ? `${baseDir}/${relPath}` : relPath;
-                    const formData = new FormData();
-                    formData.append('file', file);
-                    return fetch(
-                        `/api/files?path=&relative_path=${encodeURIComponent(uploadPath)}`,
-                        { method: 'POST', body: formData }
-                    ).then(async res => {
-                        if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
-                    });
-                }));
+            const results = await Promise.allSettled(batch.map(file => {
+                const relPath = file.webkitRelativePath;
+                const uploadPath = baseDir ? `${baseDir}/${relPath}` : relPath;
+                const formData = new FormData();
+                formData.append('file', file);
+                return fetch(
+                    `/api/files?path=&relative_path=${encodeURIComponent(uploadPath)}`,
+                    { method: 'POST', body: formData }
+                ).then(async res => {
+                    if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
+                });
+            }));
 
-                const succeeded = results.filter(r => r.status === 'fulfilled').length;
-                const failed = results.filter(r => r.status === 'rejected').length;
-                const dest = smartFolderPath ? smartFolderPath + '/' : folderName + '/';
-                if (succeeded > 0) showToast(`Uploaded ${folderName}/ → ${dest}`);
-                if (failed > 0) showToast(`${failed} file${failed !== 1 ? 's' : ''} failed`, true);
-                if (capped) showToast(`Folder too large — only first ${_MAX_UPLOAD_FILES} files uploaded`, true);
-                if (smartFolderPath) appendSortNotification([{ name: folderName + '/', dest }]);
-            } else {
-                // Non-root: respect the user's chosen folder
-                const results = await Promise.allSettled(batch.map(file => {
-                    const relPath = file.webkitRelativePath;
-                    const formData = new FormData();
-                    formData.append('file', file);
-                    const url = relPath
-                        ? `/api/files?path=${encodeURIComponent(currentPath)}&relative_path=${encodeURIComponent(relPath)}`
-                        : `/api/files?path=${encodeURIComponent(currentPath)}`;
-                    return fetch(url, { method: 'POST', body: formData }).then(async res => {
-                        if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
-                    });
-                }));
-                const succeeded = results.filter(r => r.status === 'fulfilled').length;
-                const failed = results.filter(r => r.status === 'rejected').length;
-                if (succeeded > 0) showToast(`Uploaded ${succeeded} file${succeeded !== 1 ? 's' : ''}`);
-                if (failed > 0) showToast(`${failed} file${failed !== 1 ? 's' : ''} failed`, true);
-                if (capped) showToast(`Folder too large — only first ${_MAX_UPLOAD_FILES} files uploaded`, true);
-            }
+            const succeeded = results.filter(r => r.status === 'fulfilled').length;
+            const failed = results.filter(r => r.status === 'rejected').length;
+            const dest = smartFolderPath ? smartFolderPath + '/' : folderName + '/';
+            if (succeeded > 0) showToast(`Uploaded ${succeeded} file${succeeded !== 1 ? 's' : ''}`);
+            if (failed > 0) showToast(`${failed} file${failed !== 1 ? 's' : ''} failed`, true);
+            if (capped) showToast(`Folder too large — only first ${_MAX_UPLOAD_FILES} files uploaded`, true);
+            if (smartFolderPath) appendSortNotification([{ name: folderName + '/', dest }]);
 
             loadFiles(currentPath);
             await loadTree();
             // Reveal the uploaded folder in the tree (no file preview — it's a directory).
-            const revealFolder = currentPath === ''
-                ? (smartFolderPath || folderName)
-                : (currentPath ? `${currentPath}/${folderName}` : folderName);
+            const revealFolder = smartFolderPath || folderName;
             revealInTree(revealFolder);
         }
 
@@ -5519,19 +5497,15 @@
             const placements = [];
             let lastUploadedPath = null;
             let succeeded = 0, failed = 0;
+            // Always smart sort — the button is not a folder-specific drop target.
             for (const file of files) {
                 try {
-                    if (currentPath === '') {
-                        const preview = await readTextPreview(file);
-                        const smartPath = await callSmartPlace(file.name, preview);
-                        await uploadFile(file, smartPath);
-                        if (smartPath) {
-                            placements.push({ name: file.name, dest: smartPath });
-                            lastUploadedPath = smartPath;
-                        }
-                    } else {
-                        await uploadFile(file);
-                        lastUploadedPath = currentPath ? `${currentPath}/${file.name}` : file.name;
+                    const preview = await readTextPreview(file);
+                    const smartPath = await callSmartPlace(file.name, preview);
+                    await uploadFile(file, smartPath);
+                    if (smartPath) {
+                        placements.push({ name: file.name, dest: smartPath });
+                        lastUploadedPath = smartPath;
                     }
                     succeeded++;
                 } catch (err) {
