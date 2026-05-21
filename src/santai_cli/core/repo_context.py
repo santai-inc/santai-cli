@@ -60,7 +60,7 @@ def _build_file_tree(root: Path, max_depth: int = 4) -> str:
 
 
 def _get_media_summary(project: SantaiProject) -> str:
-    """Get a summary of resources files and recent notes in the project."""
+    """Get a summary of media files in the project."""
     summary_parts = []
 
     media_path = project.media_path
@@ -143,7 +143,7 @@ def build_repo_context_prompt(context: RepoContext) -> str:
             "## Important Guidelines",
             "- IMPORTANT: Call at least one tool per turn. If you have nothing to look up or write, call answer() directly.",
             "- IMPORTANT: Use answer() to deliver your response. Call it once, after all other operations are complete.",
-            "- IMPORTANT: For ANY content you generate (haiku, poem, story, list, summary, code, plan, etc.): ALWAYS call write_file() first to save it under notes/, then call answer() with the content and a brief note that it was saved.",
+            "- IMPORTANT: For substantial content you create at the user's request (poems, stories, code, multi-paragraph summaries, plans, research notes): ALWAYS call write_file() first to save it under notes/, then call answer() with the content and a brief note that it was saved. Short answers, factual responses, and conversational replies do NOT need to be written to a file.",
             "- You can see the file tree above, but you do NOT have the file contents in context.",
             "- IMPORTANT: Whenever a user asks a question that could be answered by a file in this project (notes/, media/, history/, or any other file), you MUST call read_file to read the relevant file(s) before answering. Never answer knowledge-base questions from memory — always fetch fresh content with the tool.",
             "- If multiple files might be relevant, read each one before responding.",

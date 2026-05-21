@@ -37,7 +37,7 @@ Santai projects manage context through three core directories:
 - Notes should have a clear title (H1 heading or first line)
 - Flag stale notes that haven't been updated in a long time
 
-### Notes Quality
+### Notes Substance
 - Notes entries should be substantive (not empty or placeholder content)
 - Cross-references between files should resolve correctly
 - Key project knowledge should be clearly stated, not buried in prose

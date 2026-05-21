@@ -349,7 +349,12 @@ async def _suggest_file_placement(
                 else:
                     continue
 
-                parsed = _json.loads(text)
+                # Models sometimes wrap the JSON in a ```json fence or prepend text.
+                # Pull out the first {...} object before parsing.
+                m = re.search(r"\{.*\}", text, re.DOTALL)
+                if not m:
+                    continue
+                parsed = _json.loads(m.group())
                 path = parsed.get("path", "")
                 if (
                     isinstance(path, str)
