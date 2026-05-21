@@ -5395,9 +5395,10 @@
         }
 
         const _MAX_UPLOAD_FILES = 500;
+        const _IGNORED_FILENAMES = new Set(['.DS_Store', 'Thumbs.db', 'desktop.ini', '.localized']);
 
         async function handleFolderSelect(event) {
-            const files = Array.from(event.target.files);
+            const files = Array.from(event.target.files).filter(f => !_IGNORED_FILENAMES.has(f.name));
             event.target.value = '';
             if (files.length === 0) return;
             const capped = files.length > _MAX_UPLOAD_FILES;
@@ -5533,6 +5534,7 @@
             const results = [];
             if (_state.capped) return results;
             if (entry.isFile) {
+                if (_IGNORED_FILENAMES.has(entry.name)) return results;
                 if (_state.count >= _MAX_UPLOAD_FILES) { _state.capped = true; return results; }
                 await new Promise(resolve => entry.file(f => {
                     _state.count++;
