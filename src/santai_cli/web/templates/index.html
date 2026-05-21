@@ -670,12 +670,34 @@
             white-space: nowrap;
         }
 
+        #cloud-push-btn {
+            background: var(--accent);
+            color: white;
+            box-shadow: 0 2px 8px rgba(62, 180, 137, 0.3);
+        }
+
+        #cloud-push-btn:hover {
+            background: var(--accent-hover);
+            box-shadow: 0 4px 12px rgba(62, 180, 137, 0.4);
+        }
+
+        #cloud-pull-btn {
+            background: rgba(0, 0, 0, 0.06);
+        }
+
+        #cloud-pull-btn:hover {
+            background: rgba(0, 0, 0, 0.1);
+        }
+
         .cloud-status {
             font-size: 11px;
             color: var(--text-muted);
-            min-height: 14px;
             line-height: 1.4;
             word-break: break-word;
+        }
+
+        .cloud-status:empty {
+            display: none;
         }
 
         .cloud-status.error { color: #ef4444; }
