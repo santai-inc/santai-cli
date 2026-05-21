@@ -1,5 +1,6 @@
 """Project detection and data loading for Santai projects."""
 
+import contextlib
 import math
 import re
 from collections import Counter
@@ -509,7 +510,8 @@ _STOP_WORDS = frozenset(
 )
 
 _MARKDOWN_STRIP = re.compile(
-    r"```.*?```|`[^`]+`|\[([^\]]+)\]\([^)]+\)|\[\[([^\]|]+)(?:\|[^\]]+)?\]\]|#{1,6} |[*_~]",
+    r"```.*?```|`[^`]+`|\[([^\]]+)\]\([^)]+\)"
+    r"|\[\[([^\]|]+)(?:\|[^\]]+)?\]\]|#{1,6} |[*_~]",
     re.DOTALL,
 )
 
@@ -664,10 +666,8 @@ def _add_file_to_graph(
         file_map[file_id] = file_path
 
         if file_path.suffix.lower() in text_extensions:
-            try:
+            with contextlib.suppress(UnicodeDecodeError):
                 file_contents[file_id] = file_path.read_text(encoding="utf-8")
-            except UnicodeDecodeError:
-                pass
 
     except (OSError, ValueError):
         pass
