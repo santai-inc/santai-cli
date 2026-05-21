@@ -9144,9 +9144,8 @@
                             setCloudStatus(data.message);
                         } else if (data.type === 'done') {
                             if (data.pulled) {
+                                await Promise.all([refreshTree(), refreshFiles()]);
                                 setCloudStatus('Successfully pulled from cloud.', 'success');
-                                refreshTree();
-                                refreshFiles();
                             } else {
                                 setCloudStatus('Successfully saved to the cloud.', 'success');
                             }
