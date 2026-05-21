@@ -5483,7 +5483,9 @@
         function appendSortNotification(placements) {
             if (!placements.length) return;
             const n = placements.length;
-            const label = n === 1 ? 'Uploaded 1 file:' : `Uploaded ${n} files:`;
+            const label = n === 1
+                ? `Uploaded 1 ${placements[0].name.endsWith('/') ? 'folder' : 'file'}:`
+                : `Uploaded ${n} items:`;
             // Escape markdown special chars in paths so a filename like
             // "[evil](javascript:...)" can't become a clickable link.
             const escapeMd = s => s.replace(/[[\]()]/g, '\\$&');
@@ -5636,6 +5638,7 @@
                     const sampleNames = collected.slice(0, 30).map(({ file: f }) => f.name).join(', ');
                     const smartFolderPath = await callSmartPlace(folderName, `Folder containing: ${sampleNames}`);
                     const baseDir = smartFolderPath ? smartFolderPath.split('/')[0] : '';
+                    const prevSucceeded = succeeded;
                     for (const { file, relPath } of collected) {
                         const uploadPath = baseDir ? `${baseDir}/${relPath}` : relPath;
                         try {
@@ -5649,11 +5652,16 @@
                             succeeded++;
                         } catch(err) { failed++; showToast(err.message, true); }
                     }
+                    let emptyDirsCreated = 0;
                     for (const emptyDir of dropState.emptyDirs) {
                         const mkPath = (baseDir ? `${baseDir}/` : '') + emptyDir.replace(/\/$/, '');
-                        try { await fetch(`/api/files/mkdirp?path=${encodeURIComponent(mkPath)}`, { method: 'POST' }); } catch {}
+                        try {
+                            const r = await fetch(`/api/files/mkdirp?path=${encodeURIComponent(mkPath)}`, { method: 'POST' });
+                            const data = await r.json();
+                            if (data.created) emptyDirsCreated++;
+                        } catch {}
                     }
-                    if (smartFolderPath) {
+                    if (smartFolderPath && (succeeded > prevSucceeded || emptyDirsCreated > 0)) {
                         sortedPlacements.push({ name: folderName + '/', dest: smartFolderPath + '/' });
                         firstSuccessPath = firstSuccessPath || smartFolderPath;
                     }
@@ -5681,7 +5689,11 @@
                         const mkPath = targetFolder
                             ? `${targetFolder}/${emptyDir.replace(/\/$/, '')}`
                             : emptyDir.replace(/\/$/, '');
-                        try { await fetch(`/api/files/mkdirp?path=${encodeURIComponent(mkPath)}`, { method: 'POST' }); } catch {}
+                        try {
+                            const r = await fetch(`/api/files/mkdirp?path=${encodeURIComponent(mkPath)}`, { method: 'POST' });
+                            const data = await r.json();
+                            if (data.created && !firstSuccessPath) firstSuccessPath = mkPath;
+                        } catch {}
                     }
                 }
             }
