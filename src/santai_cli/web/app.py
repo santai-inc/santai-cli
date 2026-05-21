@@ -18,6 +18,7 @@ from pydantic import BaseModel
 
 from santai_cli.core.project import (
     MARKDOWN_LINK_PATTERN,
+    SANTAI_FOLDER_DESCRIPTIONS,
     WIKILINK_PATTERN,
     SantaiProject,
     get_directory_stats,
@@ -275,10 +276,8 @@ _MEDIA_EXTS: frozenset[str] = frozenset(
 
 _SMART_PLACE_ALLOWED = re.compile(r"^(notes|media|history)/[^/]")
 
-_SMART_PLACE_FOLDER_LIST = (
-    "- notes/ → personal notes, summaries, AI research, documentation, how-to guides, tutorials, reference pages\n"
-    "- media/ → media files, images, audio, video, PDFs, templates, archives, binary files\n"
-    "- history/ → logs, changelogs, versioned records"
+_SMART_PLACE_FOLDER_LIST = "\n".join(
+    f"- {folder}/ → {desc}" for folder, desc in SANTAI_FOLDER_DESCRIPTIONS.items()
 )
 
 

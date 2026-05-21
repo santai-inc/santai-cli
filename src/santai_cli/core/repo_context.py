@@ -8,7 +8,7 @@ of all files and content in the repository.
 from dataclasses import dataclass
 from pathlib import Path
 
-from santai_cli.core.project import SantaiProject
+from santai_cli.core.project import SANTAI_FOLDER_DESCRIPTIONS, SantaiProject
 
 
 @dataclass
@@ -130,9 +130,9 @@ def build_repo_context_prompt(context: RepoContext) -> str:
             "",
             "## File Organization",
             "This project organizes files into three knowledge-base folders:",
-            "- **notes/** — personal notes, summaries, AI research, documentation, how-to guides, tutorials, reference pages",
-            "- **media/** — media files, images, audio, video, PDFs, templates, archives, binary data",
-            "- **history/** — logs, changelogs, versioned records (use `YYYY-MM-DD-brief-description.md` format)",
+            f"- **notes/** — {SANTAI_FOLDER_DESCRIPTIONS['notes']}",
+            f"- **media/** — {SANTAI_FOLDER_DESCRIPTIONS['media']}",
+            f"- **history/** — {SANTAI_FOLDER_DESCRIPTIONS['history']} (use `YYYY-MM-DD-brief-description.md` format)",
             "",
             "**When writing files:**",
             "- Always place files under one of these three folders (e.g. `notes/my-summary.md`, not just `my-summary.md`)",
@@ -141,8 +141,8 @@ def build_repo_context_prompt(context: RepoContext) -> str:
             "- Keep the original extension when moving or referencing existing files",
             "",
             "## Important Guidelines",
-            "- IMPORTANT: You MUST call at least one tool every turn. Never respond with plain text alone.",
-            "- IMPORTANT: Use answer() to deliver text to the user — it is the ONLY way your response reaches them. Call it once, after all other operations are complete.",
+            "- IMPORTANT: Call at least one tool per turn. If you have nothing to look up or write, call answer() directly.",
+            "- IMPORTANT: Use answer() to deliver your response. Call it once, after all other operations are complete.",
             "- IMPORTANT: For ANY content you generate (haiku, poem, story, list, summary, code, plan, etc.): ALWAYS call write_file() first to save it under notes/, then call answer() with the content and a brief note that it was saved.",
             "- You can see the file tree above, but you do NOT have the file contents in context.",
             "- IMPORTANT: Whenever a user asks a question that could be answered by a file in this project (notes/, media/, history/, or any other file), you MUST call read_file to read the relevant file(s) before answering. Never answer knowledge-base questions from memory — always fetch fresh content with the tool.",

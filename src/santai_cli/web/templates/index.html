@@ -5501,7 +5501,10 @@
             if (!placements.length) return;
             const n = placements.length;
             const label = n === 1 ? 'Uploaded 1 file:' : `Uploaded ${n} files:`;
-            const lines = placements.map(p => `- ${p.dest}`);
+            // Escape markdown special chars in paths so a filename like
+            // "[evil](javascript:...)" can't become a clickable link.
+            const escapeMd = s => s.replace(/[[\]()]/g, '\\$&');
+            const lines = placements.map(p => `- ${escapeMd(p.dest)}`);
             const md = `${label}\n\n${lines.join('\n')}`;
             appendChatMessage('assistant', md);
         }

@@ -7,10 +7,13 @@ Web interfaces.
 
 import asyncio
 import json
+import logging
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 import anthropic
 import openai
@@ -528,7 +531,13 @@ async def _stream_openai_with_tools(
         stream = await client.chat.completions.create(**create_kwargs)  # type: ignore[arg-type]
     except Exception:
         # Some providers reject forced tool_choice — retry without it.
-        create_kwargs.pop("tool_choice", None)
+        dropped = create_kwargs.pop("tool_choice", None)
+        if dropped:
+            logger.warning(
+                "Provider rejected tool_choice=%r for model %s; retrying without constraint",
+                dropped,
+                model,
+            )
         stream = await client.chat.completions.create(**create_kwargs)  # type: ignore[arg-type]
 
     async for chunk in stream:
