@@ -3810,13 +3810,13 @@
                 <div class="cloud-sync" id="cloud-bar">
                     <div class="cloud-sync-btns">
                         <button class="btn" id="cloud-push-btn" onclick="cloudPushStart()">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:13px;height:13px;flex-shrink:0;">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:17px;height:17px;flex-shrink:0;display:block;">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
                             </svg>
                             Push to Cloud
                         </button>
                         <button class="btn" id="cloud-pull-btn" onclick="cloudPullStart()">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:13px;height:13px;flex-shrink:0;">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:17px;height:17px;flex-shrink:0;display:block;">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 7.5V14.25m0 0l-3-3m3 3l3-3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
                             </svg>
                             Pull from Cloud
@@ -9142,7 +9142,7 @@
                         if (data.type === 'status') {
                             setCloudStatus(data.message);
                         } else if (data.type === 'done') {
-                            setCloudStatus('Successfully saved to the cloud', 'success');
+                            setCloudStatus('Successfully saved to the cloud.', 'success');
                             setTimeout(() => setCloudStatus(''), 4000);
                         } else if (data.type === 'error') {
                             setCloudStatus(data.message, 'error');
