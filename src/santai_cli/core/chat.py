@@ -798,7 +798,8 @@ async def get_response(
     """
     chunks: list[str] = []
     async for chunk in stream_response(session, provider, provider_config, model):
-        chunks.append(chunk)
+        if isinstance(chunk, str):
+            chunks.append(chunk)
     return "".join(chunks)
 
 

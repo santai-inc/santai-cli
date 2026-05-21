@@ -59,7 +59,7 @@ def _build_file_tree(root: Path, max_depth: int = 4) -> str:
     return "\n".join(lines)
 
 
-def _get_resources_summary(project: SantaiProject) -> str:
+def _get_media_summary(project: SantaiProject) -> str:
     """Get a summary of resources files and recent notes in the project."""
     summary_parts = []
 
@@ -74,7 +74,7 @@ def _get_resources_summary(project: SantaiProject) -> str:
     if not summary_parts:
         return ""
 
-    return f"## Media & Resources\n\n{'=' * 40}\n\n" + "\n".join(summary_parts)
+    return f"## Media\n\n{'=' * 40}\n\n" + "\n".join(summary_parts)
 
 
 def build_repo_context(project: SantaiProject) -> RepoContext:
@@ -94,7 +94,7 @@ def build_repo_context(project: SantaiProject) -> RepoContext:
     return RepoContext(
         project=project,
         file_tree=_build_file_tree(project.root),
-        media_summary=_get_resources_summary(project),
+        media_summary=_get_media_summary(project),
     )
 
 

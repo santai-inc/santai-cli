@@ -50,7 +50,7 @@ history/ and notes/ to identify knowledge that should be captured..."
 ## Why This Works
 
 - **Direct use**: No code generation, just reference the markdown file
-- **Santai-aware**: Each agent understands the notes/resources/history directory structure
+- **Santai-aware**: Each agent understands the notes/media/history directory structure
 - **Composable**: Chain agents together (research -> documentation -> notes)
 - **Consistent**: Same agent definitions work across tools
 

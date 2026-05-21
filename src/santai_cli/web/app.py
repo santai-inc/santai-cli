@@ -273,11 +273,11 @@ _MEDIA_EXTS: frozenset[str] = frozenset(
     }
 )
 
-_SMART_PLACE_ALLOWED = re.compile(r"^(notes|resources|history)/[^/]")
+_SMART_PLACE_ALLOWED = re.compile(r"^(notes|media|history)/[^/]")
 
 _SMART_PLACE_FOLDER_LIST = (
     "- notes/ → personal notes, summaries, AI research, documentation, how-to guides, tutorials, reference pages\n"
-    "- resources/ → media, images, audio, video, PDFs, templates, archives, binary files\n"
+    "- media/ → media files, images, audio, video, PDFs, templates, archives, binary files\n"
     "- history/ → logs, changelogs, versioned records"
 )
 
@@ -287,7 +287,7 @@ async def _suggest_file_placement(
     content: str,
     project_root: Path,
 ) -> dict[str, str]:
-    """AI-driven file placement into notes/, resources/, or history/."""
+    """AI-driven file placement into notes/, media/, or history/."""
     import json as _json
 
     from santai_cli.core.config import load_config
@@ -364,15 +364,17 @@ async def _suggest_file_placement(
                             else ""
                         )
                         if suggested_ext != ext:
-                            path = re.sub(r"\.[^.]+$", f".{ext}", path)
+                            new_path, n = re.subn(r"\.[^.]+$", f".{ext}", path)
+                            path = new_path if n else f"{path}.{ext}"
                     return {"path": path, "reasoning": parsed.get("reasoning", "")}
             except Exception:
                 continue
 
     if ext in _MEDIA_EXTS:
-        return {"path": f"resources/{slug}", "reasoning": "Media file"}
+        return {"path": f"media/{slug}", "reasoning": "Media file"}
     if is_folder:
-        # Scan the file manifest to detect media-dominant folders
+        # Scan the file manifest to detect media-dominant folders.
+        # Empty manifests fall through to the notes/ default.
         manifest_text = content.replace("Folder containing:", "").strip()
         names = [n.strip() for n in manifest_text.split(",") if n.strip()]
         if names:
@@ -383,7 +385,7 @@ async def _suggest_file_placement(
             )
             if media_count / len(names) > 0.5:
                 return {
-                    "path": f"resources/{slug}",
+                    "path": f"media/{slug}",
                     "reasoning": "Folder containing mostly media files",
                 }
     return {"path": f"notes/{slug}", "reasoning": "Default to notes"}
@@ -607,9 +609,10 @@ def create_app(project: SantaiProject) -> FastAPI:
             file_path.parent.mkdir(parents=True, exist_ok=True)
         else:
             file_path = target_dir / file.filename
-            if file_path.exists():
-                raise HTTPException(status_code=409, detail="File already exists")
             safe_path(str(file_path.relative_to(root_dir)))
+
+        if file_path.exists():
+            raise HTTPException(status_code=409, detail="File already exists")
 
         with open(file_path, "wb") as f:
             content = await file.read()
