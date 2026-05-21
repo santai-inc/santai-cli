@@ -163,12 +163,24 @@ A Santai project contains these directories:
 ```bash
 uv sync --group dev
 uv run santai --help
-ruff format .
-ruff check --fix .
 
 # Serve documentation locally
 uv run mkdocs serve
 ```
+
+### Linting, formatting, and type checking
+
+Run these from the repo root before opening a PR:
+
+```bash
+uv run ruff format .          # Format code
+uv run ruff check --fix .     # Lint with auto-fix
+uv run ty check src/          # Type check
+```
+
+To check formatting without applying changes (e.g. in CI), use `uv run ruff format --check .`.
+
+Pre-commit hooks (via [prek](https://prek.j178.dev/)) also run `ruff format` on commit.
 
 ### Source Layout
 
