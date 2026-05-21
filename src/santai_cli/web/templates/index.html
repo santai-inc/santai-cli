@@ -647,84 +647,22 @@
             white-space: nowrap;
         }
 
-        .cloud-section {
-            grid-column: 1 / -1;
+        .cloud-bar {
             display: flex;
             flex-direction: column;
             gap: 6px;
-            padding-top: 8px;
-            border-top: 1px solid rgba(0,0,0,0.07);
-            margin-top: 2px;
         }
 
-        .cloud-split {
-            position: relative;
+        .cloud-bar-row {
             display: flex;
-            gap: 1px;
+            gap: 6px;
         }
 
-        .cloud-split .cloud-main {
+        .cloud-bar-row .btn {
             flex: 1;
-            border-radius: 12px 0 0 12px;
             justify-content: center;
-            transition: border-radius 0.1s;
-        }
-
-        .cloud-split .cloud-caret {
-            padding: 10px 10px;
-            border-radius: 0 12px 12px 0;
-            border-left: 1px solid rgba(0,0,0,0.08);
-            transition: border-radius 0.1s;
-        }
-
-        .cloud-split .cloud-caret svg {
-            transition: transform 0.2s ease;
-        }
-
-        .cloud-split:has(.cloud-popup.open) .cloud-caret {
-            border-radius: 0 0 12px 0;
-        }
-
-        .cloud-split:has(.cloud-popup.open) .cloud-caret svg {
-            transform: rotate(180deg);
-        }
-
-        .cloud-popup {
-            display: none;
-            position: absolute;
-            bottom: 100%;
-            right: 0;
-            background: rgba(255, 255, 255, 0.7);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(0, 0, 0, 0.08);
-            border-bottom: none;
-            border-radius: 12px 12px 0 12px;
-            box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08);
-            overflow: hidden;
-            z-index: 200;
-            width: max-content;
-        }
-
-        .cloud-popup.open {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .cloud-popup button {
-            display: flex;
-            align-items: center;
-            gap: 3px;
-            padding: 16px 8px 16px 9px;
-            background: none;
-            border: none;
-            font-size: 13px;
-            color: #333;
-            cursor: pointer;
-            white-space: nowrap;
-        }
-
-        .cloud-popup button:hover {
-            background: rgba(0, 0, 0, 0.05);
+            font-size: 12px;
+            gap: 5px;
         }
 
         .cloud-status {
@@ -3828,6 +3766,33 @@
                 <h1 onclick="showDashboard()" style="cursor: pointer;">Santai</h1>
             </div>
 
+            <!-- Cloud sync -->
+            <div class="cloud-bar">
+                <div class="cloud-bar-row">
+                    <button class="btn" id="cloud-push-btn" onclick="cloudPushStart()" disabled title="Run 'santai login' first">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:15px;height:15px;">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
+                        </svg>
+                        Push to Cloud
+                    </button>
+                    <button class="btn" id="cloud-pull-btn" onclick="cloudPullStart()" disabled title="Run 'santai login' first">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:15px;height:15px;">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 7.5V14.25m0 0l-3-3m3 3l3-3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
+                        </svg>
+                        Pull from Cloud
+                    </button>
+                </div>
+                <div class="cloud-inline-form" id="cloud-pull-form">
+                    <input type="text" id="cloud-pull-name" placeholder="Project name"
+                           onkeydown="if(event.key==='Enter')cloudPullConfirm()">
+                    <div class="cloud-form-row">
+                        <button class="btn btn-primary" onclick="cloudPullConfirm()">Pull</button>
+                        <button class="btn" onclick="cloudPullFormClose()">Cancel</button>
+                    </div>
+                </div>
+                <span class="cloud-status" id="cloud-status"></span>
+            </div>
+
             <!-- Tree View -->
             <div class="sidebar-section tree-container">
                 <div class="tree-search">
@@ -3881,39 +3846,6 @@
                             Folder Upload
                         </button>
                     </div>
-                </div>
-                <!-- Cloud sync -->
-                <div class="cloud-section">
-                    <div class="cloud-split" id="cloud-split">
-                        <button class="btn cloud-main" id="cloud-push-btn" onclick="cloudPushStart()" disabled title="Run 'santai login' first">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:16px;height:16px;">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
-                            </svg>
-                            Push to Cloud
-                        </button>
-                        <button class="btn cloud-caret" id="cloud-caret-btn" onclick="toggleCloudMenu(event)" disabled title="More cloud options">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:14px;height:14px;">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
-                            </svg>
-                        </button>
-                        <div class="cloud-popup" id="cloud-popup">
-                            <button onclick="cloudPullStart()">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:16px;height:16px;margin-left:-1px;">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 7.5V14.25m0 0l-3-3m3 3l3-3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
-                                </svg>
-                                Pull from Cloud
-                            </button>
-                        </div>
-                    </div>
-                    <div class="cloud-inline-form" id="cloud-pull-form">
-                        <input type="text" id="cloud-pull-name" placeholder="Project name"
-                               onkeydown="if(event.key==='Enter')cloudPullConfirm()">
-                        <div class="cloud-form-row">
-                            <button class="btn btn-primary" onclick="cloudPullConfirm()">Pull</button>
-                            <button class="btn" onclick="cloudPullFormClose()">Cancel</button>
-                        </div>
-                    </div>
-                    <span class="cloud-status" id="cloud-status"></span>
                 </div>
             </div>
         </aside>
@@ -9091,9 +9023,9 @@
                 const data = await res.json();
                 if (data.logged_in) {
                     const pushBtn = document.getElementById('cloud-push-btn');
-                    const caretBtn = document.getElementById('cloud-caret-btn');
+                    const pullBtn = document.getElementById('cloud-pull-btn');
                     if (pushBtn) { pushBtn.disabled = false; pushBtn.title = `Push to cloud${data.username ? ' (' + data.username + ')' : ''}`; }
-                    if (caretBtn) { caretBtn.disabled = false; caretBtn.title = 'More cloud options'; }
+                    if (pullBtn) { pullBtn.disabled = false; pullBtn.title = 'Pull a project from cloud'; }
                 } else {
                     setCloudStatus("Not logged in — run 'santai login'", 'error');
                 }
@@ -9109,25 +9041,10 @@
 
         function _setCloudBtnsDisabled(disabled) {
             const pb = document.getElementById('cloud-push-btn');
-            const pc = document.getElementById('cloud-caret-btn');
+            const pu = document.getElementById('cloud-pull-btn');
             if (pb) pb.disabled = disabled;
-            if (pc) pc.disabled = disabled;
+            if (pu) pu.disabled = disabled;
         }
-
-        function toggleCloudMenu(e) {
-            e.stopPropagation();
-            document.getElementById('cloud-popup').classList.toggle('open');
-        }
-
-        function closeCloudMenu() {
-            document.getElementById('cloud-popup').classList.remove('open');
-        }
-
-        document.addEventListener('click', (e) => {
-            if (!document.getElementById('cloud-split').contains(e.target)) {
-                closeCloudMenu();
-            }
-        });
 
         async function cloudPushStart() {
             if (_cloudStreaming) return;
@@ -9155,7 +9072,6 @@
         }
 
         function cloudPullStart() {
-            closeCloudMenu();
             if (_cloudStreaming) return;
             document.getElementById('cloud-pull-name').value = '';
             setCloudStatus('');
