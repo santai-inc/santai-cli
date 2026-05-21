@@ -77,8 +77,7 @@ class CloudPushRequest(BaseModel):
 
 
 class CloudPullRequest(BaseModel):
-    name: str
-    dest: str | None = None
+    pass
 
 
 class SmartPlaceRequest(BaseModel):
@@ -1634,7 +1633,7 @@ def create_app(project: SantaiProject) -> FastAPI:
 
     @app.post("/api/cloud/pull")
     async def cloud_pull(req: CloudPullRequest) -> StreamingResponse:
-        """Pull a project from the cloud into a sibling directory, streaming SSE progress."""
+        """Pull the current project from the cloud, overwriting local files in place."""
         import asyncio
         import json as _json
         import urllib.error
@@ -1658,34 +1657,25 @@ def create_app(project: SantaiProject) -> FastAPI:
                 )
                 return
 
-            if req.dest:
-                dest_path = (project.root.parent / req.dest).resolve()
-            else:
-                dest_path = (project.root.parent / req.name).resolve()
+            project_name = project.root.name
+            dest_path = project.root.resolve()
+            backend = get_backend_url(creds.get("hub_url", DEFAULT_HUB_URL))
 
-            if dest_path.exists():
+            yield _sse({"type": "status", "message": f"Looking up {project_name}..."})
+
+            base_id = await asyncio.to_thread(
+                resolve_base_id, backend, creds["token"], project_name
+            )
+            if not base_id:
                 yield _sse(
                     {
                         "type": "error",
-                        "message": f"'{dest_path.name}' already exists in {dest_path.parent}.",
+                        "message": f"Project '{project_name}' not found in the cloud.",
                     }
                 )
                 return
 
-            backend = get_backend_url(creds.get("hub_url", DEFAULT_HUB_URL))
-
-            yield _sse({"type": "status", "message": f"Looking up {req.name}..."})
-
-            base_id = await asyncio.to_thread(
-                resolve_base_id, backend, creds["token"], req.name
-            )
-            if not base_id:
-                yield _sse(
-                    {"type": "error", "message": f"Project '{req.name}' not found."}
-                )
-                return
-
-            def get_download_info() -> dict | str:
+            def get_download_info() -> "dict | str":
                 info_req = urllib.request.Request(
                     f"{backend}/bases/{base_id}/download",
                     headers={"Authorization": f"Bearer {creds['token']}"},
@@ -1697,7 +1687,7 @@ def create_app(project: SantaiProject) -> FastAPI:
                     if e.code == 401:
                         return "Session expired. Run 'santai login' to re-authenticate."
                     if e.code == 404:
-                        return f"Project '{req.name}' not found."
+                        return f"Project '{project_name}' not found."
                     return f"Pull failed (HTTP {e.code})."
                 except (urllib.error.URLError, TimeoutError):
                     return "Could not reach the hub. Check your connection."
@@ -1714,13 +1704,10 @@ def create_app(project: SantaiProject) -> FastAPI:
 
             size = info.get("size", 0)
             yield _sse(
-                {
-                    "type": "status",
-                    "message": f"Found ({format_size(size)}). Downloading...",
-                }
+                {"type": "status", "message": f"Downloading ({format_size(size)})..."}
             )
 
-            def download_and_extract() -> str | None:
+            def download_and_extract() -> "str | None":
                 import tempfile as _tmp
 
                 with _tmp.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
@@ -1730,29 +1717,21 @@ def create_app(project: SantaiProject) -> FastAPI:
                     with urllib.request.urlopen(dl_req, timeout=120) as resp:
                         tmp_path.write_bytes(resp.read())
 
-                    dest_path.mkdir(parents=True, exist_ok=True)
                     with zipfile.ZipFile(tmp_path, "r") as zf:
+                        # Validate all members before extracting
                         for member in zf.infolist():
                             member_path = (dest_path / member.filename).resolve()
                             try:
-                                member_path.relative_to(dest_path.resolve())
+                                member_path.relative_to(dest_path)
                             except ValueError:
-                                if dest_path.exists() and not any(dest_path.iterdir()):
-                                    dest_path.rmdir()
                                 return f"Zip contains unsafe path '{member.filename}'."
                             if member.external_attr >> 28 == 0xA:
-                                if dest_path.exists() and not any(dest_path.iterdir()):
-                                    dest_path.rmdir()
                                 return f"Zip contains symlink '{member.filename}'."
                         zf.extractall(dest_path)
                     return None
                 except zipfile.BadZipFile:
-                    if dest_path.exists() and not any(dest_path.iterdir()):
-                        dest_path.rmdir()
                     return "Downloaded file is not a valid zip."
                 except (urllib.error.URLError, TimeoutError):
-                    if dest_path.exists() and not any(dest_path.iterdir()):
-                        dest_path.rmdir()
                     return "Download failed. The URL may have expired — try again."
                 finally:
                     tmp_path.unlink(missing_ok=True)
@@ -1763,7 +1742,7 @@ def create_app(project: SantaiProject) -> FastAPI:
                 yield _sse({"type": "error", "message": err})
                 return
 
-            yield _sse({"type": "done", "path": str(dest_path)})
+            yield _sse({"type": "done", "pulled": True})
 
         return StreamingResponse(
             event_gen(),
