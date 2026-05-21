@@ -30,9 +30,6 @@ santai login [OPTIONS]
 3. After you authenticate in the browser, the Hub redirects back to the local server with a token
 4. The token and username are saved to `~/.config/santai/credentials.json`
 
-If a browser cannot be opened automatically (e.g. on a headless machine), the
-auth URL is printed so you can open it manually on another device.
-
 ### Examples
 
 Standard login:

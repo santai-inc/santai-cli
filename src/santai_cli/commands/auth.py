@@ -131,20 +131,9 @@ def login(
     server_ready.wait()
 
     auth_url = f"{hub}/auth/cli?callback_port={port}"
-    try:
-        opened = webbrowser.open(auth_url)
-    except webbrowser.Error:
-        opened = False
-
-    if opened:
-        console.print("Opening browser to authenticate...")
-        console.print(f"  [dim]{auth_url}[/dim]\n")
-    else:
-        console.print(
-            "[yellow]Could not open a browser automatically.[/yellow] "
-            "Open this URL to authenticate:"
-        )
-        console.print(f"  [bold]{auth_url}[/bold]\n")
+    console.print("Opening browser to authenticate...")
+    console.print(f"  [dim]{auth_url}[/dim]\n")
+    webbrowser.open(auth_url)
     console.print("Waiting for authentication (press Ctrl+C to cancel)...")
 
     try:
