@@ -741,7 +741,16 @@
         .cloud-form-row .btn {
             flex: 1;
             justify-content: center;
-            font-size: 12px;
+            font-size: 13px;
+            padding: 7px 6px;
+        }
+
+        #cloud-pull-cancel-btn {
+            background: rgba(0, 0, 0, 0.06);
+        }
+
+        #cloud-pull-cancel-btn:hover {
+            background: rgba(0, 0, 0, 0.1);
         }
 
         .btn {
@@ -3832,7 +3841,7 @@
                         <span class="cloud-confirm-msg">Replace local files with the latest cloud version?</span>
                         <div class="cloud-form-row">
                             <button class="btn btn-primary" onclick="cloudPullConfirm()">Replace</button>
-                            <button class="btn" onclick="cloudPullCancel()">Cancel</button>
+                            <button class="btn" id="cloud-pull-cancel-btn" onclick="cloudPullCancel()">Cancel</button>
                         </div>
                     </div>
                     <span class="cloud-status" id="cloud-status"></span>
