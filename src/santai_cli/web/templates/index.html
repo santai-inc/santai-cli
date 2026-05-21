@@ -664,12 +664,11 @@
             justify-content: center;
             font-size: 12px;
             gap: 5px;
-            padding: 8px 12px;
             transition: border-radius 0.1s;
         }
 
         .cloud-split .cloud-caret {
-            padding: 8px 10px;
+            padding: 10px 10px;
             border-radius: 0 12px 12px 0;
             border-left: 1px solid rgba(0,0,0,0.08);
             transition: border-radius 0.1s;
@@ -3824,13 +3823,13 @@
             <!-- Cloud sync -->
             <div class="cloud-bar" id="cloud-bar">
                 <div class="cloud-split">
-                    <button class="btn cloud-main" id="cloud-push-btn" onclick="cloudPushStart()" disabled title="Run 'santai login' first">
+                    <button class="btn cloud-main" id="cloud-push-btn" onclick="cloudPushStart()">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:15px;height:15px;">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
                         </svg>
                         Push to Cloud
                     </button>
-                    <button class="btn cloud-caret" id="cloud-caret-btn" onclick="toggleCloudMenu(event)" disabled title="More cloud options">
+                    <button class="btn cloud-caret" id="cloud-caret-btn" onclick="toggleCloudMenu(event)" title="More cloud options">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:14px;height:14px;">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 8.25l7.5 7.5 7.5-7.5" />
                         </svg>
@@ -9085,13 +9084,11 @@
                 const data = await res.json();
                 if (data.logged_in) {
                     const pushBtn = document.getElementById('cloud-push-btn');
-                    const caretBtn = document.getElementById('cloud-caret-btn');
-                    if (pushBtn) { pushBtn.disabled = false; pushBtn.title = `Push to cloud${data.username ? ' (' + data.username + ')' : ''}`; }
-                    if (caretBtn) { caretBtn.disabled = false; caretBtn.title = 'More cloud options'; }
+                    if (pushBtn && data.username) pushBtn.title = `Push to cloud (${data.username})`;
                 } else {
                     setCloudStatus("Not logged in — run 'santai login'", 'error');
                 }
-            } catch { /* ignore network errors on status check */ }
+            } catch { /* ignore — buttons always clickable, backend returns error if needed */ }
         }
 
         function setCloudStatus(msg, type) {
@@ -9099,13 +9096,6 @@
             if (!el) return;
             el.textContent = msg;
             el.className = 'cloud-status' + (type ? ' ' + type : '');
-        }
-
-        function _setCloudBtnsDisabled(disabled) {
-            const pb = document.getElementById('cloud-push-btn');
-            const pc = document.getElementById('cloud-caret-btn');
-            if (pb) pb.disabled = disabled;
-            if (pc) pc.disabled = disabled;
         }
 
         function toggleCloudMenu(e) {
@@ -9126,7 +9116,6 @@
         async function cloudPushStart() {
             if (_cloudStreaming) return;
             _cloudStreaming = true;
-            _setCloudBtnsDisabled(true);
             setCloudStatus('Packaging...');
             try {
                 const response = await fetch('/api/cloud/push', {
@@ -9144,7 +9133,6 @@
                 setCloudStatus('Connection error', 'error');
             } finally {
                 _cloudStreaming = false;
-                _setCloudBtnsDisabled(false);
             }
         }
 
@@ -9168,7 +9156,6 @@
             if (!name) { setCloudStatus('Enter a project name', 'error'); return; }
             document.getElementById('cloud-pull-form').classList.remove('visible');
             _cloudStreaming = true;
-            _setCloudBtnsDisabled(true);
             setCloudStatus('Looking up project...');
             try {
                 const response = await fetch('/api/cloud/pull', {
@@ -9186,7 +9173,6 @@
                 setCloudStatus('Connection error', 'error');
             } finally {
                 _cloudStreaming = false;
-                _setCloudBtnsDisabled(false);
             }
         }
 
