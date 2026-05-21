@@ -1802,7 +1802,7 @@
         .toast {
             position: fixed;
             bottom: 32px;
-            left: calc(50% + 140px);
+            left: 50%;
             transform: translateX(-50%) translateY(20px);
             opacity: 0;
             background: rgba(255, 255, 255, 0.95);
@@ -1814,6 +1814,9 @@
             z-index: 1002;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
             transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            max-width: min(480px, calc(100vw - 48px));
+            text-align: center;
+            word-break: break-word;
         }
 
         .toast.show {
@@ -1824,10 +1827,6 @@
         .toast.error {
             border-color: #ef4444;
             background: rgba(254, 242, 242, 0.95);
-        }
-
-        .toast.preview-open {
-            left: calc(50% - 60px);
         }
 
         /* Hidden file input */
