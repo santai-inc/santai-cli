@@ -1458,10 +1458,59 @@ def create_app(project: SantaiProject) -> FastAPI:
         from urllib.parse import quote
 
         from santai_cli.commands.auth import DEFAULT_HUB_URL, load_credentials
-        from santai_cli.core.hub import create_base, get_backend_url, resolve_base_id
+        from santai_cli.core.hub import get_backend_url
 
         def _sse(data: dict) -> str:
             return f"data: {_json.dumps(data)}\n\n"
+
+        def _http_error_msg(e: "urllib.error.HTTPError") -> str:
+            if e.code == 401:
+                return "Session expired. Run 'santai login' to re-authenticate."
+            if e.code == 403:
+                return "Access denied. Check your account permissions."
+            try:
+                body = _json.loads(e.read().decode(errors="replace"))
+                return (
+                    body.get("error")
+                    or body.get("message")
+                    or f"Server error {e.code}."
+                )
+            except Exception:
+                return f"Server error {e.code}."
+
+        def _resolve_or_create(backend: str, token: str, name: str) -> "str | str":
+            """Return (base_id, None) on success or (None, error_message) on failure."""
+            auth = {"Authorization": f"Bearer {token}"}
+            # Look up existing base
+            try:
+                req_list = urllib.request.Request(f"{backend}/me/bases", headers=auth)
+                with urllib.request.urlopen(req_list, timeout=15) as resp:
+                    data = _json.loads(resp.read())
+                for base in data.get("bases", []):
+                    if base.get("name") == name:
+                        return str(base["id"]), None
+            except urllib.error.HTTPError as e:
+                return None, _http_error_msg(e)
+            except (urllib.error.URLError, TimeoutError):
+                return None, "Could not reach the hub. Check your connection."
+            # Not found — create it
+            body = _json.dumps({"name": name}).encode()
+            try:
+                req_create = urllib.request.Request(
+                    f"{backend}/bases/init",
+                    data=body,
+                    method="POST",
+                    headers={**auth, "Content-Type": "application/json"},
+                )
+                with urllib.request.urlopen(req_create, timeout=30) as resp:
+                    data = _json.loads(resp.read())
+                    if "id" in data:
+                        return str(data["id"]), None
+                    return None, f"Unexpected response creating '{name}'."
+            except urllib.error.HTTPError as e:
+                return None, f"Could not create '{name}': {_http_error_msg(e)}"
+            except (urllib.error.URLError, TimeoutError):
+                return None, "Could not reach the hub. Check your connection."
 
         async def event_gen():
             creds = load_credentials()
@@ -1483,22 +1532,12 @@ def create_app(project: SantaiProject) -> FastAPI:
 
             yield _sse({"type": "status", "message": f"Looking up {project_name}..."})
 
-            base_id = await asyncio.to_thread(
-                resolve_base_id, backend, creds["token"], project_name
+            base_id, err = await asyncio.to_thread(
+                _resolve_or_create, backend, creds["token"], project_name
             )
-            if not base_id:
-                yield _sse({"type": "status", "message": f"Creating {project_name}..."})
-                base_id = await asyncio.to_thread(
-                    create_base, backend, creds["token"], project_name
-                )
-                if not base_id:
-                    yield _sse(
-                        {
-                            "type": "error",
-                            "message": f"Failed to create project '{project_name}'.",
-                        }
-                    )
-                    return
+            if err:
+                yield _sse({"type": "error", "message": err})
+                return
 
             yield _sse({"type": "status", "message": "Packaging..."})
 
