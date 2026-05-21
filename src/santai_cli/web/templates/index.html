@@ -711,6 +711,12 @@
 
         .cloud-inline-form.visible { display: flex; }
 
+        .cloud-confirm-msg {
+            font-size: 12px;
+            color: var(--text-secondary, var(--text-muted));
+            line-height: 1.4;
+        }
+
         .cloud-inline-form input[type="text"] {
             background: rgba(255,255,255,0.6);
             border: 1px solid rgba(0,0,0,0.12);
@@ -3822,12 +3828,11 @@
                             Pull from Cloud
                         </button>
                     </div>
-                    <div class="cloud-inline-form" id="cloud-pull-form">
-                        <input type="text" id="cloud-pull-name" placeholder="Project name"
-                               onkeydown="if(event.key==='Enter')cloudPullConfirm()">
+                    <div class="cloud-inline-form" id="cloud-pull-confirm">
+                        <span class="cloud-confirm-msg">Replace local files with the latest cloud version?</span>
                         <div class="cloud-form-row">
-                            <button class="btn btn-primary" onclick="cloudPullConfirm()">Pull</button>
-                            <button class="btn" onclick="cloudPullFormClose()">Cancel</button>
+                            <button class="btn btn-primary" onclick="cloudPullConfirm()">Replace</button>
+                            <button class="btn" onclick="cloudPullCancel()">Cancel</button>
                         </div>
                     </div>
                     <span class="cloud-status" id="cloud-status"></span>
@@ -9088,29 +9093,25 @@
 
         function cloudPullStart() {
             if (_cloudStreaming) return;
-            document.getElementById('cloud-pull-name').value = '';
             setCloudStatus('');
-            document.getElementById('cloud-pull-form').classList.add('visible');
-            setTimeout(() => document.getElementById('cloud-pull-name').focus(), 50);
+            document.getElementById('cloud-pull-confirm').classList.add('visible');
         }
 
-        function cloudPullFormClose() {
-            document.getElementById('cloud-pull-form').classList.remove('visible');
+        function cloudPullCancel() {
+            document.getElementById('cloud-pull-confirm').classList.remove('visible');
             setCloudStatus('');
         }
 
         async function cloudPullConfirm() {
             if (_cloudStreaming) return;
-            const name = document.getElementById('cloud-pull-name').value.trim();
-            if (!name) { setCloudStatus('Enter a project name', 'error'); return; }
-            document.getElementById('cloud-pull-form').classList.remove('visible');
+            document.getElementById('cloud-pull-confirm').classList.remove('visible');
             _cloudStreaming = true;
             setCloudStatus('Looking up project...');
             try {
                 const response = await fetch('/api/cloud/pull', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({name}),
+                    body: JSON.stringify({}),
                 });
                 if (!response.ok) {
                     const err = await response.json().catch(() => ({}));
@@ -9142,7 +9143,12 @@
                         if (data.type === 'status') {
                             setCloudStatus(data.message);
                         } else if (data.type === 'done') {
-                            setCloudStatus('Successfully saved to the cloud.', 'success');
+                            if (data.pulled) {
+                                setCloudStatus('Successfully pulled from cloud.', 'success');
+                                refreshTree();
+                            } else {
+                                setCloudStatus('Successfully saved to the cloud.', 'success');
+                            }
                             setTimeout(() => setCloudStatus(''), 4000);
                         } else if (data.type === 'error') {
                             setCloudStatus(data.message, 'error');
