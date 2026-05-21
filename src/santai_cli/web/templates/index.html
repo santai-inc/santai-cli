@@ -5518,21 +5518,29 @@
             const files = event.target.files;
             const placements = [];
             let lastUploadedPath = null;
+            let succeeded = 0, failed = 0;
             for (const file of files) {
-                if (currentPath === '') {
-                    const preview = await readTextPreview(file);
-                    const smartPath = await callSmartPlace(file.name, preview);
-                    await uploadFile(file, smartPath);
-                    if (smartPath) {
-                        placements.push({ name: file.name, dest: smartPath });
-                        lastUploadedPath = smartPath;
+                try {
+                    if (currentPath === '') {
+                        const preview = await readTextPreview(file);
+                        const smartPath = await callSmartPlace(file.name, preview);
+                        await uploadFile(file, smartPath);
+                        if (smartPath) {
+                            placements.push({ name: file.name, dest: smartPath });
+                            lastUploadedPath = smartPath;
+                        }
+                    } else {
+                        await uploadFile(file);
+                        lastUploadedPath = currentPath ? `${currentPath}/${file.name}` : file.name;
                     }
-                } else {
-                    await uploadFile(file);
-                    lastUploadedPath = currentPath ? `${currentPath}/${file.name}` : file.name;
+                    succeeded++;
+                } catch (err) {
+                    failed++;
+                    showToast(err.message, true);
                 }
             }
             event.target.value = '';
+            if (succeeded > 0) showToast(`Uploaded ${succeeded} file${succeeded !== 1 ? 's' : ''}`);
             appendSortNotification(placements);
             loadFiles(currentPath);
             await loadTree();
@@ -5587,17 +5595,10 @@
                 ? `/api/files?path=&relative_path=${encodeURIComponent(overrideRelPath)}`
                 : `/api/files?path=${encodeURIComponent(currentPath)}`;
 
-            try {
-                const res = await fetch(url, { method: 'POST', body: formData });
-
-                if (!res.ok) {
-                    const err = await res.json();
-                    throw new Error(err.detail || 'Upload failed');
-                }
-
-                showToast(overrideRelPath ? `Uploaded → ${overrideRelPath}` : `Uploaded ${file.name}`);
-            } catch (err) {
-                showToast(err.message, true);
+            const res = await fetch(url, { method: 'POST', body: formData });
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.detail || 'Upload failed');
             }
         }
 
