@@ -5747,7 +5747,9 @@
             // Tree item ondrop calls stopPropagation for external drops, so this
             // only fires when the drop lands outside the tree (main content area).
             if (!draggedItems) {
-                await doExternalUpload(e.dataTransfer, currentPath);
+                // Always smart-sort when dropping onto the editor panel, regardless
+                // of which folder the user is currently browsed into.
+                await doExternalUpload(e.dataTransfer, '');
             }
         });
 
