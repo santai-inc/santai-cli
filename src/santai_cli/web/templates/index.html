@@ -647,76 +647,27 @@
             white-space: nowrap;
         }
 
-        .cloud-bar {
+        .cloud-sync {
             display: flex;
             flex-direction: column;
-            margin-bottom: -12px;
+            gap: 6px;
+            margin-bottom: 8px;
         }
 
-        .cloud-split {
+        .cloud-sync-btns {
             display: flex;
-            gap: 1px;
+            gap: 6px;
         }
 
-        .cloud-split .cloud-main {
+        .cloud-sync-btns .btn {
             flex: 1;
-            border-radius: 12px 0 0 12px;
             justify-content: center;
-            font-size: 12px;
-            gap: 5px;
-            transition: border-radius 0.1s;
-        }
-
-        .cloud-split .cloud-caret {
-            padding: 10px 10px;
-            border-radius: 0 12px 12px 0;
-            border-left: 1px solid rgba(0,0,0,0.08);
-            transition: border-radius 0.1s;
-        }
-
-        .cloud-split .cloud-caret svg {
-            transition: transform 0.2s ease;
-        }
-
-        .cloud-bar:has(.cloud-popup.open) .cloud-main {
-            border-bottom-left-radius: 0;
-        }
-
-        .cloud-bar:has(.cloud-popup.open) .cloud-caret {
-            border-bottom-right-radius: 0;
-        }
-
-        .cloud-bar:has(.cloud-popup.open) .cloud-caret svg {
-            transform: rotate(180deg);
-        }
-
-        .cloud-popup {
-            display: none;
-        }
-
-        .cloud-popup.open {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .cloud-popup button {
-            background: rgba(255, 255, 255, 0.7);
-            border: none;
-            border-radius: 0 0 12px 12px;
-            padding: 8px 14px;
-            font-size: 12px;
-            font-weight: 500;
-            color: var(--text-primary);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            width: 100%;
-            justify-content: center;
-        }
-
-        .cloud-popup button:hover {
-            background: rgba(255, 255, 255, 0.9);
+            font-size: 11px;
+            gap: 4px;
+            padding: 7px 6px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .cloud-status {
@@ -3820,40 +3771,6 @@
                 <h1 onclick="showDashboard()" style="cursor: pointer;">Santai</h1>
             </div>
 
-            <!-- Cloud sync -->
-            <div class="cloud-bar" id="cloud-bar">
-                <div class="cloud-split">
-                    <button class="btn cloud-main" id="cloud-push-btn" onclick="cloudPushStart()">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:15px;height:15px;">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
-                        </svg>
-                        Push to Cloud
-                    </button>
-                    <button class="btn cloud-caret" id="cloud-caret-btn" onclick="toggleCloudMenu(event)" title="More cloud options">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:14px;height:14px;">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 8.25l7.5 7.5 7.5-7.5" />
-                        </svg>
-                    </button>
-                </div>
-                <div class="cloud-popup" id="cloud-popup">
-                    <button onclick="cloudPullStart()">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:15px;height:15px;">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 7.5V14.25m0 0l-3-3m3 3l3-3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
-                        </svg>
-                        Pull from Cloud
-                    </button>
-                </div>
-                <div class="cloud-inline-form" id="cloud-pull-form">
-                    <input type="text" id="cloud-pull-name" placeholder="Project name"
-                           onkeydown="if(event.key==='Enter')cloudPullConfirm()">
-                    <div class="cloud-form-row">
-                        <button class="btn btn-primary" onclick="cloudPullConfirm()">Pull</button>
-                        <button class="btn" onclick="cloudPullFormClose()">Cancel</button>
-                    </div>
-                </div>
-                <span class="cloud-status" id="cloud-status"></span>
-            </div>
-
             <!-- Tree View -->
             <div class="sidebar-section tree-container">
                 <div class="tree-search">
@@ -3866,6 +3783,32 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                         </svg>
                     </button>
+                </div>
+                <!-- Cloud sync -->
+                <div class="cloud-sync" id="cloud-bar">
+                    <div class="cloud-sync-btns">
+                        <button class="btn" id="cloud-push-btn" onclick="cloudPushStart()">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:13px;height:13px;flex-shrink:0;">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
+                            </svg>
+                            Push to Cloud
+                        </button>
+                        <button class="btn" id="cloud-pull-btn" onclick="cloudPullStart()">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:13px;height:13px;flex-shrink:0;">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 7.5V14.25m0 0l-3-3m3 3l3-3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
+                            </svg>
+                            Pull from Cloud
+                        </button>
+                    </div>
+                    <div class="cloud-inline-form" id="cloud-pull-form">
+                        <input type="text" id="cloud-pull-name" placeholder="Project name"
+                               onkeydown="if(event.key==='Enter')cloudPullConfirm()">
+                        <div class="cloud-form-row">
+                            <button class="btn btn-primary" onclick="cloudPullConfirm()">Pull</button>
+                            <button class="btn" onclick="cloudPullFormClose()">Cancel</button>
+                        </div>
+                    </div>
+                    <span class="cloud-status" id="cloud-status"></span>
                 </div>
                 <ul class="tree-view" id="tree-view"></ul>
             </div>
@@ -9098,21 +9041,6 @@
             el.className = 'cloud-status' + (type ? ' ' + type : '');
         }
 
-        function toggleCloudMenu(e) {
-            e.stopPropagation();
-            document.getElementById('cloud-popup').classList.toggle('open');
-        }
-
-        function closeCloudMenu() {
-            document.getElementById('cloud-popup').classList.remove('open');
-        }
-
-        document.addEventListener('click', (e) => {
-            if (!document.getElementById('cloud-bar').contains(e.target)) {
-                closeCloudMenu();
-            }
-        });
-
         async function cloudPushStart() {
             if (_cloudStreaming) return;
             _cloudStreaming = true;
@@ -9137,7 +9065,6 @@
         }
 
         function cloudPullStart() {
-            closeCloudMenu();
             if (_cloudStreaming) return;
             document.getElementById('cloud-pull-name').value = '';
             setCloudStatus('');
