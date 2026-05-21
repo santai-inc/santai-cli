@@ -5452,7 +5452,12 @@
             }
 
             loadFiles(currentPath);
-            loadTree();
+            await loadTree();
+            // Reveal the uploaded folder in the tree (no file preview — it's a directory).
+            const revealFolder = currentPath === ''
+                ? (smartFolderPath || folderName)
+                : (currentPath ? `${currentPath}/${folderName}` : folderName);
+            revealInTree(revealFolder);
         }
 
         function toggleUploadMenu(e) {
@@ -5512,20 +5517,29 @@
         async function handleFileSelect(event) {
             const files = event.target.files;
             const placements = [];
+            let lastUploadedPath = null;
             for (const file of files) {
                 if (currentPath === '') {
                     const preview = await readTextPreview(file);
                     const smartPath = await callSmartPlace(file.name, preview);
                     await uploadFile(file, smartPath);
-                    if (smartPath) placements.push({ name: file.name, dest: smartPath });
+                    if (smartPath) {
+                        placements.push({ name: file.name, dest: smartPath });
+                        lastUploadedPath = smartPath;
+                    }
                 } else {
                     await uploadFile(file);
+                    lastUploadedPath = currentPath ? `${currentPath}/${file.name}` : file.name;
                 }
             }
             event.target.value = '';
             appendSortNotification(placements);
             loadFiles(currentPath);
-            loadTree();
+            await loadTree();
+            if (lastUploadedPath) {
+                if (files.length === 1) openFilePreview(lastUploadedPath);
+                revealInTree(lastUploadedPath);
+            }
         }
 
 
@@ -5606,6 +5620,8 @@
             const dropState = { count: 0, capped: false };
             const smartSort = targetFolder === '';
             const sortedPlacements = [];
+            let firstSuccessPath = null; // first successfully uploaded path for reveal/preview
+            let droppedIsFolder = false; // true if the dropped item was a directory
 
             for (const entry of entries) {
                 const collected = await collectEntryFiles(entry, '', dropState);
@@ -5624,10 +5640,14 @@
                         const res = await fetch(url, { method: 'POST', body: formData });
                         if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
                         succeeded++;
-                        if (smartPath) sortedPlacements.push({ name: file.name, dest: smartPath });
+                        if (smartPath) {
+                            sortedPlacements.push({ name: file.name, dest: smartPath });
+                            firstSuccessPath = firstSuccessPath || smartPath;
+                        }
                     } catch { failed++; }
 
                 } else if (smartSort && entry.isDirectory) {
+                    droppedIsFolder = true;
                     const folderName = entry.name;
                     const sampleNames = collected.slice(0, 30).map(({ file: f }) => f.name).join(', ');
                     const smartFolderPath = await callSmartPlace(folderName, `Folder containing: ${sampleNames}`);
@@ -5645,9 +5665,13 @@
                             succeeded++;
                         } catch { failed++; }
                     }
-                    if (smartFolderPath) sortedPlacements.push({ name: folderName + '/', dest: smartFolderPath + '/' });
+                    if (smartFolderPath) {
+                        sortedPlacements.push({ name: folderName + '/', dest: smartFolderPath + '/' });
+                        firstSuccessPath = firstSuccessPath || smartFolderPath;
+                    }
 
                 } else {
+                    droppedIsFolder = droppedIsFolder || entry.isDirectory;
                     for (const { file, relPath } of collected) {
                         try {
                             const formData = new FormData();
@@ -5658,6 +5682,11 @@
                             const res = await fetch(url, { method: 'POST', body: formData });
                             if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
                             succeeded++;
+                            if (!firstSuccessPath) {
+                                firstSuccessPath = targetFolder
+                                    ? `${targetFolder}/${relPath.includes('/') ? relPath : file.name}`
+                                    : (relPath || file.name);
+                            }
                         } catch { failed++; }
                     }
                 }
@@ -5667,7 +5696,12 @@
             if (failed > 0) showToast(`${failed} file${failed !== 1 ? 's' : ''} failed`, true);
             if (dropState.capped) showToast(`Folder too large — only first ${_MAX_UPLOAD_FILES} files uploaded`, true);
             loadFiles(currentPath);
-            loadTree();
+            await loadTree();
+            if (firstSuccessPath) {
+                const isSingleFile = succeeded === 1 && !droppedIsFolder;
+                if (isSingleFile) openFilePreview(firstSuccessPath);
+                revealInTree(firstSuccessPath);
+            }
         }
 
         // Drag and drop (external files only - not internal moves)
