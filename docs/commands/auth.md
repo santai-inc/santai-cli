@@ -53,6 +53,35 @@ Login with a fixed callback port (useful when port-forwarding over SSH):
 santai login --port 9876
 ```
 
+### Logging in from a remote machine (SSH / devcontainer / EC2)
+
+The login flow finishes by redirecting your browser back to
+`http://localhost:PORT/callback`. That `localhost` is **the machine running
+the browser**, not the machine running `santai login`. If they're different
+hosts (e.g. you're SSH'd into an EC2 box and signing in from your laptop),
+the callback never reaches the CLI and login times out.
+
+To make it work, forward the callback port from your laptop to the remote
+host **before** running `santai login`:
+
+```bash
+# On your laptop:
+ssh -L 9876:localhost:9876 user@your-remote-host
+
+# Then on the remote host, in the SSH session:
+santai login --port 9876
+```
+
+Now `localhost:9876` on your laptop tunnels to the CLI's callback server on
+the remote host, and the redirect from `hub.sant.ai` lands correctly.
+
+### Switching hubs
+
+Existing credentials from a previous login are kept in
+`~/.config/santai/credentials.json` and pin the hub URL. To pick up a new
+default (e.g. after upgrading), run `santai logout` first, then
+`santai login`.
+
 ### Timeout
 
 The login flow times out after **120 seconds**. Press `Ctrl+C` to cancel early.
