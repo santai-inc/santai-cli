@@ -9142,10 +9142,8 @@
                         if (data.type === 'status') {
                             setCloudStatus(data.message);
                         } else if (data.type === 'done') {
-                            const msg = data.version !== undefined
-                                ? `✓ Pushed v${data.version}`
-                                : `✓ Pulled to ${data.path}`;
-                            setCloudStatus(msg, 'success');
+                            setCloudStatus('Successfully saved to the cloud', 'success');
+                            setTimeout(() => setCloudStatus(''), 4000);
                         } else if (data.type === 'error') {
                             setCloudStatus(data.message, 'error');
                         }
