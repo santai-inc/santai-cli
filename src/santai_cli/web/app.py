@@ -1718,22 +1718,35 @@ def create_app(project: SantaiProject) -> FastAPI:
                         tmp_path.write_bytes(resp.read())
 
                     with zipfile.ZipFile(tmp_path, "r") as zf:
-                        # Validate all members before extracting
+                        # Build extraction plan: strip cloud wrapper (manifest.json + files/ prefix)
+                        plan: list[tuple[zipfile.ZipInfo, Path]] = []
                         for member in zf.infolist():
-                            member_path = (dest_path / member.filename).resolve()
+                            name = member.filename
+                            if name == "manifest.json":
+                                continue
+                            if name.startswith("files/"):
+                                name = name[len("files/") :]
+                            # Skip directory entries and empty names
+                            if not name or name.endswith("/"):
+                                continue
+                            target = (dest_path / name).resolve()
                             try:
-                                member_path.relative_to(dest_path)
+                                target.relative_to(dest_path)
                             except ValueError:
                                 return f"Zip contains unsafe path '{member.filename}'."
                             if member.external_attr >> 28 == 0xA:
                                 return f"Zip contains symlink '{member.filename}'."
+                            plan.append((member, target))
                         # Clear existing contents so files absent from the cloud are removed
                         for item in dest_path.iterdir():
                             if item.is_dir():
                                 shutil.rmtree(item)
                             else:
                                 item.unlink()
-                        zf.extractall(dest_path)
+                        # Extract with cloud wrapper stripped
+                        for member, target in plan:
+                            target.parent.mkdir(parents=True, exist_ok=True)
+                            target.write_bytes(zf.read(member))
                     return None
                 except zipfile.BadZipFile:
                     return "Downloaded file is not a valid zip."
