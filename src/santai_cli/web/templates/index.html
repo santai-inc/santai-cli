@@ -6160,15 +6160,15 @@
                     showFileBrowser(path);
                 }
             } else {
-                // For files, open preview panel
-                openFilePreview(path);
-                // If already in browser view, navigate to the file's parent folder
+                // Navigate the browser panel to the file's parent folder first so
+                // showFileBrowser doesn't hide the preview we're about to open.
                 if (currentView === 'browser') {
                     const parentPath = path.split('/').slice(0, -1).join('/');
                     if (parentPath !== currentPath) {
                         showFileBrowser(parentPath);
                     }
                 }
+                openFilePreview(path);
             }
         }
 
