@@ -5619,7 +5619,7 @@
                             sortedPlacements.push({ name: file.name, dest: smartPath });
                             firstSuccessPath = firstSuccessPath || smartPath;
                         }
-                    } catch { failed++; }
+                    } catch(err) { failed++; showToast(err.message, true); }
 
                 } else if (smartSort && entry.isDirectory) {
                     droppedIsFolder = true;
@@ -5638,7 +5638,7 @@
                             );
                             if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
                             succeeded++;
-                        } catch { failed++; }
+                        } catch(err) { failed++; showToast(err.message, true); }
                     }
                     if (smartFolderPath) {
                         sortedPlacements.push({ name: folderName + '/', dest: smartFolderPath + '/' });
@@ -5662,13 +5662,12 @@
                                     ? `${targetFolder}/${relPath.includes('/') ? relPath : file.name}`
                                     : (relPath || file.name);
                             }
-                        } catch { failed++; }
+                        } catch(err) { failed++; showToast(err.message, true); }
                     }
                 }
             }
             appendSortNotification(sortedPlacements);
             if (succeeded > 0) showToast(`Uploaded ${succeeded} file${succeeded !== 1 ? 's' : ''}`);
-            if (failed > 0) showToast(`${failed} file${failed !== 1 ? 's' : ''} failed`, true);
             if (dropState.capped) showToast(`Folder too large — only first ${_MAX_UPLOAD_FILES} files uploaded`, true);
             loadFiles(currentPath);
             await loadTree();

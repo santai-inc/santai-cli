@@ -611,7 +611,10 @@ def create_app(project: SantaiProject) -> FastAPI:
             safe_path(str(file_path.relative_to(root_dir)))
 
         if file_path.exists():
-            raise HTTPException(status_code=409, detail="File already exists")
+            raise HTTPException(
+                status_code=409,
+                detail=f"'{file_path.name}' already exists — upload aborted",
+            )
 
         with open(file_path, "wb") as f:
             content = await file.read()
