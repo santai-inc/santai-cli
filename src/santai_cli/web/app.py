@@ -683,6 +683,11 @@ def create_app(project: SantaiProject) -> FastAPI:
             "path": str(new_dir.relative_to(root_dir)),
         }
 
+    @app.get("/api/files/exists")
+    async def path_exists(path: str = Query(...)) -> dict[str, bool]:
+        """Return whether a path exists within the project."""
+        return {"exists": safe_path(path).exists()}
+
     @app.post("/api/files/mkdirp")
     async def make_directory_recursive(path: str = Query(...)) -> dict[str, Any]:
         """Create a directory and all parent directories (no-op if it already exists)."""

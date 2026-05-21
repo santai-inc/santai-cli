@@ -5410,32 +5410,41 @@
             const smartFolderPath = await callSmartPlace(folderName, `Folder containing: ${sampleNames}`);
             const baseDir = smartFolderPath ? smartFolderPath.split('/')[0] : '';
 
-            const results = await Promise.allSettled(batch.map(file => {
+            // Abort immediately if destination folder already exists.
+            const destPath = smartFolderPath || folderName;
+            if (await checkExists(destPath)) {
+                showToast(`'${folderName}' already exists — upload aborted`, true);
+                return;
+            }
+
+            let succeeded = 0;
+            const dupNames = [];
+            for (const file of batch) {
                 const relPath = file.webkitRelativePath;
                 const uploadPath = baseDir ? `${baseDir}/${relPath}` : relPath;
                 const formData = new FormData();
                 formData.append('file', file);
-                return fetch(
-                    `/api/files?path=&relative_path=${encodeURIComponent(uploadPath)}`,
-                    { method: 'POST', body: formData }
-                ).then(async res => {
+                try {
+                    const res = await fetch(
+                        `/api/files?path=&relative_path=${encodeURIComponent(uploadPath)}`,
+                        { method: 'POST', body: formData }
+                    );
                     if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
-                });
-            }));
+                    succeeded++;
+                } catch (err) {
+                    if (isDuplicateError(err)) dupNames.push(file.name);
+                    else showToast(err.message, true);
+                }
+            }
 
-            const succeeded = results.filter(r => r.status === 'fulfilled').length;
-            const failed = results.filter(r => r.status === 'rejected').length;
-            const dest = smartFolderPath ? smartFolderPath + '/' : folderName + '/';
-            if (succeeded > 0) showToast(`Uploaded ${succeeded} file${succeeded !== 1 ? 's' : ''}`);
-            if (failed > 0) showToast(`${failed} file${failed !== 1 ? 's' : ''} failed`, true);
             if (capped) showToast(`Folder too large — only first ${_MAX_UPLOAD_FILES} files uploaded`, true);
-            if (smartFolderPath) appendSortNotification([{ name: folderName + '/', dest }]);
+            showUploadSummaryToast(dupNames, succeeded, 'file');
+            const dest = smartFolderPath ? smartFolderPath + '/' : folderName + '/';
+            if (succeeded > 0 && smartFolderPath) appendSortNotification([{ name: folderName + '/', dest }]);
 
             loadFiles(currentPath);
             await loadTree();
-            // Reveal the uploaded folder in the tree (no file preview — it's a directory).
-            const revealFolder = smartFolderPath || folderName;
-            revealInTree(revealFolder);
+            if (succeeded > 0) revealInTree(smartFolderPath || folderName);
         }
 
         function toggleUploadMenu(e) {
@@ -5479,6 +5488,37 @@
             } catch { return null; }
         }
 
+        function isDuplicateError(err) {
+            return err.message && err.message.includes('already exists');
+        }
+
+        async function checkExists(path) {
+            try {
+                const r = await fetch(`/api/files/exists?path=${encodeURIComponent(path)}`);
+                return (await r.json()).exists === true;
+            } catch { return false; }
+        }
+
+        // Single unified toast for upload results.
+        // dupNames: array of item names that were duplicates
+        // uploadedCount: number of items that succeeded
+        // itemLabel: 'file' or 'folder'
+        function showUploadSummaryToast(dupNames, uploadedCount, itemLabel) {
+            const dups = dupNames.length;
+            if (dups === 0 && uploadedCount === 0) return;
+            if (dups === 0) {
+                showToast(`Uploaded ${uploadedCount} ${itemLabel}${uploadedCount !== 1 ? 's' : ''}`);
+            } else if (uploadedCount === 0) {
+                if (dups === 1) {
+                    showToast(`'${dupNames[0]}' already exists — upload aborted`, true);
+                } else {
+                    showToast(`${dups} duplicate${dups !== 1 ? 's' : ''} found — upload aborted`, true);
+                }
+            } else {
+                showToast(`${dups} duplicate${dups !== 1 ? 's' : ''} found, ${uploadedCount} ${itemLabel}${uploadedCount !== 1 ? 's' : ''} uploaded`);
+            }
+        }
+
         // Show smart-sort results as a bot message (hides suggestion chips automatically).
         function appendSortNotification(placements) {
             if (!placements.length) return;
@@ -5498,7 +5538,8 @@
             const files = event.target.files;
             const placements = [];
             let lastUploadedPath = null;
-            let succeeded = 0, failed = 0;
+            let succeeded = 0;
+            const dupNames = [];
             // Always smart sort — the button is not a folder-specific drop target.
             for (const file of files) {
                 try {
@@ -5511,13 +5552,13 @@
                     }
                     succeeded++;
                 } catch (err) {
-                    failed++;
-                    showToast(err.message, true);
+                    if (isDuplicateError(err)) dupNames.push(file.name);
+                    else showToast(err.message, true);
                 }
             }
             event.target.value = '';
-            if (succeeded > 0) showToast(`Uploaded ${succeeded} file${succeeded !== 1 ? 's' : ''}`);
-            appendSortNotification(placements);
+            showUploadSummaryToast(dupNames, succeeded, 'file');
+            if (succeeded > 0) appendSortNotification(placements);
             loadFiles(currentPath);
             await loadTree();
             if (lastUploadedPath) {
@@ -5601,15 +5642,16 @@
                 .map(item => item.webkitGetAsEntry?.())
                 .filter(Boolean);
 
-            let succeeded = 0, failed = 0;
+            let succeeded = 0;
+            const dupNames = []; // duplicate item names collected across all entries
             const dropState = { count: 0, capped: false };
             const smartSort = targetFolder === '';
             const sortedPlacements = [];
-            let firstSuccessPath = null; // first successfully uploaded path for reveal/preview
-            let droppedIsFolder = false; // true if the dropped item was a directory
+            let firstSuccessPath = null;
+            let droppedIsFolder = false;
 
             for (const entry of entries) {
-                dropState.emptyDirs = []; // reset per-entry so we can apply the right prefix
+                dropState.emptyDirs = [];
                 const collected = await collectEntryFiles(entry, '', dropState);
 
                 if (smartSort && entry.isFile) {
@@ -5630,7 +5672,10 @@
                             sortedPlacements.push({ name: file.name, dest: smartPath });
                             firstSuccessPath = firstSuccessPath || smartPath;
                         }
-                    } catch(err) { failed++; showToast(err.message, true); }
+                    } catch(err) {
+                        if (isDuplicateError(err)) dupNames.push(file.name);
+                        else showToast(err.message, true);
+                    }
 
                 } else if (smartSort && entry.isDirectory) {
                     droppedIsFolder = true;
@@ -5638,6 +5683,11 @@
                     const sampleNames = collected.slice(0, 30).map(({ file: f }) => f.name).join(', ');
                     const smartFolderPath = await callSmartPlace(folderName, `Folder containing: ${sampleNames}`);
                     const baseDir = smartFolderPath ? smartFolderPath.split('/')[0] : '';
+                    const destPath = smartFolderPath || folderName;
+                    if (await checkExists(destPath)) {
+                        dupNames.push(folderName);
+                        continue;
+                    }
                     const prevSucceeded = succeeded;
                     for (const { file, relPath } of collected) {
                         const uploadPath = baseDir ? `${baseDir}/${relPath}` : relPath;
@@ -5650,7 +5700,10 @@
                             );
                             if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
                             succeeded++;
-                        } catch(err) { failed++; showToast(err.message, true); }
+                        } catch(err) {
+                            if (isDuplicateError(err)) dupNames.push(file.name);
+                            else showToast(err.message, true);
+                        }
                     }
                     let emptyDirsCreated = 0;
                     for (const emptyDir of dropState.emptyDirs) {
@@ -5667,7 +5720,14 @@
                     }
 
                 } else {
-                    droppedIsFolder = droppedIsFolder || entry.isDirectory;
+                    if (entry.isDirectory) {
+                        droppedIsFolder = true;
+                        const destPath = targetFolder ? `${targetFolder}/${entry.name}` : entry.name;
+                        if (await checkExists(destPath)) {
+                            dupNames.push(entry.name);
+                            continue;
+                        }
+                    }
                     for (const { file, relPath } of collected) {
                         try {
                             const formData = new FormData();
@@ -5683,7 +5743,10 @@
                                     ? `${targetFolder}/${relPath.includes('/') ? relPath : file.name}`
                                     : (relPath || file.name);
                             }
-                        } catch(err) { failed++; showToast(err.message, true); }
+                        } catch(err) {
+                            if (isDuplicateError(err)) dupNames.push(file.name);
+                            else showToast(err.message, true);
+                        }
                     }
                     for (const emptyDir of dropState.emptyDirs) {
                         const mkPath = targetFolder
@@ -5697,8 +5760,12 @@
                     }
                 }
             }
+            // uploadedCount: for folder drops use folder count (sortedPlacements), else file count
+            const isSmartFolderDrop = droppedIsFolder && sortedPlacements.length > 0;
+            const itemLabel = (droppedIsFolder && (sortedPlacements.length > 0 || dupNames.length > 0)) ? 'folder' : 'file';
+            const uploadedCount = isSmartFolderDrop ? sortedPlacements.length : succeeded;
             appendSortNotification(sortedPlacements);
-            if (succeeded > 0) showToast(`Uploaded ${succeeded} file${succeeded !== 1 ? 's' : ''}`);
+            showUploadSummaryToast(dupNames, uploadedCount, itemLabel);
             if (dropState.capped) showToast(`Folder too large — only first ${_MAX_UPLOAD_FILES} files uploaded`, true);
             loadFiles(currentPath);
             await loadTree();
