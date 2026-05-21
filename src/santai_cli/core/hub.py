@@ -3,6 +3,14 @@
 from __future__ import annotations
 
 import json
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    _CLI_VERSION = version("santai-cli")
+except PackageNotFoundError:
+    _CLI_VERSION = "0.0.0"
+
+USER_AGENT = f"santai-cli/{_CLI_VERSION}"
 
 
 def get_backend_url(hub_url: str) -> str:
@@ -22,6 +30,7 @@ def create_base(backend: str, token: str, name: str) -> str | None:
         headers={
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
+            "User-Agent": USER_AGENT,
         },
     )
     try:
@@ -39,7 +48,7 @@ def resolve_base_id(backend: str, token: str, name: str) -> str | None:
 
     req = urllib.request.Request(
         f"{backend}/me/bases",
-        headers={"Authorization": f"Bearer {token}"},
+        headers={"Authorization": f"Bearer {token}", "User-Agent": USER_AGENT},
     )
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:

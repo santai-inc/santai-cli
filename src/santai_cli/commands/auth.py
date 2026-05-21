@@ -18,7 +18,7 @@ console = Console()
 
 CREDENTIALS_DIR = Path.home() / ".config" / "santai"
 CREDENTIALS_FILE = CREDENTIALS_DIR / "credentials.json"
-DEFAULT_HUB_URL = "http://localhost:3000"
+DEFAULT_HUB_URL = "https://hub.sant.ai"
 
 
 def _get_hub_url() -> str:
@@ -172,6 +172,8 @@ def whoami() -> None:
     import urllib.error
     import urllib.request
 
+    from santai_cli.core.hub import USER_AGENT
+
     creds = load_credentials()
     if not creds:
         console.print("Not logged in. Run [bold]santai login[/bold] to authenticate.")
@@ -183,7 +185,10 @@ def whoami() -> None:
     try:
         req = urllib.request.Request(
             f"{backend}/api/auth/get-session",
-            headers={"Authorization": f"Bearer {creds['token']}"},
+            headers={
+                "Authorization": f"Bearer {creds['token']}",
+                "User-Agent": USER_AGENT,
+            },
         )
         with urllib.request.urlopen(req, timeout=5) as resp:
             data = json.loads(resp.read())

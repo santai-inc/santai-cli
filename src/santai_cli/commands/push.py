@@ -13,7 +13,7 @@ import typer
 from rich.console import Console
 
 from santai_cli.commands.auth import DEFAULT_HUB_URL, load_credentials
-from santai_cli.core.hub import create_base, get_backend_url, resolve_base_id
+from santai_cli.core.hub import USER_AGENT, create_base, get_backend_url, resolve_base_id
 
 console = Console()
 
@@ -151,6 +151,7 @@ def push(
             headers={
                 "Authorization": f"Bearer {creds['token']}",
                 "Content-Type": f"multipart/form-data; boundary={boundary}",
+                "User-Agent": USER_AGENT,
             },
         )
 
