@@ -1727,6 +1727,12 @@ def create_app(project: SantaiProject) -> FastAPI:
                                 return f"Zip contains unsafe path '{member.filename}'."
                             if member.external_attr >> 28 == 0xA:
                                 return f"Zip contains symlink '{member.filename}'."
+                        # Clear existing contents so files absent from the cloud are removed
+                        for item in dest_path.iterdir():
+                            if item.is_dir():
+                                shutil.rmtree(item)
+                            else:
+                                item.unlink()
                         zf.extractall(dest_path)
                     return None
                 except zipfile.BadZipFile:
