@@ -647,6 +647,112 @@
             white-space: nowrap;
         }
 
+        .cloud-sync {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-bottom: 8px;
+        }
+
+        .cloud-sync-btns {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .cloud-sync-btns .btn {
+            justify-content: center;
+            font-size: 13px;
+            gap: 4px;
+            padding: 7px 6px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        #cloud-push-btn {
+            background: var(--accent);
+            color: white;
+            box-shadow: 0 2px 8px rgba(62, 180, 137, 0.3);
+        }
+
+        #cloud-push-btn:hover {
+            background: var(--accent-hover);
+            box-shadow: 0 4px 12px rgba(62, 180, 137, 0.4);
+        }
+
+        #cloud-pull-btn {
+            background: rgba(0, 0, 0, 0.06);
+        }
+
+        #cloud-pull-btn:hover {
+            background: rgba(0, 0, 0, 0.1);
+        }
+
+        .cloud-status {
+            font-size: 11px;
+            color: var(--text-muted);
+            line-height: 1.4;
+            word-break: break-word;
+        }
+
+        .cloud-status:empty {
+            display: none;
+        }
+
+        .cloud-status.error { color: #ef4444; }
+        .cloud-status.success { color: var(--accent); }
+
+        .cloud-inline-form {
+            display: none;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .cloud-inline-form.visible { display: flex; }
+
+        .cloud-confirm-msg {
+            font-size: 12px;
+            color: var(--text-secondary, var(--text-muted));
+            line-height: 1.4;
+        }
+
+        .cloud-inline-form input[type="text"] {
+            background: rgba(255,255,255,0.6);
+            border: 1px solid rgba(0,0,0,0.12);
+            border-radius: 8px;
+            padding: 7px 10px;
+            font-size: 12px;
+            color: var(--text-primary);
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .cloud-inline-form input[type="text"]:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .cloud-form-row {
+            display: flex;
+            gap: 6px;
+        }
+
+        .cloud-form-row .btn {
+            flex: 1;
+            justify-content: center;
+            font-size: 13px;
+            padding: 7px 6px;
+        }
+
+        #cloud-pull-cancel-btn {
+            background: rgba(0, 0, 0, 0.06);
+        }
+
+        #cloud-pull-cancel-btn:hover {
+            background: rgba(0, 0, 0, 0.1);
+        }
+
         .btn {
             background: rgba(255, 255, 255, 0.7);
             border: none;
@@ -3714,6 +3820,31 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                         </svg>
                     </button>
+                </div>
+                <!-- Cloud sync -->
+                <div class="cloud-sync" id="cloud-bar">
+                    <div class="cloud-sync-btns">
+                        <button class="btn" id="cloud-push-btn" onclick="cloudPushStart()">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:17px;height:17px;flex-shrink:0;display:block;">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
+                            </svg>
+                            Push to Cloud
+                        </button>
+                        <button class="btn" id="cloud-pull-btn" onclick="cloudPullStart()">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:17px;height:17px;flex-shrink:0;display:block;">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9V15.75m0 0l-3-3m3 3l3-3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
+                            </svg>
+                            Pull from Cloud
+                        </button>
+                    </div>
+                    <div class="cloud-inline-form" id="cloud-pull-confirm">
+                        <span class="cloud-confirm-msg">Replace local files with the latest cloud version?</span>
+                        <div class="cloud-form-row">
+                            <button class="btn btn-primary" onclick="cloudPullConfirm()">Replace</button>
+                            <button class="btn" id="cloud-pull-cancel-btn" onclick="cloudPullCancel()">Cancel</button>
+                        </div>
+                    </div>
+                    <span class="cloud-status" id="cloud-status"></span>
                 </div>
                 <ul class="tree-view" id="tree-view"></ul>
             </div>
@@ -8920,6 +9051,123 @@
         setupScrollFade('.tree-container');
         setupScrollFade('.panel-content');
         setupScrollFade('.preview-content');
+
+        // ── Cloud push / pull ────────────────────────────────────────────────
+
+        let _cloudStreaming = false;
+
+        async function initCloudStatus() {
+            try {
+                const res = await fetch('/api/cloud/status');
+                if (!res.ok) return;
+                const data = await res.json();
+                if (data.logged_in) {
+                    const pushBtn = document.getElementById('cloud-push-btn');
+                    if (pushBtn && data.username) pushBtn.title = `Push to cloud (${data.username})`;
+                } else {
+                    setCloudStatus("Not logged in — run 'santai login'", 'error');
+                }
+            } catch { /* ignore — buttons always clickable, backend returns error if needed */ }
+        }
+
+        function setCloudStatus(msg, type) {
+            const el = document.getElementById('cloud-status');
+            if (!el) return;
+            el.textContent = msg;
+            el.className = 'cloud-status' + (type ? ' ' + type : '');
+        }
+
+        async function cloudPushStart() {
+            if (_cloudStreaming) return;
+            _cloudStreaming = true;
+            setCloudStatus('Packaging...');
+            try {
+                const response = await fetch('/api/cloud/push', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({include_env: false}),
+                });
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({}));
+                    setCloudStatus(err.detail || 'Push failed', 'error');
+                    return;
+                }
+                await _readCloudStream(response);
+            } catch {
+                setCloudStatus('Connection error', 'error');
+            } finally {
+                _cloudStreaming = false;
+            }
+        }
+
+        function cloudPullStart() {
+            if (_cloudStreaming) return;
+            setCloudStatus('');
+            document.getElementById('cloud-pull-confirm').classList.add('visible');
+        }
+
+        function cloudPullCancel() {
+            document.getElementById('cloud-pull-confirm').classList.remove('visible');
+            setCloudStatus('');
+        }
+
+        async function cloudPullConfirm() {
+            if (_cloudStreaming) return;
+            document.getElementById('cloud-pull-confirm').classList.remove('visible');
+            _cloudStreaming = true;
+            setCloudStatus('Looking up project...');
+            try {
+                const response = await fetch('/api/cloud/pull', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({}),
+                });
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({}));
+                    setCloudStatus(err.detail || 'Pull failed', 'error');
+                    return;
+                }
+                await _readCloudStream(response);
+            } catch {
+                setCloudStatus('Connection error', 'error');
+            } finally {
+                _cloudStreaming = false;
+            }
+        }
+
+        async function _readCloudStream(response) {
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            while (true) {
+                const {done, value} = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, {stream: true});
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+                for (const line of lines) {
+                    if (!line.startsWith('data: ')) continue;
+                    try {
+                        const data = JSON.parse(line.slice(6));
+                        if (data.type === 'status') {
+                            setCloudStatus(data.message);
+                        } else if (data.type === 'done') {
+                            if (data.pulled) {
+                                await Promise.all([refreshTree(), refreshFiles()]);
+                                setCloudStatus('Successfully pulled from cloud.', 'success');
+                            } else {
+                                setCloudStatus('Successfully saved to the cloud.', 'success');
+                            }
+                            setTimeout(() => setCloudStatus(''), 4000);
+                        } else if (data.type === 'error') {
+                            setCloudStatus(data.message, 'error');
+                        }
+                    } catch { /* ignore malformed SSE lines */ }
+                }
+            }
+        }
+
+        initCloudStatus();
     </script>
     <div class="graph-tooltip" id="graph-tooltip"></div>
     <div class="graph-tooltip" id="folder-move-tooltip"></div>
