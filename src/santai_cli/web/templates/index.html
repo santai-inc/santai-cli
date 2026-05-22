@@ -7996,11 +7996,11 @@
 
             // Intercept cloud commands before sending to LLM
             const _cmdText = userText.trim();
-            if (/^(push(\s+to)?|save(\s+to)?)\s+(the\s+)?cloud[.!?]*$/i.test(_cmdText)) {
+            if (/\b(push|save)(\s+to)?\s+(the\s+)?cloud\b/i.test(_cmdText) && _cmdText.length < 150) {
                 await chatCloudPush();
                 return;
             }
-            if (/^(pull(\s+from)?|load(\s+from)?)\s+(the\s+)?cloud[.!?]*$/i.test(_cmdText)) {
+            if (/\b(pull|load)(\s+from)?\s+(the\s+)?cloud\b/i.test(_cmdText) && _cmdText.length < 150) {
                 chatCloudPullInit();
                 return;
             }
