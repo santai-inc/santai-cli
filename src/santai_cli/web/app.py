@@ -1582,28 +1582,25 @@ def create_app(project: SantaiProject) -> FastAPI:
                 return f"Server error {e.code}."
 
         def _resolve_or_create(
-            backend: str, token: str, name: str, hub_url: str
+            backend: str, token: str, name: str, hub_url: str, username: str
         ) -> "tuple[str | None, str | None, str | None]":
             """Return (base_id, None, None) on success or (None, message, login_url) on failure."""
+            from urllib.parse import quote as _quote
+
             auth = {"Authorization": f"Bearer {token}", "User-Agent": USER_AGENT}
-            # Look up existing base
+            # Look up existing base by author username
             try:
-                req_list = urllib.request.Request(f"{backend}/me/bases", headers=auth)
+                req_list = urllib.request.Request(
+                    f"{backend}/bases?author={_quote(username)}", headers=auth
+                )
                 with urllib.request.urlopen(req_list, timeout=15) as resp:
                     data = _json.loads(resp.read())
             except urllib.error.HTTPError as e:
-                if e.code == 401:
-                    # Hub returns 401 with a valid JSON body when no bases exist yet.
-                    try:
-                        data = _json.loads(e.read().decode("utf-8", errors="replace"))
-                    except Exception:
-                        return None, _http_error_msg(e), hub_url
-                else:
-                    login_url = hub_url if e.code == 403 else None
-                    return None, _http_error_msg(e), login_url
+                login_url = hub_url if e.code in (401, 403) else None
+                return None, _http_error_msg(e), login_url
             except (urllib.error.URLError, TimeoutError):
                 return None, "Could not reach the hub. Check your connection.", None
-            for base in data.get("bases", []):
+            for base in data.get("data", []):
                 if base.get("name") == name:
                     return str(base["id"]), None, None
             # Not found — create it
@@ -1655,7 +1652,12 @@ def create_app(project: SantaiProject) -> FastAPI:
             yield _sse({"type": "status", "message": f"Looking up {project_name}..."})
 
             base_id, err, login_url = await asyncio.to_thread(
-                _resolve_or_create, backend, creds["token"], project_name, hub_url
+                _resolve_or_create,
+                backend,
+                creds["token"],
+                project_name,
+                hub_url,
+                creds.get("username", ""),
             )
             if err:
                 event: dict = {"type": "error", "message": err}
@@ -1801,7 +1803,11 @@ def create_app(project: SantaiProject) -> FastAPI:
             yield _sse({"type": "status", "message": f"Looking up {project_name}..."})
 
             base_id = await asyncio.to_thread(
-                resolve_base_id, backend, creds["token"], project_name
+                resolve_base_id,
+                backend,
+                creds["token"],
+                project_name,
+                creds.get("username", ""),
             )
             if not base_id:
                 yield _sse(

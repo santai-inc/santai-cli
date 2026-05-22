@@ -13,7 +13,12 @@ import typer
 from rich.console import Console
 
 from santai_cli.commands.auth import DEFAULT_HUB_URL, load_credentials
-from santai_cli.core.hub import USER_AGENT, create_base, get_backend_url, resolve_base_id
+from santai_cli.core.hub import (
+    USER_AGENT,
+    create_base,
+    get_backend_url,
+    resolve_base_id,
+)
 
 console = Console()
 
@@ -92,7 +97,9 @@ def push(
 
     console.print(f"Looking up [bold]{project_name}[/bold]...")
 
-    base_id = resolve_base_id(backend, creds["token"], project_name)
+    base_id = resolve_base_id(
+        backend, creds["token"], project_name, creds.get("username", "")
+    )
     if not base_id:
         console.print(f"  Not found — creating [bold]{project_name}[/bold]...")
         base_id = create_base(backend, creds["token"], project_name)
