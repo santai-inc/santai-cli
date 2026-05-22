@@ -8000,10 +8000,9 @@
             if (_chatPullPendingConfirm) {
                 if (/\b(yes|yeah|yep|yup|ok|okay|sure|go ahead|do it|proceed|confirm|absolutely|definitely|please|sounds good|let's go|go for it|affirmative|correct|right)\b/i.test(_cmdText)) {
                     _chatPullPendingConfirm = false;
-                    const _confirmDiv = _chatPullConfirmMsgDiv;
                     _chatPullConfirmMsgDiv = null;
-                    _confirmDiv.textContent = 'Looking up project…';
-                    await _chatCloudPullExecute(_confirmDiv);
+                    const _progressDiv = appendChatMessage('assistant', 'Looking up project…');
+                    await _chatCloudPullExecute(_progressDiv);
                     return;
                 }
                 // Non-affirmative: clear pending state and let message go to LLM
@@ -9275,7 +9274,7 @@
                 _chatShowCloudLoginError('pull');
                 return;
             }
-            const msg = 'This will replace your local project files with the latest cloud version. Are you sure?';
+            const msg = 'This will replace your local project files with the latest cloud version. Do you want to continue?';
             const msgDiv = appendChatMessage('assistant', msg);
             chatMessages.push({role: 'assistant', content: msg});
             saveChatHistory();
