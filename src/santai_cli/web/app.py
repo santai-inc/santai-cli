@@ -1466,6 +1466,51 @@ def create_app(project: SantaiProject) -> FastAPI:
 
         return {"status": "saved"}
 
+    # === Auth callback (handles redirect from hub after browser login) ===
+
+    # Holds the hub URL that initiated the most recent in-progress login so
+    # the /callback handler can save credentials against the right hub.
+    _pending_hub_url: list[str] = ["https://hub.sant.ai"]
+
+    @app.get("/callback")
+    async def auth_callback(
+        token: str = Query(default=None),
+        username: str = Query(default=None),
+    ) -> HTMLResponse:
+        """Receive the token redirect from the hub after browser-based login."""
+        from santai_cli.commands.auth import _save_credentials
+
+        if token:
+            _save_credentials(token, username or "", _pending_hub_url[0])
+
+        html = """<!DOCTYPE html>
+<html>
+<head><title>Santai — Signed in</title>
+<style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#0f0f0f;color:#e5e5e5}</style>
+</head>
+<body>
+<div style="text-align:center">
+  <p style="font-size:1.2rem">Signed in successfully. You can close this tab.</p>
+</div>
+<script>
+  if (window.opener) { window.opener.postMessage('santai-signed-in', '*'); }
+  setTimeout(function(){ window.close(); }, 1500);
+</script>
+</body>
+</html>"""
+        return HTMLResponse(html)
+
+    @app.get("/api/cloud/login-url")
+    async def cloud_login_url(request: Request) -> dict[str, str]:
+        """Return the hub auth URL that will callback to this app's port."""
+        from santai_cli.commands.auth import DEFAULT_HUB_URL, load_credentials
+
+        creds = load_credentials()
+        hub = creds.get("hub_url", DEFAULT_HUB_URL) if creds else DEFAULT_HUB_URL
+        _pending_hub_url[0] = hub
+        port = request.url.port or 80
+        return {"url": f"{hub}/auth/cli?callback_port={port}"}
+
     # === Cloud Push / Pull Endpoints ===
 
     _CLOUD_IGNORED_DIRS = {
@@ -1493,10 +1538,17 @@ def create_app(project: SantaiProject) -> FastAPI:
         """Return whether the user is logged in to the Santai cloud."""
         from santai_cli.commands.auth import load_credentials
 
+        from santai_cli.commands.auth import DEFAULT_HUB_URL
+
         creds = load_credentials()
+        hub_url = creds.get("hub_url", DEFAULT_HUB_URL) if creds else DEFAULT_HUB_URL
         if not creds:
-            return {"logged_in": False, "username": None}
-        return {"logged_in": True, "username": creds.get("username")}
+            return {"logged_in": False, "username": None, "hub_url": hub_url}
+        return {
+            "logged_in": True,
+            "username": creds.get("username"),
+            "hub_url": hub_url,
+        }
 
     @app.post("/api/cloud/push")
     async def cloud_push(req: CloudPushRequest) -> StreamingResponse:
@@ -1529,8 +1581,10 @@ def create_app(project: SantaiProject) -> FastAPI:
             except Exception:
                 return f"Server error {e.code}."
 
-        def _resolve_or_create(backend: str, token: str, name: str) -> "str | str":
-            """Return (base_id, None) on success or (None, error_message) on failure."""
+        def _resolve_or_create(
+            backend: str, token: str, name: str, hub_url: str
+        ) -> "tuple[str | None, str | None, str | None]":
+            """Return (base_id, None, None) on success or (None, message, login_url) on failure."""
             auth = {"Authorization": f"Bearer {token}", "User-Agent": USER_AGENT}
             # Look up existing base
             try:
@@ -1539,11 +1593,12 @@ def create_app(project: SantaiProject) -> FastAPI:
                     data = _json.loads(resp.read())
                 for base in data.get("bases", []):
                     if base.get("name") == name:
-                        return str(base["id"]), None
+                        return str(base["id"]), None, None
             except urllib.error.HTTPError as e:
-                return None, _http_error_msg(e)
+                login_url = hub_url if e.code in (401, 403) else None
+                return None, _http_error_msg(e), login_url
             except (urllib.error.URLError, TimeoutError):
-                return None, "Could not reach the hub. Check your connection."
+                return None, "Could not reach the hub. Check your connection.", None
             # Not found — create it
             body = _json.dumps({"name": name}).encode()
             try:
@@ -1556,20 +1611,29 @@ def create_app(project: SantaiProject) -> FastAPI:
                 with urllib.request.urlopen(req_create, timeout=30) as resp:
                     data = _json.loads(resp.read())
                     if "id" in data:
-                        return str(data["id"]), None
-                    return None, f"Unexpected response creating '{name}'."
+                        return str(data["id"]), None, None
+                    return None, f"Unexpected response creating '{name}'.", None
             except urllib.error.HTTPError as e:
-                return None, f"Could not create '{name}': {_http_error_msg(e)}"
+                login_url = hub_url if e.code in (401, 403) else None
+                return (
+                    None,
+                    f"Could not create '{name}': {_http_error_msg(e)}",
+                    login_url,
+                )
             except (urllib.error.URLError, TimeoutError):
-                return None, "Could not reach the hub. Check your connection."
+                return None, "Could not reach the hub. Check your connection.", None
 
         async def event_gen():
             creds = load_credentials()
+            hub_url = (
+                creds.get("hub_url", DEFAULT_HUB_URL) if creds else DEFAULT_HUB_URL
+            )
             if not creds:
                 yield _sse(
                     {
                         "type": "error",
                         "message": "Not logged in. Run 'santai login' first.",
+                        "login_url": hub_url,
                     }
                 )
                 return
@@ -1579,15 +1643,18 @@ def create_app(project: SantaiProject) -> FastAPI:
                 ignored_files.discard(".env")
 
             project_name = project.name
-            backend = get_backend_url(creds.get("hub_url", DEFAULT_HUB_URL))
+            backend = get_backend_url(hub_url)
 
             yield _sse({"type": "status", "message": f"Looking up {project_name}..."})
 
-            base_id, err = await asyncio.to_thread(
-                _resolve_or_create, backend, creds["token"], project_name
+            base_id, err, login_url = await asyncio.to_thread(
+                _resolve_or_create, backend, creds["token"], project_name, hub_url
             )
             if err:
-                yield _sse({"type": "error", "message": err})
+                event: dict = {"type": "error", "message": err}
+                if login_url:
+                    event["login_url"] = login_url
+                yield _sse(event)
                 return
 
             yield _sse({"type": "status", "message": "Packaging..."})
@@ -1672,7 +1739,10 @@ def create_app(project: SantaiProject) -> FastAPI:
 
             upload_result = await asyncio.to_thread(upload, zip_bytes)
             if isinstance(upload_result, str):
-                yield _sse({"type": "error", "message": upload_result})
+                err_event: dict = {"type": "error", "message": upload_result}
+                if "login" in upload_result.lower():
+                    err_event["login_url"] = hub_url
+                yield _sse(err_event)
                 return
 
             yield _sse({"type": "done", "version": upload_result.get("version", "?")})
@@ -1704,18 +1774,22 @@ def create_app(project: SantaiProject) -> FastAPI:
 
         async def event_gen():
             creds = load_credentials()
+            hub_url = (
+                creds.get("hub_url", DEFAULT_HUB_URL) if creds else DEFAULT_HUB_URL
+            )
             if not creds:
                 yield _sse(
                     {
                         "type": "error",
                         "message": "Not logged in. Run 'santai login' first.",
+                        "login_url": hub_url,
                     }
                 )
                 return
 
             project_name = project.root.name
             dest_path = project.root.resolve()
-            backend = get_backend_url(creds.get("hub_url", DEFAULT_HUB_URL))
+            backend = get_backend_url(hub_url)
 
             yield _sse({"type": "status", "message": f"Looking up {project_name}..."})
 
@@ -1753,7 +1827,10 @@ def create_app(project: SantaiProject) -> FastAPI:
 
             info = await asyncio.to_thread(get_download_info)
             if isinstance(info, str):
-                yield _sse({"type": "error", "message": info})
+                pull_err: dict = {"type": "error", "message": info}
+                if "login" in info.lower():
+                    pull_err["login_url"] = hub_url
+                yield _sse(pull_err)
                 return
 
             download_url = info.get("downloadUrl")

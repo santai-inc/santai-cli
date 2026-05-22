@@ -9065,16 +9065,41 @@
                     const pushBtn = document.getElementById('cloud-push-btn');
                     if (pushBtn && data.username) pushBtn.title = `Push to cloud (${data.username})`;
                 } else {
-                    setCloudStatus("Not logged in — run 'santai login'", 'error');
+                    setCloudStatus("Not logged in — run 'santai login'", 'error', true);
                 }
             } catch { /* ignore — buttons always clickable, backend returns error if needed */ }
         }
 
-        function setCloudStatus(msg, type) {
+        function setCloudStatus(msg, type, showLogin) {
             const el = document.getElementById('cloud-status');
             if (!el) return;
-            el.textContent = msg;
+            if (showLogin) {
+                const safe = msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                el.innerHTML = `${safe}, or <a href="#" onclick="startCloudLogin(event)" style="color:inherit;text-decoration:underline">sign in here</a>`;
+            } else {
+                el.textContent = msg;
+            }
             el.className = 'cloud-status' + (type ? ' ' + type : '');
+        }
+
+        async function startCloudLogin(e) {
+            if (e) e.preventDefault();
+            try {
+                const res = await fetch('/api/cloud/login-url');
+                const data = await res.json();
+                const popup = window.open(data.url, '_blank');
+                const handler = function(event) {
+                    if (event.data === 'santai-signed-in') {
+                        window.removeEventListener('message', handler);
+                        initCloudStatus();
+                        setCloudStatus('Signed in. Ready to push/pull.', 'success');
+                        setTimeout(() => setCloudStatus(''), 4000);
+                    }
+                };
+                window.addEventListener('message', handler);
+            } catch {
+                setCloudStatus('Could not reach hub to start login.', 'error');
+            }
         }
 
         async function cloudPushStart() {
@@ -9160,7 +9185,7 @@
                             }
                             setTimeout(() => setCloudStatus(''), 4000);
                         } else if (data.type === 'error') {
-                            setCloudStatus(data.message, 'error');
+                            setCloudStatus(data.message, 'error', !!data.login_url);
                         }
                     } catch { /* ignore malformed SSE lines */ }
                 }
