@@ -7994,6 +7994,17 @@
             saveChatHistory();
             chatHideEmptyState();
 
+            // Intercept cloud commands before sending to LLM
+            const _cmdText = userText.trim();
+            if (/^push(\s+to)?(\s+the)?\s+cloud[.!?]*$/i.test(_cmdText)) {
+                await chatCloudPush();
+                return;
+            }
+            if (/^pull(\s+from)?(\s+the)?\s+cloud[.!?]*$/i.test(_cmdText)) {
+                chatCloudPullInit();
+                return;
+            }
+
             await _streamFromMessages();
         }
 
@@ -9197,6 +9208,184 @@
                         }
                     } catch { /* ignore malformed SSE lines */ }
                 }
+            }
+        }
+
+        // --- Chat-triggered cloud operations ---
+
+        async function chatCloudPush() {
+            if (_cloudStreaming) {
+                appendChatMessage('assistant', 'A cloud operation is already in progress.');
+                return;
+            }
+            if (!_cloudLoggedIn) {
+                _chatShowCloudLoginError('push');
+                return;
+            }
+            _cloudStreaming = true;
+            const msgDiv = appendChatMessage('assistant', 'Packaging…');
+            try {
+                const response = await fetch('/api/cloud/push', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({include_env: false}),
+                });
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({}));
+                    const text = err.detail || 'Push failed.';
+                    msgDiv.textContent = text;
+                    chatMessages.push({role: 'assistant', content: text});
+                    saveChatHistory();
+                    return;
+                }
+                await _readCloudStreamToChat(response, 'push', msgDiv);
+            } catch {
+                msgDiv.textContent = 'Connection error.';
+                chatMessages.push({role: 'assistant', content: 'Connection error.'});
+                saveChatHistory();
+            } finally {
+                _cloudStreaming = false;
+            }
+        }
+
+        function chatCloudPullInit() {
+            if (_cloudStreaming) {
+                appendChatMessage('assistant', 'A cloud operation is already in progress.');
+                return;
+            }
+            if (!_cloudLoggedIn) {
+                _chatShowCloudLoginError('pull');
+                return;
+            }
+            const msgDiv = appendChatMessage('assistant', '');
+            msgDiv.textContent = 'This will replace your local project files with the cloud version.';
+            const row = document.createElement('div');
+            row.style.cssText = 'display:flex;gap:8px;margin-top:10px;';
+            const confirmBtn = document.createElement('button');
+            confirmBtn.textContent = 'Replace';
+            confirmBtn.className = 'btn btn-primary';
+            const cancelBtn = document.createElement('button');
+            cancelBtn.textContent = 'Cancel';
+            cancelBtn.className = 'btn';
+            row.appendChild(confirmBtn);
+            row.appendChild(cancelBtn);
+            msgDiv.appendChild(row);
+            confirmBtn.onclick = async () => {
+                row.remove();
+                msgDiv.textContent = 'Looking up project…';
+                await _chatCloudPullExecute(msgDiv);
+            };
+            cancelBtn.onclick = () => {
+                msgDiv.textContent = 'Pull cancelled.';
+                chatMessages.push({role: 'assistant', content: 'Pull cancelled.'});
+                saveChatHistory();
+            };
+        }
+
+        async function _chatCloudPullExecute(msgDiv) {
+            _cloudStreaming = true;
+            try {
+                const response = await fetch('/api/cloud/pull', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({}),
+                });
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({}));
+                    const text = err.detail || 'Pull failed.';
+                    msgDiv.textContent = text;
+                    chatMessages.push({role: 'assistant', content: text});
+                    saveChatHistory();
+                    return;
+                }
+                await _readCloudStreamToChat(response, 'pull', msgDiv);
+            } catch {
+                msgDiv.textContent = 'Connection error.';
+                chatMessages.push({role: 'assistant', content: 'Connection error.'});
+                saveChatHistory();
+            } finally {
+                _cloudStreaming = false;
+            }
+        }
+
+        async function _readCloudStreamToChat(response, context, msgDiv) {
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            while (true) {
+                const {done, value} = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, {stream: true});
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+                for (const line of lines) {
+                    if (!line.startsWith('data: ')) continue;
+                    try {
+                        const data = JSON.parse(line.slice(6));
+                        if (data.type === 'status') {
+                            msgDiv.textContent = data.message;
+                        } else if (data.type === 'done') {
+                            let finalMsg;
+                            if (data.pulled) {
+                                await Promise.all([refreshTree(), refreshFiles()]);
+                                finalMsg = 'Successfully pulled from cloud.';
+                            } else {
+                                finalMsg = 'Successfully saved to the cloud.';
+                            }
+                            msgDiv.textContent = finalMsg;
+                            chatMessages.push({role: 'assistant', content: finalMsg});
+                            saveChatHistory();
+                        } else if (data.type === 'error') {
+                            if (data.login_url) {
+                                const safe = (data.message || 'Not signed in').replace(/[.!?]+$/, '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                                msgDiv.innerHTML = `${safe}, or <a href="#" style="color:inherit;text-decoration:underline">sign in here</a>.`;
+                                msgDiv.querySelector('a').addEventListener('click', async (e) => {
+                                    e.preventDefault();
+                                    await _chatStartCloudLogin(context, msgDiv);
+                                });
+                                chatMessages.push({role: 'assistant', content: data.message || 'Not signed in.'});
+                                saveChatHistory();
+                            } else {
+                                const text = data.message || 'Error.';
+                                msgDiv.textContent = text;
+                                chatMessages.push({role: 'assistant', content: text});
+                                saveChatHistory();
+                            }
+                        }
+                    } catch { /* ignore malformed SSE */ }
+                }
+            }
+        }
+
+        function _chatShowCloudLoginError(context) {
+            const msgDiv = appendChatMessage('assistant', '');
+            const action = context === 'pull' ? 'pull from the cloud' : 'push to the cloud';
+            msgDiv.innerHTML = `Not signed in to Santai Cloud, or <a href="#" style="color:inherit;text-decoration:underline">sign in here</a>.`;
+            msgDiv.querySelector('a').addEventListener('click', async (e) => {
+                e.preventDefault();
+                await _chatStartCloudLogin(context, msgDiv);
+            });
+            chatMessages.push({role: 'assistant', content: `Not signed in to Santai Cloud. Sign in to ${action}.`});
+            saveChatHistory();
+        }
+
+        async function _chatStartCloudLogin(context, msgDiv) {
+            try {
+                const res = await fetch('/api/cloud/login-url');
+                const data = await res.json();
+                window.open(data.url, '_blank');
+                const handler = function(event) {
+                    if (event.data === 'santai-signed-in') {
+                        window.removeEventListener('message', handler);
+                        _cloudLoggedIn = true;
+                        initCloudStatus();
+                        const action = context === 'pull' ? 'pull from the cloud' : 'push to the cloud';
+                        msgDiv.textContent = `Signed in. Ready to ${action}.`;
+                    }
+                };
+                window.addEventListener('message', handler);
+            } catch {
+                msgDiv.textContent = 'Could not reach hub to start login.';
             }
         }
 
