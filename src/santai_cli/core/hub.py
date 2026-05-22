@@ -14,7 +14,10 @@ USER_AGENT = f"santai-cli/{_CLI_VERSION}"
 
 
 def get_backend_url(hub_url: str) -> str:
-    return hub_url.replace(":3000", ":3001") if ":3000" in hub_url else hub_url
+    if ":3000" in hub_url:
+        return hub_url.replace(":3000", ":3001")
+    # Production hub: API routes live under /api
+    return hub_url.rstrip("/") + "/api"
 
 
 def create_base(backend: str, token: str, name: str) -> str | None:

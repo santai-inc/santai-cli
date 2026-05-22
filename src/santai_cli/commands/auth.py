@@ -172,7 +172,7 @@ def whoami() -> None:
     import urllib.error
     import urllib.request
 
-    from santai_cli.core.hub import USER_AGENT
+    from santai_cli.core.hub import USER_AGENT, get_backend_url
 
     creds = load_credentials()
     if not creds:
@@ -180,11 +180,11 @@ def whoami() -> None:
         raise typer.Exit(1)
 
     hub = creds.get("hub_url", DEFAULT_HUB_URL)
-    backend = hub.replace(":3000", ":3001") if ":3000" in hub else hub
+    backend = get_backend_url(hub)
 
     try:
         req = urllib.request.Request(
-            f"{backend}/api/auth/get-session",
+            f"{backend}/auth/get-session",
             headers={
                 "Authorization": f"Bearer {creds['token']}",
                 "User-Agent": USER_AGENT,
