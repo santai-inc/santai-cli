@@ -9239,7 +9239,7 @@
                 return;
             }
             if (!_cloudLoggedIn) {
-                _chatShowCloudLoginError('push');
+                await _chatShowCloudLoginError('push');
                 return;
             }
             _cloudStreaming = true;
@@ -9280,7 +9280,7 @@
                 return;
             }
             if (!_cloudLoggedIn) {
-                _chatShowCloudLoginError('pull');
+                await _chatShowCloudLoginError('pull');
                 return;
             }
             const removeThinking = showThinkingIndicator();
@@ -9369,15 +9369,17 @@
             }
         }
 
-        function _chatShowCloudLoginError(context) {
+        async function _chatShowCloudLoginError(context) {
+            const removeThinking = showThinkingIndicator();
+            await new Promise(r => setTimeout(r, 1000));
+            removeThinking();
             const msgDiv = appendChatMessage('assistant', '');
-            const action = context === 'pull' ? 'pull from the cloud' : 'push to the cloud';
-            msgDiv.innerHTML = `Not signed in to Santai Cloud, or <a href="#" style="color:inherit;text-decoration:underline">sign in here</a>.`;
+            msgDiv.innerHTML = `You're not currently signed in to Santai. You can <a href="#" style="color:inherit;text-decoration:underline">sign in here</a>.`;
             msgDiv.querySelector('a').addEventListener('click', async (e) => {
                 e.preventDefault();
                 await _chatStartCloudLogin(context, msgDiv);
             });
-            chatMessages.push({role: 'assistant', content: `Not signed in to Santai Cloud. Sign in to ${action}.`});
+            chatMessages.push({role: 'assistant', content: "You're not currently signed in to Santai. You can sign in here."});
             saveChatHistory();
         }
 
