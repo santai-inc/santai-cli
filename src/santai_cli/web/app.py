@@ -85,6 +85,49 @@ class SmartPlaceRequest(BaseModel):
     content: str = ""
 
 
+_IMAGE_MIME: dict[str, str] = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".bmp": "image/bmp",
+    ".ico": "image/x-icon",
+}
+
+
+def _encode_data_url(path: Path) -> str:
+    """Return a base64 data URL string for a binary image file.
+
+    If the file already contains a data URL, return it as-is to avoid
+    double-encoding.
+    """
+    import base64 as _b64
+
+    raw = path.read_bytes()
+    if raw.startswith(b"data:"):
+        return raw.decode("ascii")
+    mime = _IMAGE_MIME.get(path.suffix.lower(), "image/png")
+    encoded = _b64.b64encode(raw).decode("ascii")
+    return f"data:{mime};base64,{encoded}"
+
+
+def _decode_data_url(data: bytes) -> bytes:
+    """Decode a base64 data URL back to raw binary bytes.
+
+    If the bytes are not a data URL (already raw binary), return unchanged.
+    """
+    import base64 as _b64
+
+    if not data.startswith(b"data:"):
+        return data
+    try:
+        comma = data.index(b",")
+        return _b64.b64decode(data[comma + 1 :])
+    except Exception:
+        return data
+
+
 def format_size(size_bytes: int | float) -> str:
     """Format bytes as human-readable size."""
     for unit in ["B", "KB", "MB", "GB"]:
@@ -1435,6 +1478,15 @@ def create_app(project: SantaiProject) -> FastAPI:
     }
     _CLOUD_SENSITIVE = {".env", "credentials.json"}
     _CLOUD_MAX_BYTES = 50 * 1024 * 1024
+    _CLOUD_IMAGE_EXTS = {
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".webp",
+        ".bmp",
+        ".ico",
+    }
 
     @app.get("/api/cloud/status")
     async def cloud_status() -> dict[str, Any]:
@@ -1555,7 +1607,10 @@ def create_app(project: SantaiProject) -> FastAPI:
                                 continue
                             if rel.name in ignored_files:
                                 continue
-                            zf.write(fp, rel)
+                            if fp.suffix.lower() in _CLOUD_IMAGE_EXTS:
+                                zf.writestr(str(rel), _encode_data_url(fp))
+                            else:
+                                zf.write(fp, rel)
                     size = tmp_path.stat().st_size
                     if size > _CLOUD_MAX_BYTES:
                         return (
@@ -1756,7 +1811,10 @@ def create_app(project: SantaiProject) -> FastAPI:
                         # Extract with cloud wrapper stripped
                         for member, target in plan:
                             target.parent.mkdir(parents=True, exist_ok=True)
-                            target.write_bytes(zf.read(member))
+                            raw = zf.read(member)
+                            if target.suffix.lower() in _CLOUD_IMAGE_EXTS:
+                                raw = _decode_data_url(raw)
+                            target.write_bytes(raw)
                         # Restore preserved files
                         for p, data in preserved.items():
                             p.write_bytes(data)
