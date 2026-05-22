@@ -1591,14 +1591,21 @@ def create_app(project: SantaiProject) -> FastAPI:
                 req_list = urllib.request.Request(f"{backend}/me/bases", headers=auth)
                 with urllib.request.urlopen(req_list, timeout=15) as resp:
                     data = _json.loads(resp.read())
-                for base in data.get("bases", []):
-                    if base.get("name") == name:
-                        return str(base["id"]), None, None
             except urllib.error.HTTPError as e:
-                login_url = hub_url if e.code in (401, 403) else None
-                return None, _http_error_msg(e), login_url
+                if e.code == 401:
+                    # Hub returns 401 with a valid JSON body when no bases exist yet.
+                    try:
+                        data = _json.loads(e.read().decode("utf-8", errors="replace"))
+                    except Exception:
+                        return None, _http_error_msg(e), hub_url
+                else:
+                    login_url = hub_url if e.code == 403 else None
+                    return None, _http_error_msg(e), login_url
             except (urllib.error.URLError, TimeoutError):
                 return None, "Could not reach the hub. Check your connection.", None
+            for base in data.get("bases", []):
+                if base.get("name") == name:
+                    return str(base["id"]), None, None
             # Not found — create it
             body = _json.dumps({"name": name}).encode()
             try:

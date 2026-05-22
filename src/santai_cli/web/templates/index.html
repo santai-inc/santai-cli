@@ -9074,7 +9074,7 @@
             const el = document.getElementById('cloud-status');
             if (!el) return;
             if (showLogin) {
-                const safe = msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                const safe = msg.replace(/[.!?]+$/, '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
                 el.innerHTML = `${safe}, or <a href="#" onclick="startCloudLogin(event)" style="color:inherit;text-decoration:underline">sign in here</a>`;
             } else {
                 el.textContent = msg;
@@ -9092,7 +9092,7 @@
                     if (event.data === 'santai-signed-in') {
                         window.removeEventListener('message', handler);
                         initCloudStatus();
-                        setCloudStatus('Signed in. Ready to push/pull.', 'success');
+                        setCloudStatus('Signed in. Ready to push to cloud.', 'success');
                         setTimeout(() => setCloudStatus(''), 4000);
                     }
                 };

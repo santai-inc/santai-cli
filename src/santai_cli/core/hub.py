@@ -56,7 +56,16 @@ def resolve_base_id(backend: str, token: str, name: str) -> str | None:
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
             data = json.loads(resp.read())
-    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError):
+    except urllib.error.HTTPError as e:
+        # Hub returns 401 with a valid JSON body when the user has no bases yet.
+        if e.code == 401:
+            try:
+                data = json.loads(e.read().decode("utf-8", errors="replace"))
+            except Exception:
+                return None
+        else:
+            return None
+    except (urllib.error.URLError, TimeoutError):
         return None
 
     for base in data.get("bases", []):
