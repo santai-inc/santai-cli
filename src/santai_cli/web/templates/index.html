@@ -8019,7 +8019,7 @@
                 return;
             }
             if (/\b(pull|load)(\s+from)?\s+(the\s+)?cloud\b/i.test(_cmdText) && _cmdText.length < 150) {
-                chatCloudPullInit();
+                await chatCloudPullInit();
                 return;
             }
 
@@ -9274,7 +9274,7 @@
             }
         }
 
-        function chatCloudPullInit() {
+        async function chatCloudPullInit() {
             if (_cloudStreaming) {
                 appendChatMessage('assistant', 'A cloud operation is already in progress.');
                 return;
@@ -9283,7 +9283,10 @@
                 _chatShowCloudLoginError('pull');
                 return;
             }
-            const msg = 'This will replace your local project files with the latest cloud version. Do you want to continue?';
+            const removeThinking = showThinkingIndicator();
+            await new Promise(r => setTimeout(r, 1000));
+            removeThinking();
+            const msg = 'This will replace your local project files with the latest cloud version. Are you sure?';
             const msgDiv = appendChatMessage('assistant', msg);
             chatMessages.push({role: 'assistant', content: msg});
             saveChatHistory();
