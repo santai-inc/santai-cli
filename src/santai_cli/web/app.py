@@ -1457,7 +1457,7 @@ def create_app(project: SantaiProject) -> FastAPI:
         from urllib.parse import quote
 
         from santai_cli.commands.auth import DEFAULT_HUB_URL, load_credentials
-        from santai_cli.core.hub import get_backend_url
+        from santai_cli.core.hub import USER_AGENT, get_backend_url
 
         def _sse(data: dict) -> str:
             return f"data: {_json.dumps(data)}\n\n"
@@ -1479,7 +1479,7 @@ def create_app(project: SantaiProject) -> FastAPI:
 
         def _resolve_or_create(backend: str, token: str, name: str) -> "str | str":
             """Return (base_id, None) on success or (None, error_message) on failure."""
-            auth = {"Authorization": f"Bearer {token}"}
+            auth = {"Authorization": f"Bearer {token}", "User-Agent": USER_AGENT}
             # Look up existing base
             try:
                 req_list = urllib.request.Request(f"{backend}/me/bases", headers=auth)
@@ -1597,6 +1597,7 @@ def create_app(project: SantaiProject) -> FastAPI:
                     headers={
                         "Authorization": f"Bearer {creds['token']}",
                         "Content-Type": f"multipart/form-data; boundary={boundary}",
+                        "User-Agent": USER_AGENT,
                     },
                 )
                 try:
@@ -1641,7 +1642,7 @@ def create_app(project: SantaiProject) -> FastAPI:
         import zipfile
 
         from santai_cli.commands.auth import DEFAULT_HUB_URL, load_credentials
-        from santai_cli.core.hub import get_backend_url, resolve_base_id
+        from santai_cli.core.hub import USER_AGENT, get_backend_url, resolve_base_id
 
         def _sse(data: dict) -> str:
             return f"data: {_json.dumps(data)}\n\n"
@@ -1678,7 +1679,10 @@ def create_app(project: SantaiProject) -> FastAPI:
             def get_download_info() -> "dict | str":
                 info_req = urllib.request.Request(
                     f"{backend}/bases/{base_id}/download",
-                    headers={"Authorization": f"Bearer {creds['token']}"},
+                    headers={
+                        "Authorization": f"Bearer {creds['token']}",
+                        "User-Agent": USER_AGENT,
+                    },
                 )
                 try:
                     with urllib.request.urlopen(info_req, timeout=15) as resp:
