@@ -8001,6 +8001,9 @@
                 if (/\b(yes|yeah|yep|yup|ok|okay|sure|go ahead|do it|proceed|confirm|absolutely|definitely|please|sounds good|let's go|go for it|affirmative|correct|right)\b/i.test(_cmdText)) {
                     _chatPullPendingConfirm = false;
                     _chatPullConfirmMsgDiv = null;
+                    const _removeThinking = showThinkingIndicator();
+                    await new Promise(r => setTimeout(r, 1000));
+                    _removeThinking();
                     const _progressDiv = appendChatMessage('assistant', 'Looking up project…');
                     await _chatCloudPullExecute(_progressDiv);
                     return;
@@ -9240,24 +9243,30 @@
                 return;
             }
             _cloudStreaming = true;
-            const msgDiv = appendChatMessage('assistant', 'Packaging…');
+            const removeThinking = showThinkingIndicator();
             try {
-                const response = await fetch('/api/cloud/push', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({include_env: false}),
-                });
+                const [response] = await Promise.all([
+                    fetch('/api/cloud/push', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({include_env: false}),
+                    }),
+                    new Promise(r => setTimeout(r, 1000)),
+                ]);
+                removeThinking();
                 if (!response.ok) {
                     const err = await response.json().catch(() => ({}));
                     const text = err.detail || 'Push failed.';
-                    msgDiv.textContent = text;
+                    appendChatMessage('assistant', text);
                     chatMessages.push({role: 'assistant', content: text});
                     saveChatHistory();
                     return;
                 }
+                const msgDiv = appendChatMessage('assistant', 'Packaging…');
                 await _readCloudStreamToChat(response, 'push', msgDiv);
             } catch {
-                msgDiv.textContent = 'Connection error.';
+                removeThinking();
+                appendChatMessage('assistant', 'Connection error.');
                 chatMessages.push({role: 'assistant', content: 'Connection error.'});
                 saveChatHistory();
             } finally {
