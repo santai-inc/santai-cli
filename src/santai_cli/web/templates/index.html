@@ -9301,13 +9301,18 @@
                 appendChatMessage('assistant', "I'm already working on a cloud operation — please wait a moment.");
                 return;
             }
+            // Check auth live during the thinking period
+            const removeThinking = showThinkingIndicator();
+            const [statusData] = await Promise.all([
+                fetch('/api/cloud/status').then(r => r.json()).catch(() => ({logged_in: false})),
+                new Promise(r => setTimeout(r, 1000)),
+            ]);
+            removeThinking();
+            _cloudLoggedIn = !!statusData.logged_in;
             if (!_cloudLoggedIn) {
-                await _chatShowCloudLoginError('pull');
+                _chatAppendSignInPrompt('pull');
                 return;
             }
-            const removeThinking = showThinkingIndicator();
-            await new Promise(r => setTimeout(r, 1000));
-            removeThinking();
             const msg = 'Just so you know, this will replace your local files with the latest version from the cloud. Want to go ahead?';
             const msgDiv = appendChatMessage('assistant', msg);
             chatMessages.push({role: 'assistant', content: msg});
@@ -9375,7 +9380,7 @@
                                 msgDiv.innerHTML = `You'll need to sign in to do that. <a href="#" style="color:inherit;text-decoration:underline">Sign in here</a>.`;
                                 msgDiv.querySelector('a').addEventListener('click', async (e) => {
                                     e.preventDefault();
-                                    await _chatStartCloudLogin(context, msgDiv);
+                                    await _chatStartCloudLogin(context);
                                 });
                                 chatMessages.push({role: 'assistant', content: "You'll need to sign in to do that."});
                                 saveChatHistory();
@@ -9391,21 +9396,25 @@
             }
         }
 
-        async function _chatShowCloudLoginError(context) {
-            const removeThinking = showThinkingIndicator();
-            await new Promise(r => setTimeout(r, 1000));
-            removeThinking();
+        function _chatAppendSignInPrompt(context) {
             const msgDiv = appendChatMessage('assistant', '');
             msgDiv.innerHTML = `You're not currently signed in to Santai. You can <a href="#" style="color:inherit;text-decoration:underline">sign in here</a>.`;
             msgDiv.querySelector('a').addEventListener('click', async (e) => {
                 e.preventDefault();
-                await _chatStartCloudLogin(context, msgDiv);
+                await _chatStartCloudLogin(context);
             });
             chatMessages.push({role: 'assistant', content: "You're not currently signed in to Santai. You can sign in here."});
             saveChatHistory();
         }
 
-        async function _chatStartCloudLogin(context, msgDiv) {
+        async function _chatShowCloudLoginError(context) {
+            const removeThinking = showThinkingIndicator();
+            await new Promise(r => setTimeout(r, 1000));
+            removeThinking();
+            _chatAppendSignInPrompt(context);
+        }
+
+        async function _chatStartCloudLogin(context) {
             try {
                 const res = await fetch('/api/cloud/login-url');
                 const data = await res.json();
@@ -9417,7 +9426,7 @@
                         initCloudStatus();
                         const action = context === 'pull' ? 'pull from the cloud' : 'push to the cloud';
                         const confirmMsg = `You're signed in! Would you still like me to ${action}?`;
-                        msgDiv.textContent = confirmMsg;
+                        appendChatMessage('assistant', confirmMsg);
                         chatMessages.push({role: 'assistant', content: confirmMsg});
                         saveChatHistory();
                         _chatPostLoginPending = context;
@@ -9425,7 +9434,7 @@
                 };
                 window.addEventListener('message', handler);
             } catch {
-                msgDiv.textContent = "Couldn't open the sign-in page. Check your connection and try again.";
+                appendChatMessage('assistant', "Couldn't open the sign-in page. Check your connection and try again.");
             }
         }
 
