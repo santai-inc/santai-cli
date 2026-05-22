@@ -9055,44 +9055,48 @@
         // ── Cloud push / pull ────────────────────────────────────────────────
 
         let _cloudStreaming = false;
+        let _cloudLoggedIn = true;
 
         async function initCloudStatus() {
             try {
                 const res = await fetch('/api/cloud/status');
                 if (!res.ok) return;
                 const data = await res.json();
+                _cloudLoggedIn = !!data.logged_in;
                 if (data.logged_in) {
                     const pushBtn = document.getElementById('cloud-push-btn');
                     if (pushBtn && data.username) pushBtn.title = `Push to cloud (${data.username})`;
-                } else {
-                    setCloudStatus("Not logged in — run 'santai login'", 'error', true);
                 }
             } catch { /* ignore — buttons always clickable, backend returns error if needed */ }
         }
 
-        function setCloudStatus(msg, type, showLogin) {
+        function setCloudStatus(msg, type, showLogin, context) {
             const el = document.getElementById('cloud-status');
             if (!el) return;
             if (showLogin) {
+                const ctx = context || 'push';
                 const safe = msg.replace(/[.!?]+$/, '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-                el.innerHTML = `${safe}, or <a href="#" onclick="startCloudLogin(event)" style="color:inherit;text-decoration:underline">sign in here</a>`;
+                el.innerHTML = `${safe}, or <a href="#" onclick="startCloudLogin(event,'${ctx}')" style="color:inherit;text-decoration:underline">sign in here</a>`;
             } else {
                 el.textContent = msg;
             }
             el.className = 'cloud-status' + (type ? ' ' + type : '');
         }
 
-        async function startCloudLogin(e) {
+        async function startCloudLogin(e, context) {
             if (e) e.preventDefault();
+            const ctx = context || 'push';
             try {
                 const res = await fetch('/api/cloud/login-url');
                 const data = await res.json();
-                const popup = window.open(data.url, '_blank');
+                window.open(data.url, '_blank');
                 const handler = function(event) {
                     if (event.data === 'santai-signed-in') {
                         window.removeEventListener('message', handler);
+                        _cloudLoggedIn = true;
                         initCloudStatus();
-                        setCloudStatus('Signed in. Ready to push to cloud.', 'success');
+                        const action = ctx === 'pull' ? 'pull from the cloud' : 'push to the cloud';
+                        setCloudStatus(`Signed in. Ready to ${action}.`, 'success');
                         setTimeout(() => setCloudStatus(''), 4000);
                     }
                 };
@@ -9117,7 +9121,7 @@
                     setCloudStatus(err.detail || 'Push failed', 'error');
                     return;
                 }
-                await _readCloudStream(response);
+                await _readCloudStream(response, 'push');
             } catch {
                 setCloudStatus('Connection error', 'error');
             } finally {
@@ -9127,6 +9131,10 @@
 
         function cloudPullStart() {
             if (_cloudStreaming) return;
+            if (!_cloudLoggedIn) {
+                setCloudStatus("Not logged in — run 'santai login'", 'error', true, 'pull');
+                return;
+            }
             setCloudStatus('');
             document.getElementById('cloud-pull-confirm').classList.add('visible');
         }
@@ -9152,7 +9160,7 @@
                     setCloudStatus(err.detail || 'Pull failed', 'error');
                     return;
                 }
-                await _readCloudStream(response);
+                await _readCloudStream(response, 'pull');
             } catch {
                 setCloudStatus('Connection error', 'error');
             } finally {
@@ -9160,7 +9168,7 @@
             }
         }
 
-        async function _readCloudStream(response) {
+        async function _readCloudStream(response, context) {
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let buffer = '';
@@ -9185,7 +9193,7 @@
                             }
                             setTimeout(() => setCloudStatus(''), 4000);
                         } else if (data.type === 'error') {
-                            setCloudStatus(data.message, 'error', !!data.login_url);
+                            setCloudStatus(data.message, 'error', !!data.login_url, context);
                         }
                     } catch { /* ignore malformed SSE lines */ }
                 }
