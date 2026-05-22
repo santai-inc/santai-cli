@@ -9076,7 +9076,7 @@
             if (showLogin) {
                 const ctx = context || 'push';
                 const safe = msg.replace(/[.!?]+$/, '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-                el.innerHTML = `${safe}, or <a href="#" onclick="startCloudLogin(event,'${ctx}')" style="color:inherit;text-decoration:underline">sign in here</a>`;
+                el.innerHTML = `${safe}, or <a href="#" onclick="startCloudLogin(event,'${ctx}')" style="color:inherit;text-decoration:underline">sign in here</a>.`;
             } else {
                 el.textContent = msg;
             }

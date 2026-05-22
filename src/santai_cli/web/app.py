@@ -97,19 +97,14 @@ _IMAGE_MIME: dict[str, str] = {
 
 
 def _encode_data_url(path: Path) -> str:
-    """Return a base64 data URL string for a binary image file.
-
-    If the file already contains a data URL, return it as-is to avoid
-    double-encoding.
-    """
+    # Cloud storage corrupts raw binary; base64 text survives the round-trip intact.
     import base64 as _b64
 
     raw = path.read_bytes()
     if raw.startswith(b"data:"):
         return raw.decode("ascii")
     mime = _IMAGE_MIME.get(path.suffix.lower(), "image/png")
-    encoded = _b64.b64encode(raw).decode("ascii")
-    return f"data:{mime};base64,{encoded}"
+    return f"data:{mime};base64,{_b64.b64encode(raw).decode('ascii')}"
 
 
 def _decode_data_url(data: bytes) -> bytes:
@@ -1536,9 +1531,7 @@ def create_app(project: SantaiProject) -> FastAPI:
     @app.get("/api/cloud/status")
     async def cloud_status() -> dict[str, Any]:
         """Return whether the user is logged in to the Santai cloud."""
-        from santai_cli.commands.auth import load_credentials
-
-        from santai_cli.commands.auth import DEFAULT_HUB_URL
+        from santai_cli.commands.auth import DEFAULT_HUB_URL, load_credentials
 
         creds = load_credentials()
         hub_url = creds.get("hub_url", DEFAULT_HUB_URL) if creds else DEFAULT_HUB_URL
