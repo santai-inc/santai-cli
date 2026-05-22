@@ -9123,9 +9123,11 @@
             } catch { /* ignore — buttons always clickable, backend returns error if needed */ }
         }
 
+        let _cloudStatusTimer = null;
         function setCloudStatus(msg, type, showLogin, context) {
             const el = document.getElementById('cloud-status');
             if (!el) return;
+            if (_cloudStatusTimer) { clearTimeout(_cloudStatusTimer); _cloudStatusTimer = null; }
             if (showLogin) {
                 const ctx = context || 'push';
                 const safe = msg.replace(/[.!?]+$/, '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -9134,6 +9136,9 @@
                 el.textContent = msg;
             }
             el.className = 'cloud-status' + (type ? ' ' + type : '');
+            if (type === 'error' && msg) {
+                _cloudStatusTimer = setTimeout(() => setCloudStatus(''), 5000);
+            }
         }
 
         async function startCloudLogin(e, context) {
