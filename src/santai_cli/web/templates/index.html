@@ -1802,7 +1802,7 @@
         .toast {
             position: fixed;
             bottom: 32px;
-            left: calc(50% + 140px);
+            left: 50%;
             transform: translateX(-50%) translateY(20px);
             opacity: 0;
             background: rgba(255, 255, 255, 0.95);
@@ -1814,6 +1814,9 @@
             z-index: 1002;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
             transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            max-width: min(480px, calc(100vw - 48px));
+            text-align: center;
+            word-break: break-word;
         }
 
         .toast.show {
@@ -1824,10 +1827,6 @@
         .toast.error {
             border-color: #ef4444;
             background: rgba(254, 242, 242, 0.95);
-        }
-
-        .toast.preview-open {
-            left: calc(50% - 60px);
         }
 
         /* Hidden file input */
@@ -3697,7 +3696,7 @@
 <body>
     <div class="app">
         <!-- Sidebar - single glass container with fill-based sections -->
-        <aside class="sidebar glass">
+        <aside class="sidebar glass" id="sidebar">
             <div class="sidebar-header">
                 <img src="/static/logo.png" alt="Santai" onerror="this.style.display='none'" onclick="showDashboard()" style="cursor: pointer;">
                 <h1 onclick="showDashboard()" style="cursor: pointer;">Santai</h1>
@@ -4836,13 +4835,13 @@
                      data-is-dir="${item.is_dir}"
                      data-name="${item.name}"
                      draggable="true"
-                     ondragstart="handleDragStart(event, '${item.path}', '${item.name}', ${item.is_dir})"
+                     ondragstart="handleDragStart(event, '${escAttr(item.path)}', '${escAttr(item.name)}', ${item.is_dir})"
                      ondragend="handleDragEnd(event)"
-                     ${item.is_dir ? `ondragover="handleDragOver(event, '${item.path}', true)"` : ''}
+                     ${item.is_dir ? `ondragover="handleDragOver(event, '${escAttr(item.path)}', true)"` : ''}
                      ${item.is_dir ? 'ondragleave="handleDragLeave(event)"' : ''}
-                     ${item.is_dir ? `ondrop="handleDrop(event, '${item.path}', true)"` : ''}
+                     ${item.is_dir ? `ondrop="handleDrop(event, '${escAttr(item.path)}', true)"` : ''}
                      onclick="selectItem(this, event)"
-                     ondblclick="openItem('${item.path}', ${item.is_dir})"
+                     ondblclick="openItem('${escAttr(item.path)}', ${item.is_dir})"
                      oncontextmenu="showContextMenu(event, this)">
                     <div class="file-icon ${item.is_dir ? 'folder' : 'file'}">
                         ${item.is_dir ? folderIcon : getFileIcon(item.name)}
@@ -4852,12 +4851,12 @@
                         <div class="file-meta">${item.is_dir ? 'Folder' : item.size_formatted}</div>
                     </div>`;
                 html += `<div class="file-actions">
-                        <button class="file-action-btn edit-btn" onclick="event.stopPropagation(); editItem('${item.path}', '${item.name}')" title="Rename">
+                        <button class="file-action-btn edit-btn" onclick="event.stopPropagation(); editItem('${escAttr(item.path)}', '${escAttr(item.name)}')" title="Rename">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
                             </svg>
                         </button>
-                        <button class="file-action-btn delete-btn" onclick="event.stopPropagation(); deleteItem('${item.path}', '${item.name}', ${item.is_dir})" title="Delete">
+                        <button class="file-action-btn delete-btn" onclick="event.stopPropagation(); deleteItem('${escAttr(item.path)}', '${escAttr(item.name)}', ${item.is_dir})" title="Delete">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
                             </svg>
@@ -4990,6 +4989,7 @@
         // Move item (drag and drop)
         let draggedItems = null;    // array of { path, name, isDir } for current drag
         let currentDropGroup = null; // <li> currently highlighted as drop target
+        let currentExtDropGroup = null; // <li> highlighted for external file drag
 
         function getFlatVisibleTreeItems() {
             return Array.from(document.querySelectorAll('#tree-view .tree-item'));
@@ -5096,6 +5096,24 @@
             document.getElementById('folder-move-tooltip').classList.remove('visible');
         }
 
+        function applyExtDropHighlight(li) {
+            li.classList.add('drag-drop-target');
+            const svgNS = 'http://www.w3.org/2000/svg';
+            const svg = document.createElementNS(svgNS, 'svg');
+            svg.classList.add('drag-group-svg');
+            svg.appendChild(document.createElementNS(svgNS, 'rect'));
+            li.insertBefore(svg, li.firstChild);
+        }
+
+        function clearExtDropHighlight() {
+            if (currentExtDropGroup) {
+                currentExtDropGroup.classList.remove('drag-drop-target');
+                const svg = currentExtDropGroup.querySelector(':scope > .drag-group-svg');
+                if (svg) svg.remove();
+                currentExtDropGroup = null;
+            }
+        }
+
         function handleDragEnd(event) {
             event.target.classList.remove('dragging');
             clearDropGroupHighlight();
@@ -5106,7 +5124,21 @@
 
         function handleDragOver(event, targetPath, targetIsDir) {
             event.preventDefault();
-            if (!draggedItems) return;
+            if (!draggedItems) {
+                // External file drag over sidebar tree: suppress full-screen drop-zone,
+                // highlight the hovered folder instead.
+                const treeItem = event.target.closest('#tree-view .tree-item');
+                if (!treeItem) return; // not in the sidebar tree — let document handler show overlay
+                event.stopPropagation();
+                event.dataTransfer.dropEffect = 'copy';
+                const groupLi = findGroupLi(treeItem, targetIsDir);
+                if (groupLi !== currentExtDropGroup) {
+                    clearExtDropHighlight();
+                    currentExtDropGroup = groupLi;
+                    if (currentExtDropGroup) applyExtDropHighlight(currentExtDropGroup);
+                }
+                return;
+            }
 
             // For file targets, drop lands in the file's parent folder
             const dropFolder = targetIsDir ? targetPath : targetPath.split('/').slice(0, -1).join('/');
@@ -5148,7 +5180,16 @@
             event.preventDefault();
             clearDropGroupHighlight();
 
-            if (!draggedItems) return;
+            if (!draggedItems) {
+                // External file drop onto a specific tree folder
+                clearExtDropHighlight();
+                document.getElementById('drop-zone').classList.remove('show');
+                if (!event.dataTransfer.items || !event.dataTransfer.items.length) return;
+                event.stopPropagation(); // prevent document drop handler
+                const dropFolder = targetIsDir ? targetPath : targetPath.split('/').slice(0, -1).join('/');
+                doExternalUpload(event.dataTransfer, dropFolder);
+                return;
+            }
 
             // For file targets, drop lands in the file's parent folder
             const dropFolder = targetIsDir ? targetPath : targetPath.split('/').slice(0, -1).join('/');
@@ -5354,31 +5395,56 @@
         }
 
         const _MAX_UPLOAD_FILES = 500;
+        const _IGNORED_FILENAMES = new Set(['.DS_Store', 'Thumbs.db', 'desktop.ini', '.localized']);
 
         async function handleFolderSelect(event) {
-            const files = Array.from(event.target.files);
+            const files = Array.from(event.target.files).filter(f => !_IGNORED_FILENAMES.has(f.name));
             event.target.value = '';
             if (files.length === 0) return;
             const capped = files.length > _MAX_UPLOAD_FILES;
             const batch = capped ? files.slice(0, _MAX_UPLOAD_FILES) : files;
-            const results = await Promise.allSettled(batch.map(file => {
+
+            // Always smart sort — the button is not a folder-specific drop target.
+            const folderName = batch[0]?.webkitRelativePath.split('/')[0] || '';
+            const sampleNames = batch.slice(0, 30).map(f => f.name).join(', ');
+            const smartFolderPath = await callSmartPlace(folderName, `Folder containing: ${sampleNames}`);
+            const baseDir = smartFolderPath ? smartFolderPath.split('/')[0] : '';
+
+            // Abort immediately if destination folder already exists.
+            const destPath = smartFolderPath || folderName;
+            if (await checkExists(destPath)) {
+                showToast(`'${folderName}' already exists — upload aborted`, true);
+                return;
+            }
+
+            let succeeded = 0;
+            const dupNames = [];
+            for (const file of batch) {
                 const relPath = file.webkitRelativePath;
+                const uploadPath = baseDir ? `${baseDir}/${relPath}` : relPath;
                 const formData = new FormData();
                 formData.append('file', file);
-                const url = relPath
-                    ? `/api/files?path=${encodeURIComponent(currentPath)}&relative_path=${encodeURIComponent(relPath)}`
-                    : `/api/files?path=${encodeURIComponent(currentPath)}`;
-                return fetch(url, { method: 'POST', body: formData }).then(async res => {
+                try {
+                    const res = await fetch(
+                        `/api/files?path=&relative_path=${encodeURIComponent(uploadPath)}`,
+                        { method: 'POST', body: formData }
+                    );
                     if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
-                });
-            }));
-            const succeeded = results.filter(r => r.status === 'fulfilled').length;
-            const failed = results.filter(r => r.status === 'rejected').length;
-            if (succeeded > 0) showToast(`Uploaded ${succeeded} file${succeeded !== 1 ? 's' : ''}`);
-            if (failed > 0) showToast(`${failed} file${failed !== 1 ? 's' : ''} failed`, true);
+                    succeeded++;
+                } catch (err) {
+                    if (isDuplicateError(err)) dupNames.push(file.name);
+                    else showToast(err.message, true);
+                }
+            }
+
             if (capped) showToast(`Folder too large — only first ${_MAX_UPLOAD_FILES} files uploaded`, true);
+            showUploadSummaryToast(dupNames, succeeded, 'file');
+            const dest = smartFolderPath ? smartFolderPath + '/' : folderName + '/';
+            if (succeeded > 0 && smartFolderPath) appendSortNotification([{ name: folderName + '/', dest }]);
+
             loadFiles(currentPath);
-            loadTree();
+            await loadTree();
+            if (succeeded > 0) revealInTree(smartFolderPath || folderName);
         }
 
         function toggleUploadMenu(e) {
@@ -5396,14 +5462,109 @@
             }
         });
 
+        // Read up to maxChars of text from a file (returns '' for binary/large files).
+        function readTextPreview(file, maxChars = 2000) {
+            if (file.size > 500_000) return Promise.resolve('');
+            return new Promise(resolve => {
+                const reader = new FileReader();
+                reader.onload = e => resolve((e.target.result || '').slice(0, maxChars));
+                reader.onerror = () => resolve('');
+                reader.readAsText(file);
+            });
+        }
+
+        // Ask the backend to suggest a placement path for a file or folder.
+        // Returns a path like "notes/my-file.md" or null on failure.
+        async function callSmartPlace(filename, content) {
+            try {
+                const res = await fetch('/api/chat/smart-place', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename, content })
+                });
+                if (!res.ok) return null;
+                const data = await res.json();
+                return data.path || null;
+            } catch { return null; }
+        }
+
+        function isDuplicateError(err) {
+            return err.message && err.message.includes('already exists');
+        }
+
+        async function checkExists(path) {
+            try {
+                const r = await fetch(`/api/files/exists?path=${encodeURIComponent(path)}`);
+                return (await r.json()).exists === true;
+            } catch { return false; }
+        }
+
+        // Single unified toast for upload results.
+        // dupNames: array of item names that were duplicates
+        // uploadedCount: number of items that succeeded
+        // itemLabel: 'file' or 'folder'
+        function showUploadSummaryToast(dupNames, uploadedCount, itemLabel) {
+            const dups = dupNames.length;
+            if (dups === 0 && uploadedCount === 0) return;
+            if (dups === 0) {
+                showToast(`Uploaded ${uploadedCount} ${itemLabel}${uploadedCount !== 1 ? 's' : ''}`);
+            } else if (uploadedCount === 0) {
+                if (dups === 1) {
+                    showToast(`'${dupNames[0]}' already exists — upload aborted`, true);
+                } else {
+                    showToast(`${dups} duplicate${dups !== 1 ? 's' : ''} found — upload aborted`, true);
+                }
+            } else {
+                showToast(`${dups} duplicate${dups !== 1 ? 's' : ''} found, ${uploadedCount} ${itemLabel}${uploadedCount !== 1 ? 's' : ''} uploaded`);
+            }
+        }
+
+        // Show smart-sort results as a bot message (hides suggestion chips automatically).
+        function appendSortNotification(placements) {
+            if (!placements.length) return;
+            const n = placements.length;
+            const label = n === 1
+                ? `Uploaded 1 ${placements[0].name.endsWith('/') ? 'folder' : 'file'}:`
+                : `Uploaded ${n} items:`;
+            // Escape markdown special chars in paths so a filename like
+            // "[evil](javascript:...)" can't become a clickable link.
+            const escapeMd = s => s.replace(/[[\]()]/g, '\\$&');
+            const lines = placements.map(p => `- ${escapeMd(p.dest)}`);
+            const md = `${label}\n\n${lines.join('\n')}`;
+            appendChatMessage('assistant', md);
+        }
+
         async function handleFileSelect(event) {
             const files = event.target.files;
+            const placements = [];
+            let lastUploadedPath = null;
+            let succeeded = 0;
+            const dupNames = [];
+            // Always smart sort — the button is not a folder-specific drop target.
             for (const file of files) {
-                await uploadFile(file);
+                try {
+                    const preview = await readTextPreview(file);
+                    const smartPath = await callSmartPlace(file.name, preview);
+                    await uploadFile(file, smartPath);
+                    if (smartPath) {
+                        placements.push({ name: file.name, dest: smartPath });
+                        lastUploadedPath = smartPath;
+                    }
+                    succeeded++;
+                } catch (err) {
+                    if (isDuplicateError(err)) dupNames.push(file.name);
+                    else showToast(err.message, true);
+                }
             }
             event.target.value = '';
+            showUploadSummaryToast(dupNames, succeeded, 'file');
+            if (succeeded > 0) appendSortNotification(placements);
             loadFiles(currentPath);
-            loadTree();
+            await loadTree();
+            if (lastUploadedPath) {
+                if (files.length === 1) openFilePreview(lastUploadedPath);
+                revealInTree(lastUploadedPath);
+            }
         }
 
 
@@ -5412,9 +5573,11 @@
         // is preserved as the first path segment).
         // _state = { count, capped } shared across recursive calls to enforce the cap.
         async function collectEntryFiles(entry, relPrefix, _state = { count: 0, capped: false }) {
+            if (!_state.emptyDirs) _state.emptyDirs = [];
             const results = [];
             if (_state.capped) return results;
             if (entry.isFile) {
+                if (_IGNORED_FILENAMES.has(entry.name)) return results;
                 if (_state.count >= _MAX_UPLOAD_FILES) { _state.capped = true; return results; }
                 await new Promise(resolve => entry.file(f => {
                     _state.count++;
@@ -5424,40 +5587,43 @@
             } else if (entry.isDirectory) {
                 const dirPath = relPrefix + entry.name + '/';
                 const reader = entry.createReader();
-                // readEntries may return results in batches — keep calling until empty.
+                // Collect ALL children across batches first so we can detect empty dirs.
+                const allChildren = [];
                 let batch;
                 do {
                     batch = await new Promise((resolve, reject) =>
                         reader.readEntries(resolve, reject)
                     );
-                    for (const child of batch) {
+                    allChildren.push(...batch);
+                } while (batch.length > 0);
+                if (allChildren.length === 0) {
+                    _state.emptyDirs.push(dirPath);
+                } else {
+                    for (const child of allChildren) {
                         if (_state.capped) break;
                         const children = await collectEntryFiles(child, dirPath, _state);
                         results.push(...children);
                     }
-                } while (batch.length > 0 && !_state.capped);
+                }
             }
             return results;
         }
 
-        async function uploadFile(file) {
+        // overrideRelPath: full relative path from root (e.g. "notes/my-file.md") produced
+        // by smart placement. When set, uploads to root with that relative path so parent
+        // directories are created automatically.
+        async function uploadFile(file, overrideRelPath = null) {
             const formData = new FormData();
             formData.append('file', file);
 
-            try {
-                const res = await fetch(`/api/files?path=${encodeURIComponent(currentPath)}`, {
-                    method: 'POST',
-                    body: formData
-                });
+            const url = overrideRelPath
+                ? `/api/files?path=&relative_path=${encodeURIComponent(overrideRelPath)}`
+                : `/api/files?path=${encodeURIComponent(currentPath)}`;
 
-                if (!res.ok) {
-                    const err = await res.json();
-                    throw new Error(err.detail || 'Upload failed');
-                }
-
-                showToast(`Uploaded ${file.name}`);
-            } catch (err) {
-                showToast(err.message, true);
+            const res = await fetch(url, { method: 'POST', body: formData });
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.detail || 'Upload failed');
             }
         }
 
@@ -5469,53 +5635,192 @@
             }
         });
 
+        // Shared handler for external file drops; targetFolder='' triggers smart sort.
+        async function doExternalUpload(dataTransfer, targetFolder) {
+            if (!dataTransfer.items || !dataTransfer.items.length) return;
+            const entries = Array.from(dataTransfer.items)
+                .map(item => item.webkitGetAsEntry?.())
+                .filter(Boolean);
+
+            let succeeded = 0;
+            const dupNames = []; // duplicate item names collected across all entries
+            const dropState = { count: 0, capped: false };
+            const smartSort = targetFolder === '';
+            const sortedPlacements = [];
+            let firstSuccessPath = null;
+            let droppedIsFolder = false;
+
+            for (const entry of entries) {
+                dropState.emptyDirs = [];
+                const collected = await collectEntryFiles(entry, '', dropState);
+
+                if (smartSort && entry.isFile) {
+                    const { file } = collected[0] || {};
+                    if (!file) continue;
+                    const preview = await readTextPreview(file);
+                    const smartPath = await callSmartPlace(file.name, preview);
+                    try {
+                        const formData = new FormData();
+                        formData.append('file', file);
+                        const url = smartPath
+                            ? `/api/files?path=&relative_path=${encodeURIComponent(smartPath)}`
+                            : `/api/files?path=`;
+                        const res = await fetch(url, { method: 'POST', body: formData });
+                        if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
+                        succeeded++;
+                        if (smartPath) {
+                            sortedPlacements.push({ name: file.name, dest: smartPath });
+                            firstSuccessPath = firstSuccessPath || smartPath;
+                        }
+                    } catch(err) {
+                        if (isDuplicateError(err)) dupNames.push(file.name);
+                        else showToast(err.message, true);
+                    }
+
+                } else if (smartSort && entry.isDirectory) {
+                    droppedIsFolder = true;
+                    const folderName = entry.name;
+                    const sampleNames = collected.slice(0, 30).map(({ file: f }) => f.name).join(', ');
+                    const smartFolderPath = await callSmartPlace(folderName, `Folder containing: ${sampleNames}`);
+                    const baseDir = smartFolderPath ? smartFolderPath.split('/')[0] : '';
+                    const destPath = smartFolderPath || folderName;
+                    if (await checkExists(destPath)) {
+                        dupNames.push(folderName);
+                        continue;
+                    }
+                    const prevSucceeded = succeeded;
+                    for (const { file, relPath } of collected) {
+                        const uploadPath = baseDir ? `${baseDir}/${relPath}` : relPath;
+                        try {
+                            const formData = new FormData();
+                            formData.append('file', file);
+                            const res = await fetch(
+                                `/api/files?path=&relative_path=${encodeURIComponent(uploadPath)}`,
+                                { method: 'POST', body: formData }
+                            );
+                            if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
+                            succeeded++;
+                        } catch(err) {
+                            if (isDuplicateError(err)) dupNames.push(file.name);
+                            else showToast(err.message, true);
+                        }
+                    }
+                    let emptyDirsCreated = 0;
+                    for (const emptyDir of dropState.emptyDirs) {
+                        const mkPath = (baseDir ? `${baseDir}/` : '') + emptyDir.replace(/\/$/, '');
+                        try {
+                            const r = await fetch(`/api/files/mkdirp?path=${encodeURIComponent(mkPath)}`, { method: 'POST' });
+                            const data = await r.json();
+                            if (data.created) emptyDirsCreated++;
+                        } catch {}
+                    }
+                    if (smartFolderPath && (succeeded > prevSucceeded || emptyDirsCreated > 0)) {
+                        sortedPlacements.push({ name: folderName + '/', dest: smartFolderPath + '/' });
+                        firstSuccessPath = firstSuccessPath || smartFolderPath;
+                    }
+
+                } else {
+                    if (entry.isDirectory) {
+                        droppedIsFolder = true;
+                        const destPath = targetFolder ? `${targetFolder}/${entry.name}` : entry.name;
+                        if (await checkExists(destPath)) {
+                            dupNames.push(entry.name);
+                            continue;
+                        }
+                    }
+                    for (const { file, relPath } of collected) {
+                        try {
+                            const formData = new FormData();
+                            formData.append('file', file);
+                            const url = relPath.includes('/')
+                                ? `/api/files?path=${encodeURIComponent(targetFolder)}&relative_path=${encodeURIComponent(relPath)}`
+                                : `/api/files?path=${encodeURIComponent(targetFolder)}`;
+                            const res = await fetch(url, { method: 'POST', body: formData });
+                            if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
+                            succeeded++;
+                            if (!firstSuccessPath) {
+                                firstSuccessPath = targetFolder
+                                    ? `${targetFolder}/${relPath.includes('/') ? relPath : file.name}`
+                                    : (relPath || file.name);
+                            }
+                        } catch(err) {
+                            if (isDuplicateError(err)) dupNames.push(file.name);
+                            else showToast(err.message, true);
+                        }
+                    }
+                    for (const emptyDir of dropState.emptyDirs) {
+                        const mkPath = targetFolder
+                            ? `${targetFolder}/${emptyDir.replace(/\/$/, '')}`
+                            : emptyDir.replace(/\/$/, '');
+                        try {
+                            const r = await fetch(`/api/files/mkdirp?path=${encodeURIComponent(mkPath)}`, { method: 'POST' });
+                            const data = await r.json();
+                            if (data.created && !firstSuccessPath) firstSuccessPath = mkPath;
+                        } catch {}
+                    }
+                }
+            }
+            // uploadedCount: for folder drops use folder count (sortedPlacements), else file count
+            const isSmartFolderDrop = droppedIsFolder && sortedPlacements.length > 0;
+            const itemLabel = (droppedIsFolder && (sortedPlacements.length > 0 || dupNames.length > 0)) ? 'folder' : 'file';
+            const uploadedCount = isSmartFolderDrop ? sortedPlacements.length : succeeded;
+            appendSortNotification(sortedPlacements);
+            showUploadSummaryToast(dupNames, uploadedCount, itemLabel);
+            if (dropState.capped) showToast(`Folder too large — only first ${_MAX_UPLOAD_FILES} files uploaded`, true);
+            loadFiles(currentPath);
+            await loadTree();
+            if (firstSuccessPath) {
+                const isSingleFile = succeeded === 1 && !droppedIsFolder;
+                if (isSingleFile) openFilePreview(firstSuccessPath);
+                revealInTree(firstSuccessPath);
+            }
+        }
+
         // Drag and drop (external files only - not internal moves)
+
+        // Suppress the full-screen overlay whenever the drag is anywhere over the sidebar.
+        document.getElementById('sidebar').addEventListener('dragover', (e) => {
+            if (!draggedItems) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.dataTransfer.dropEffect = 'copy';
+                document.getElementById('drop-zone').classList.remove('show');
+            }
+        });
+
+        document.getElementById('sidebar').addEventListener('dragleave', (e) => {
+            // When leaving the sidebar entirely, clear any per-folder highlight.
+            if (!draggedItems && !e.currentTarget.contains(e.relatedTarget)) {
+                clearExtDropHighlight();
+            }
+        });
+
         document.addEventListener('dragover', (e) => {
             e.preventDefault();
-            // Only show drop zone for external file drags, not internal moves
             if (!draggedItems) {
+                // Tree item ondragover calls stopPropagation, so this only fires outside the tree
+                clearExtDropHighlight();
                 document.getElementById('drop-zone').classList.add('show');
             }
         });
 
         document.addEventListener('dragleave', (e) => {
             if (e.relatedTarget === null) {
+                clearExtDropHighlight();
                 document.getElementById('drop-zone').classList.remove('show');
             }
         });
 
         document.addEventListener('drop', async (e) => {
             e.preventDefault();
+            clearExtDropHighlight();
             document.getElementById('drop-zone').classList.remove('show');
-
-            // Only handle file uploads if not an internal drag
-            if (!draggedItems && e.dataTransfer.items && e.dataTransfer.items.length > 0) {
-                const entries = Array.from(e.dataTransfer.items)
-                    .map(item => item.webkitGetAsEntry?.())
-                    .filter(Boolean);
-
-                let succeeded = 0, failed = 0;
-                const dropState = { count: 0, capped: false };
-                for (const entry of entries) {
-                    const collected = await collectEntryFiles(entry, '', dropState);
-                    for (const { file, relPath } of collected) {
-                        try {
-                            const formData = new FormData();
-                            formData.append('file', file);
-                            const url = relPath.includes('/')
-                                ? `/api/files?path=${encodeURIComponent(currentPath)}&relative_path=${encodeURIComponent(relPath)}`
-                                : `/api/files?path=${encodeURIComponent(currentPath)}`;
-                            const res = await fetch(url, { method: 'POST', body: formData });
-                            if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
-                            succeeded++;
-                        } catch { failed++; }
-                    }
-                }
-                if (succeeded > 0) showToast(`Uploaded ${succeeded} file${succeeded !== 1 ? 's' : ''}`);
-                if (failed > 0) showToast(`${failed} file${failed !== 1 ? 's' : ''} failed`, true);
-                if (dropState.capped) showToast(`Folder too large — only first ${_MAX_UPLOAD_FILES} files uploaded`, true);
-                loadFiles(currentPath);
-                loadTree();
+            // Tree item ondrop calls stopPropagation for external drops, so this
+            // only fires when the drop lands outside the tree (main content area).
+            if (!draggedItems) {
+                // Always smart-sort when dropping onto the editor panel, regardless
+                // of which folder the user is currently browsed into.
+                await doExternalUpload(e.dataTransfer, '');
             }
         });
 
@@ -5630,6 +5935,20 @@
                 if (e.key === 'Escape') closeModals();
             });
         });
+
+        // Escape a value for use as a JS string literal inside a single-quoted
+        // argument inside an HTML double-quoted attribute (e.g. onclick="fn('...')").
+        function escAttr(s) {
+            return String(s)
+                .replace(/\\/g, '\\\\')
+                .replace(/'/g, "\\'")
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/\n/g, '\\n')
+                .replace(/\r/g, '\\r');
+        }
 
         // Toast
         function showToast(message, isError = false) {
@@ -5766,14 +6085,14 @@
                          data-path="${node.path}"
                          data-is-dir="${node.is_dir}"
                          ${canDrag ? 'draggable="true"' : ''}
-                         ${canDrag ? `ondragstart="handleDragStart(event, '${node.path}', '${node.name}', ${node.is_dir})"` : ''}
+                         ${canDrag ? `ondragstart="handleDragStart(event, '${escAttr(node.path)}', '${escAttr(node.name)}', ${node.is_dir})"` : ''}
                          ondragend="handleDragEnd(event)"
-                         ondragover="handleDragOver(event, '${node.path}', ${node.is_dir})"
+                         ondragover="handleDragOver(event, '${escAttr(node.path)}', ${node.is_dir})"
                          ondragleave="handleDragLeave(event)"
-                         ondrop="handleDrop(event, '${node.path}', ${node.is_dir})"
-                         ${node.is_dir ? `onmouseenter="if(selectedItems.size>0&&draggedItems)showFolderMoveTooltip(event,'${node.name.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,"\\'")}')" onmouseleave="hideFolderMoveTooltip()"` : ''}
-                         onclick="handleTreeClick(event, '${node.path}', ${node.is_dir}, ${hasChildren})"
-                         ondblclick="handleTreeDblClick(event, '${node.path}', ${node.is_dir})">`;
+                         ondrop="handleDrop(event, '${escAttr(node.path)}', ${node.is_dir})"
+                         ${node.is_dir ? `onmouseenter="if(selectedItems.size>0&&draggedItems)showFolderMoveTooltip(event,'${escAttr(node.name)}')" onmouseleave="hideFolderMoveTooltip()"` : ''}
+                         onclick="handleTreeClick(event, '${escAttr(node.path)}', ${node.is_dir}, ${hasChildren})"
+                         ondblclick="handleTreeDblClick(event, '${escAttr(node.path)}', ${node.is_dir})">`;
 
             // Icon
             html += `<span class="tree-icon ${node.is_dir ? 'folder' : 'file'}">
@@ -5792,12 +6111,12 @@
             // before the toggle so the chevron stays anchored at the far right.
             if (node.path) {
                 html += `<span class="tree-actions">
-                    <button class="tree-action-btn edit-btn" onclick="event.stopPropagation(); editItem('${node.path}', '${node.name}')" title="Rename">
+                    <button class="tree-action-btn edit-btn" onclick="event.stopPropagation(); editItem('${escAttr(node.path)}', '${escAttr(node.name)}')" title="Rename">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
                         </svg>
                     </button>
-                    <button class="tree-action-btn delete-btn" onclick="event.stopPropagation(); deleteItem('${node.path}', '${node.name}', ${node.is_dir})" title="Delete">
+                    <button class="tree-action-btn delete-btn" onclick="event.stopPropagation(); deleteItem('${escAttr(node.path)}', '${escAttr(node.name)}', ${node.is_dir})" title="Delete">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
                         </svg>
@@ -5807,7 +6126,7 @@
 
             // Toggle chevron last so it stays anchored at the far right
             html += `<span class="tree-toggle${isExpanded ? ' expanded' : ''}${!hasChildren ? ' hidden' : ''}"
-                          onclick="toggleTreeNode(event, '${node.path}')">${chevronIcon}</span>`;
+                          onclick="toggleTreeNode(event, '${escAttr(node.path)}')">${chevronIcon}</span>`;
 
             html += '</div>';
 
@@ -5952,15 +6271,15 @@
                     showFileBrowser(path);
                 }
             } else {
-                // For files, open preview panel
-                openFilePreview(path);
-                // If already in browser view, navigate to the file's parent folder
+                // Navigate the browser panel to the file's parent folder first so
+                // showFileBrowser doesn't hide the preview we're about to open.
                 if (currentView === 'browser') {
                     const parentPath = path.split('/').slice(0, -1).join('/');
                     if (parentPath !== currentPath) {
                         showFileBrowser(parentPath);
                     }
                 }
+                openFilePreview(path);
             }
         }
 

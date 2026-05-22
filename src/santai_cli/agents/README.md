@@ -6,6 +6,7 @@ This directory contains agent definitions purpose-built for Santai project workf
 
 ### Context Management
 
+- **[notes.md](notes.md)** - Curates the notes/ directory as the authoritative source of project knowledge
 - **[documentation.md](documentation.md)** - Creates and maintains documentation across all santai directories
 - **[summarizer.md](summarizer.md)** - Condenses project context into clear, actionable summaries
 - **[research.md](research.md)** - Investigates topics and gathers context for the project knowledge base
