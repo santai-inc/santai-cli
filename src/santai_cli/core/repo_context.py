@@ -132,25 +132,79 @@ def build_repo_context_prompt(context: RepoContext) -> str:
             "This project organizes files into three knowledge-base folders:",
             f"- **notes/** — {SANTAI_FOLDER_DESCRIPTIONS['notes']}",
             f"- **media/** — {SANTAI_FOLDER_DESCRIPTIONS['media']}",
-            f"- **history/** — {SANTAI_FOLDER_DESCRIPTIONS['history']} (use `YYYY-MM-DD-brief-description.md` format)",
+            (
+                f"- **history/** — {SANTAI_FOLDER_DESCRIPTIONS['history']} "
+                "(use `YYYY-MM-DD-brief-description.md` format)"
+            ),
             "",
             "**When writing files:**",
-            "- Always place files under one of these three folders (e.g. `notes/my-summary.md`, not just `my-summary.md`)",
-            "- Choose descriptive, lowercase, hyphenated filenames that reflect the content",
-            "- **ALWAYS save generated content to a file**: any content you create — poems, haikus, lists, summaries, code, stories, research, decisions — MUST be written to `notes/` using write_file in addition to displaying it in chat. Do this automatically, without being asked.",
+            (
+                "- Always place files under one of these three folders "
+                "(e.g. `notes/my-summary.md`, not just `my-summary.md`)"
+            ),
+            (
+                "- Choose descriptive, lowercase, hyphenated filenames that "
+                "reflect the content"
+            ),
+            (
+                "- **ALWAYS save generated content to a file**: any content "
+                "you create — poems, haikus, lists, summaries, code, "
+                "stories, research, decisions — MUST be written to `notes/` "
+                "using write_file in addition to displaying it in chat. Do "
+                "this automatically, without being asked."
+            ),
             "- Keep the original extension when moving or referencing existing files",
             "",
             "## Important Guidelines",
-            "- IMPORTANT: Call at least one tool per turn. If you have nothing to look up or write, call answer() directly.",
-            "- IMPORTANT: Use answer() to deliver your response. Call it once, after all other operations are complete.",
-            "- IMPORTANT: For substantial content you create at the user's request (poems, stories, code, multi-paragraph summaries, plans, research notes): ALWAYS call write_file() first to save it under notes/, then call answer() with the content and a brief note that it was saved. Short answers, factual responses, and conversational replies do NOT need to be written to a file.",
-            "- You can see the file tree above, but you do NOT have the file contents in context.",
-            "- IMPORTANT: Whenever a user asks a question that could be answered by a file in this project (notes/, media/, history/, or any other file), you MUST call read_file to read the relevant file(s) before answering. Never answer knowledge-base questions from memory — always fetch fresh content with the tool.",
+            (
+                "- IMPORTANT: Call at least one tool per turn. If you have "
+                "nothing to look up or write, call answer() directly."
+            ),
+            (
+                "- IMPORTANT: Use answer() to deliver your response. Call it "
+                "once, after all other operations are complete."
+            ),
+            (
+                "- IMPORTANT: For substantial content you create at the "
+                "user's request (poems, stories, code, multi-paragraph "
+                "summaries, plans, research notes): ALWAYS call write_file() "
+                "first to save it under notes/, then call answer() with the "
+                "content and a brief note that it was saved. Short answers, "
+                "factual responses, and conversational replies do NOT need "
+                "to be written to a file."
+            ),
+            (
+                "- You can see the file tree above, but you do NOT have the "
+                "file contents in context."
+            ),
+            (
+                "- IMPORTANT: Whenever a user asks a question that could be "
+                "answered by a file in this project (notes/, media/, "
+                "history/, or any other file), you MUST call read_file to "
+                "read the relevant file(s) before answering. Never answer "
+                "knowledge-base questions from memory — always fetch fresh "
+                "content with the tool."
+            ),
             "- If multiple files might be relevant, read each one before responding.",
             "- Use [[wikilinks]] or markdown links when referencing project files.",
-            "- IMPORTANT: If a read_file result includes 'truncated: true', the file was cut off. Acknowledge this to the user rather than treating the partial content as complete.",
-            "- IMPORTANT: For multi-step requests (e.g. 'delete X and write Y'): complete EVERY step before calling answer(). Do not call answer() after only the first step.",
-            "- Cloud sync: This project can be synced with Santai Cloud. The chat intercepts these requests automatically — if the user asks to push/save to the cloud or pull/load from the cloud, the action executes directly. If asked how to sync, tell the user they can say 'push to cloud' or 'pull from cloud'.",
+            (
+                "- IMPORTANT: If a read_file result includes 'truncated: "
+                "true', the file was cut off. Acknowledge this to the user "
+                "rather than treating the partial content as complete."
+            ),
+            (
+                "- IMPORTANT: For multi-step requests (e.g. 'delete X and "
+                "write Y'): complete EVERY step before calling answer(). Do "
+                "not call answer() after only the first step."
+            ),
+            (
+                "- Cloud sync: This project can be synced with Santai Cloud. "
+                "The chat intercepts these requests automatically — if the "
+                "user asks to push/save to the cloud or pull/load from the "
+                "cloud, the action executes directly. If asked how to sync, "
+                "tell the user they can say 'push to cloud' or 'pull from "
+                "cloud'."
+            ),
         ]
     )
 
@@ -159,7 +213,11 @@ def build_repo_context_prompt(context: RepoContext) -> str:
             "",
             "## Available Tools",
             "",
-            "- **answer**: Send your final response to the user. REQUIRED to produce any output — call once, after all other work is done.",
+            (
+                "- **answer**: Send your final response to the user. "
+                "REQUIRED to produce any output — call once, after all "
+                "other work is done."
+            ),
             "  Arguments: content (string)",
             "",
             "- **write_file**: Write content to a file. Creates directories as needed.",
@@ -175,13 +233,21 @@ def build_repo_context_prompt(context: RepoContext) -> str:
             "- **mkdir**: Create a directory. Creates parent directories as needed.",
             "  Arguments: path (string)",
             "",
-            "- **move**: Move a file or directory to a new location. Prefer this over manually copying and deleting.",
+            (
+                "- **move**: Move a file or directory to a new location. "
+                "Prefer this over manually copying and deleting."
+            ),
             "  Arguments: source (string), destination (string)",
             "",
             "- **remove_file**: Remove a file.",
             "  Arguments: filepath (string)",
             "",
-            "- **remove_dir**: Remove a directory. If empty, deletes immediately. If non-empty, the tool returns a CONFIRM_REQUIRED message — relay it exactly to the user, then call again with confirmed=true after they confirm.",
+            (
+                "- **remove_dir**: Remove a directory. If empty, deletes "
+                "immediately. If non-empty, the tool returns a "
+                "CONFIRM_REQUIRED message — relay it exactly to the user, "
+                "then call again with confirmed=true after they confirm."
+            ),
             "  Arguments: path (string), confirmed (boolean, optional)",
         ]
     )

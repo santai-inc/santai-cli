@@ -1,5 +1,6 @@
 """Project detection and data loading for Santai projects."""
 
+import contextlib
 import math
 import re
 from collections import Counter
@@ -15,8 +16,13 @@ SANTAI_DIRS = ["media", "history", "notes"]
 # Consumed by both the smart-place AI prompt (app.py) and the chat system
 # prompt (repo_context.py) so they never drift.
 SANTAI_FOLDER_DESCRIPTIONS: dict[str, str] = {
-    "notes": "personal notes, summaries, AI research, documentation, how-to guides, tutorials, reference pages",
-    "media": "media files, images, audio, video, PDFs, templates, archives, binary data",
+    "notes": (
+        "personal notes, summaries, AI research, documentation, "
+        "how-to guides, tutorials, reference pages"
+    ),
+    "media": (
+        "media files, images, audio, video, PDFs, templates, archives, binary data"
+    ),
     "history": "logs, changelogs, versioned records",
 }
 
@@ -518,7 +524,8 @@ _STOP_WORDS = frozenset(
 )
 
 _MARKDOWN_STRIP = re.compile(
-    r"```.*?```|`[^`]+`|\[([^\]]+)\]\([^)]+\)|\[\[([^\]|]+)(?:\|[^\]]+)?\]\]|#{1,6} |[*_~]",
+    r"```.*?```|`[^`]+`|\[([^\]]+)\]\([^)]+\)"
+    r"|\[\[([^\]|]+)(?:\|[^\]]+)?\]\]|#{1,6} |[*_~]",
     re.DOTALL,
 )
 
@@ -673,10 +680,8 @@ def _add_file_to_graph(
         file_map[file_id] = file_path
 
         if file_path.suffix.lower() in text_extensions:
-            try:
+            with contextlib.suppress(UnicodeDecodeError):
                 file_contents[file_id] = file_path.read_text(encoding="utf-8")
-            except UnicodeDecodeError:
-                pass
 
     except (OSError, ValueError):
         pass

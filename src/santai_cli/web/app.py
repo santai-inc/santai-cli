@@ -351,15 +351,20 @@ async def _suggest_file_placement(
     if config.has_any_provider:
         if is_folder:
             system_prompt = (
-                f"You are a file organization assistant. Folders belong in one of:\n{_SMART_PLACE_FOLDER_LIST}\n\n"
-                "Place the FOLDER based on what it contains. Path must end with the folder name.\n"
-                'Respond ONLY with valid JSON. Example: {"path":"notes/my-folder","reasoning":"..."}'
+                "You are a file organization assistant. Folders belong in "
+                f"one of:\n{_SMART_PLACE_FOLDER_LIST}\n\n"
+                "Place the FOLDER based on what it contains. Path must end "
+                "with the folder name.\n"
+                "Respond ONLY with valid JSON. Example: "
+                '{"path":"notes/my-folder","reasoning":"..."}'
             )
         else:
             system_prompt = (
-                f"You are a file organization assistant. Files belong in one of:\n{_SMART_PLACE_FOLDER_LIST}\n\n"
+                "You are a file organization assistant. Files belong in "
+                f"one of:\n{_SMART_PLACE_FOLDER_LIST}\n\n"
                 "CRITICAL: Keep the EXACT original file extension.\n"
-                'Respond ONLY with valid JSON. Example: {"path":"notes/my-file.md","reasoning":"..."}'
+                "Respond ONLY with valid JSON. Example: "
+                '{"path":"notes/my-file.md","reasoning":"..."}'
             )
         user_content = f"File name: {filename}\n\nContent preview:\n{content[:2000]}"
 
@@ -375,7 +380,9 @@ async def _suggest_file_placement(
                         system=system_prompt,
                         messages=[{"role": "user", "content": user_content}],
                     )
-                    text = response.content[0].text.strip()
+                    block = response.content[0]
+                    block_text = getattr(block, "text", "")
+                    text = str(block_text).strip()
                 elif provider_name == "openai":
                     import openai as _openai
 
@@ -744,7 +751,7 @@ def create_app(project: SantaiProject) -> FastAPI:
 
     @app.post("/api/files/mkdirp")
     async def make_directory_recursive(path: str = Query(...)) -> dict[str, Any]:
-        """Create a directory and all parent directories (no-op if it already exists)."""
+        """Create a directory and parent directories (no-op if it exists)."""
         dir_path = safe_path(path)
         was_new = not dir_path.exists()
         dir_path.mkdir(parents=True, exist_ok=True)
@@ -1186,8 +1193,8 @@ def create_app(project: SantaiProject) -> FastAPI:
         provider_errors: dict[str, dict[str, str]] = {}
         for provider_name, provider_config in config.providers.items():
 
-            def _err(kind: str) -> dict[str, str]:
-                return {"type": kind, "display": provider_config.name}
+            def _err(kind: str, pc=provider_config) -> dict[str, str]:
+                return {"type": kind, "display": pc.name}
 
             if provider_config.base_url:
                 # Fetch model list from LiteLLM proxy
@@ -1280,10 +1287,11 @@ def create_app(project: SantaiProject) -> FastAPI:
         seen: set[str] = set()
         deduped: list[dict[str, str | bool]] = []
         for m in models:
-            if m["display"] not in seen:
-                seen.add(m["display"])
+            display = str(m["display"])
+            if display not in seen:
+                seen.add(display)
                 deduped.append(m)
-        deduped.sort(key=lambda m: m["display"].lower())
+        deduped.sort(key=lambda m: str(m["display"]).lower())
         return {
             "models": deduped,
             "configured": config.has_any_provider,
@@ -1437,7 +1445,9 @@ def create_app(project: SantaiProject) -> FastAPI:
         # Read existing values
         existing: dict[str, str] = {}
         if env_path.is_file():
-            existing = dict(dotenv_values(env_path))
+            existing = {
+                k: v for k, v in dotenv_values(env_path).items() if v is not None
+            }
 
         # Update with new values (empty string = leave unchanged)
         if req.anthropic_api_key is not None and req.anthropic_api_key.strip():
@@ -1579,7 +1589,11 @@ def create_app(project: SantaiProject) -> FastAPI:
         def _resolve_or_create(
             backend: str, token: str, name: str, hub_url: str, username: str
         ) -> "tuple[str | None, str | None, str | None]":
-            """Return (base_id, None, None) on success or (None, message, login_url) on failure."""
+            """Return success/failure tuple.
+
+            Returns (base_id, None, None) on success or
+            (None, message, login_url) on failure.
+            """
             from urllib.parse import quote as _quote
 
             auth = {"Authorization": f"Bearer {token}", "User-Agent": USER_AGENT}
@@ -1695,7 +1709,10 @@ def create_app(project: SantaiProject) -> FastAPI:
                                     zf.write(fp, rel)
                         size = tmp_path.stat().st_size
                         if size > _CLOUD_MAX_BYTES:
-                            return f"Archive is {format_size(size)}, exceeds the 50 MB limit."
+                            return (
+                                f"Archive is {format_size(size)}, "
+                                "exceeds the 50 MB limit."
+                            )
                         return tmp_path.read_bytes()
                     finally:
                         tmp_path.unlink(missing_ok=True)
@@ -1715,10 +1732,14 @@ def create_app(project: SantaiProject) -> FastAPI:
 
                 def upload(data: bytes) -> dict | str:
                     boundary = "----SantaiWebUpload"
+                    disposition = (
+                        f'Content-Disposition: form-data; name="file"; '
+                        f'filename="{quote(project_name)}.zip"\r\n'
+                    )
                     body = b"".join(
                         [
                             f"--{boundary}\r\n".encode(),
-                            f'Content-Disposition: form-data; name="file"; filename="{quote(project_name)}.zip"\r\n'.encode(),
+                            disposition.encode(),
                             b"Content-Type: application/zip\r\n\r\n",
                             data,
                             b"\r\n",
@@ -1740,7 +1761,10 @@ def create_app(project: SantaiProject) -> FastAPI:
                             return _json.loads(resp.read())
                     except urllib.error.HTTPError as e:
                         if e.code == 401:
-                            return "Session expired. Run 'santai login' to re-authenticate."
+                            return (
+                                "Session expired. Run 'santai login' "
+                                "to re-authenticate."
+                            )
                         body_text = e.read().decode(errors="replace")
                         try:
                             err_data = _json.loads(body_text)
@@ -1829,7 +1853,9 @@ def create_app(project: SantaiProject) -> FastAPI:
                     yield _sse(
                         {
                             "type": "error",
-                            "message": f"Project '{project_name}' not found in the cloud.",
+                            "message": (
+                                f"Project '{project_name}' not found in the cloud."
+                            ),
                         }
                     )
                     return
@@ -1847,7 +1873,10 @@ def create_app(project: SantaiProject) -> FastAPI:
                             return _json.loads(resp.read())
                     except urllib.error.HTTPError as e:
                         if e.code == 401:
-                            return "Session expired. Run 'santai login' to re-authenticate."
+                            return (
+                                "Session expired. Run 'santai login' "
+                                "to re-authenticate."
+                            )
                         if e.code == 404:
                             return f"Project '{project_name}' not found."
                         return f"Pull failed (HTTP {e.code})."
@@ -1892,12 +1921,15 @@ def create_app(project: SantaiProject) -> FastAPI:
                         tmp_path = Path(tmp.name)
                     try:
                         dl_req = urllib.request.Request(download_url)
-                        with urllib.request.urlopen(dl_req, timeout=120) as resp:
-                            with open(tmp_path, "wb") as f:
-                                shutil.copyfileobj(resp, f)
+                        with (
+                            urllib.request.urlopen(dl_req, timeout=120) as resp,
+                            open(tmp_path, "wb") as f,
+                        ):
+                            shutil.copyfileobj(resp, f)
 
                         with zipfile.ZipFile(tmp_path, "r") as zf:
-                            # Build extraction plan: strip cloud wrapper (manifest.json + files/ prefix)
+                            # Build extraction plan: strip cloud wrapper
+                            # (manifest.json + files/ prefix)
                             plan: list[tuple[zipfile.ZipInfo, Path]] = []
                             for member in zf.infolist():
                                 name = member.filename
@@ -1924,9 +1956,10 @@ def create_app(project: SantaiProject) -> FastAPI:
                                 p = dest_path / fname
                                 if p.is_file():
                                     preserved[p] = p.read_bytes()
-                            # Clear project files that are absent from the cloud archive.
-                            # Skip directories/files that are never pushed so their local
-                            # state is not destroyed (e.g. .git, .venv, node_modules).
+                            # Clear project files absent from the cloud archive.
+                            # Skip directories/files that are never pushed so
+                            # their local state is not destroyed (e.g. .git,
+                            # .venv, node_modules).
                             for item in dest_path.iterdir():
                                 if (
                                     item.name.startswith(".")

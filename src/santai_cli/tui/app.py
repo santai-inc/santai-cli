@@ -107,9 +107,7 @@ class StatsPanel(Static):
         dir_table.add_row(
             "[bold]Total[/bold]",
             f"[bold]{
-                stats.media_count
-                + stats.history_count
-                + stats.notes_count
+                stats.media_count + stats.history_count + stats.notes_count
             }[/bold]",
         )
         dir_table.add_row("Size", format_size(stats.total_size_bytes))
@@ -1792,6 +1790,8 @@ class ChatScreen(ModalScreen):
             async for chunk in stream_response(
                 self._session, self._provider, provider_config, self._model
             ):
+                if not isinstance(chunk, str):
+                    continue
                 full_text += chunk
                 # RichLog doesn't support in-place updates easily,
                 # so we write chunks as they arrive

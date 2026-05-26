@@ -74,17 +74,18 @@ def pull(
     except urllib.error.HTTPError as e:
         if e.code == 401:
             console.print(
-                "[yellow]Session expired. Run [bold]santai login[/bold] to re-authenticate.[/yellow]"
+                "[yellow]Session expired. Run [bold]santai login[/bold] "
+                "to re-authenticate.[/yellow]"
             )
-            raise typer.Exit(1)
+            raise typer.Exit(1) from e
         if e.code == 404:
             console.print(f"[red]Project '{name}' not found.[/red]")
-            raise typer.Exit(1)
+            raise typer.Exit(1) from e
         console.print(f"[red]Pull failed (HTTP {e.code})[/red]")
-        raise typer.Exit(1)
-    except (urllib.error.URLError, TimeoutError):
+        raise typer.Exit(1) from e
+    except (urllib.error.URLError, TimeoutError) as e:
         console.print("[red]Could not reach the hub. Check your connection.[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
     download_url = data.get("downloadUrl")
     if not download_url:
@@ -114,12 +115,12 @@ def pull(
                 member_path = (dest_path / member.filename).resolve()
                 try:
                     member_path.relative_to(dest_path.resolve())
-                except ValueError:
+                except ValueError as ve:
                     console.print(
                         "[red]Error: Zip contains unsafe path "
                         f"'{member.filename}'[/red]"
                     )
-                    raise typer.Exit(1)
+                    raise typer.Exit(1) from ve
                 # Reject symlinks (type_flag 'l' via external_attr or compress_type)
                 if member.external_attr >> 28 == 0xA:
                     console.print(
@@ -129,17 +130,17 @@ def pull(
             zf.extractall(dest_path)
 
         console.print(f"[green]Pulled [bold]{name}[/bold] to {dest_path}[/green]")
-    except (urllib.error.URLError, TimeoutError):
+    except (urllib.error.URLError, TimeoutError) as e:
         console.print(
             "[red]Download failed. The URL may have expired — try again.[/red]"
         )
         if dest_path.exists() and not any(dest_path.iterdir()):
             dest_path.rmdir()
-        raise typer.Exit(1)
-    except zipfile.BadZipFile:
+        raise typer.Exit(1) from e
+    except zipfile.BadZipFile as e:
         console.print("[red]Downloaded file is not a valid zip.[/red]")
         if dest_path.exists() and not any(dest_path.iterdir()):
             dest_path.rmdir()
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
     finally:
         tmp_path.unlink(missing_ok=True)

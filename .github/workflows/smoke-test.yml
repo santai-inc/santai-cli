@@ -9,7 +9,7 @@ permissions:
   contents: read
 jobs:
   lint:
-    name: lint + type check (warn-only)
+    name: lint + type check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
@@ -24,13 +24,10 @@ jobs:
       - name: Install dev deps
         run: uv sync --frozen
       - name: ruff check
-        continue-on-error: true
         run: uv run ruff check
       - name: ruff format --check
-        continue-on-error: true
         run: uv run ruff format --check
       - name: ty check
-        continue-on-error: true
         run: uv run ty check src
 
   build:

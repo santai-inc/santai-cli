@@ -13,12 +13,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-logger = logging.getLogger(__name__)
-
 import anthropic
 import openai
 
 from santai_cli.core.config import ProviderConfig
+
+logger = logging.getLogger(__name__)
 
 # Models with output-token limits below the default
 _MAX_TOKENS_BY_MODEL: dict[str, int] = {
@@ -57,7 +57,9 @@ TOOLS = [
             "properties": {
                 "filepath": {
                     "type": "string",
-                    "description": "The file path to write to (relative to project root)",
+                    "description": (
+                        "The file path to write to (relative to project root)"
+                    ),
                 },
                 "content": {
                     "type": "string",
@@ -104,7 +106,9 @@ TOOLS = [
             "properties": {
                 "path": {
                     "type": "string",
-                    "description": "The directory path to create (relative to project root)",
+                    "description": (
+                        "The directory path to create (relative to project root)"
+                    ),
                 },
             },
             "required": ["path"],
@@ -127,20 +131,26 @@ TOOLS = [
     {
         "name": "remove_dir",
         "description": (
-            "Remove a directory. If the directory is empty, it is deleted immediately. "
-            "If it has contents, the tool returns a warning — relay the warning to the user "
-            "and ask for confirmation. Once the user confirms, call again with confirmed=true."
+            "Remove a directory. If the directory is empty, it is deleted "
+            "immediately. If it has contents, the tool returns a warning — relay "
+            "the warning to the user and ask for confirmation. Once the user "
+            "confirms, call again with confirmed=true."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "path": {
                     "type": "string",
-                    "description": "The directory path to remove (relative to project root)",
+                    "description": (
+                        "The directory path to remove (relative to project root)"
+                    ),
                 },
                 "confirmed": {
                     "type": "boolean",
-                    "description": "Set to true after the user has confirmed deletion of a non-empty directory.",
+                    "description": (
+                        "Set to true after the user has confirmed deletion of a "
+                        "non-empty directory."
+                    ),
                 },
             },
             "required": ["path"],
@@ -148,7 +158,10 @@ TOOLS = [
     },
     {
         "name": "move",
-        "description": "Move a file or directory to a new location. Prefer this over manually copying and deleting.",
+        "description": (
+            "Move a file or directory to a new location. Prefer this over "
+            "manually copying and deleting."
+        ),
         "input_schema": {
             "type": "object",
             "properties": {
@@ -168,7 +181,8 @@ TOOLS = [
         "name": "answer",
         "description": (
             "Send a final response to the user. "
-            "Call this ONLY after ALL requested operations (file writes, moves, deletes) are fully complete. "
+            "Call this ONLY after ALL requested operations "
+            "(file writes, moves, deletes) are fully complete. "
             "Do not call it mid-task."
         ),
         "input_schema": {
@@ -534,7 +548,8 @@ async def _stream_openai_with_tools(
         dropped = create_kwargs.pop("tool_choice", None)
         if dropped:
             logger.warning(
-                "Provider rejected tool_choice=%r for model %s; retrying without constraint",
+                "Provider rejected tool_choice=%r for model %s; "
+                "retrying without constraint",
                 dropped,
                 model,
             )
@@ -645,9 +660,10 @@ def _tool_read_file(tool_call: dict[str, Any], project_root: Path | None) -> str
         content = path.read_text(encoding="utf-8")
         max_len = 100000
         if len(content) > max_len:
-            content = (
-                content[:max_len]
-                + f"\n... (truncated: true, showed {max_len} of {len(content)} total bytes — use read_file with start_line/end_line to read a specific range)"
+            content = content[:max_len] + (
+                f"\n... (truncated: true, showed {max_len} of {len(content)} "
+                "total bytes — use read_file with start_line/end_line to read "
+                "a specific range)"
             )
         return content
     except Exception as e:
