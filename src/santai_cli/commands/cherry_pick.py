@@ -9,18 +9,9 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from santai_cli.core.project import SANTAI_DIRS
+from santai_cli.core.project import IGNORED_DIRECTORIES, SANTAI_DIRS, SENSITIVE_FILES
 
 console = Console()
-
-# Directories to skip when traversing a cherry-picked folder
-IGNORED_DIRECTORIES = {
-    ".git",
-    ".ruff_cache",
-    ".rumdl_cache",
-    "__pycache__",
-    ".venv",
-}
 
 
 def _validate_project(path_str: str, label: str = "Path") -> Path:
@@ -185,6 +176,27 @@ def cherry_pick(
             seen.add(f)
             unique_files.append(f)
     all_files = unique_files
+
+    # -- Sensitive file protection -------------------------------------
+    sensitive_found = [f for f in all_files if f.name in SENSITIVE_FILES]
+    if sensitive_found:
+        console.print(
+            "[yellow]Warning: The following sensitive files were selected:[/yellow]"
+        )
+        for sf in sensitive_found:
+            console.print(f"  [yellow]{sf}[/yellow]")
+        if not typer.confirm(
+            "These files may contain secrets or API keys. "
+            "Include them in the cherry-pick?",
+            default=False,
+        ):
+            all_files = [f for f in all_files if f.name not in SENSITIVE_FILES]
+            if not all_files:
+                console.print(
+                    "[yellow]No files remaining after excluding "
+                    "sensitive files.[/yellow]"
+                )
+                raise typer.Exit(0)
 
     # -- Dry-run: just print and exit ----------------------------------
     if dry_run:
