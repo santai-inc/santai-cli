@@ -97,7 +97,9 @@ def push(
 
     console.print(f"Looking up [bold]{project_name}[/bold]...")
 
-    base_id = resolve_base_id(backend, creds["token"], project_name)
+    base_id = resolve_base_id(
+        backend, creds["token"], project_name, creds.get("username", "")
+    )
     if not base_id:
         console.print(f"  Not found — creating [bold]{project_name}[/bold]...")
         base_id = create_base(backend, creds["token"], project_name)

@@ -197,6 +197,14 @@ def build_repo_context_prompt(context: RepoContext) -> str:
                 "write Y'): complete EVERY step before calling answer(). Do "
                 "not call answer() after only the first step."
             ),
+            (
+                "- Cloud sync: This project can be synced with Santai Cloud. "
+                "The chat intercepts these requests automatically — if the "
+                "user asks to push/save to the cloud or pull/load from the "
+                "cloud, the action executes directly. If asked how to sync, "
+                "tell the user they can say 'push to cloud' or 'pull from "
+                "cloud'."
+            ),
         ]
     )
 

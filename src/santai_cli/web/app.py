@@ -1,5 +1,6 @@
 """FastAPI web application for Santai."""
 
+import asyncio
 import logging
 import os
 import re
@@ -72,9 +73,55 @@ class SettingsRequest(BaseModel):
     openai_api_key: str | None = None
 
 
+class CloudPushRequest(BaseModel):
+    include_env: bool = False
+
+
+class CloudPullRequest(BaseModel):
+    pass
+
+
 class SmartPlaceRequest(BaseModel):
     filename: str
     content: str = ""
+
+
+_IMAGE_MIME: dict[str, str] = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".bmp": "image/bmp",
+    ".ico": "image/x-icon",
+}
+
+
+def _encode_data_url(path: Path) -> str:
+    # Cloud storage corrupts raw binary; base64 text survives the round-trip intact.
+    import base64 as _b64
+
+    raw = path.read_bytes()
+    if raw.startswith(b"data:"):
+        return raw.decode("ascii")
+    mime = _IMAGE_MIME.get(path.suffix.lower(), "image/png")
+    return f"data:{mime};base64,{_b64.b64encode(raw).decode('ascii')}"
+
+
+def _decode_data_url(data: bytes) -> bytes:
+    """Decode a base64 data URL back to raw binary bytes.
+
+    If the bytes are not a data URL (already raw binary), return unchanged.
+    """
+    import base64 as _b64
+
+    if not data.startswith(b"data:"):
+        return data
+    try:
+        comma = data.index(b",")
+        return _b64.b64decode(data[comma + 1 :])
+    except Exception:
+        return data
 
 
 def format_size(size_bytes: int | float) -> str:
@@ -408,6 +455,8 @@ def create_app(project: SantaiProject) -> FastAPI:
     app = FastAPI(title=f"Santai - {project.name}")
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
     templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+    _cloud_push_lock = asyncio.Lock()
+    _cloud_pull_lock = asyncio.Lock()
 
     # Add custom filters to Jinja2
     templates.env.filters["format_size"] = format_size
@@ -1424,5 +1473,539 @@ def create_app(project: SantaiProject) -> FastAPI:
         load_dotenv(env_path, override=True)
 
         return {"status": "saved"}
+
+    # === Auth callback (handles redirect from hub after browser login) ===
+
+    # Holds the hub URL that initiated the most recent in-progress login so
+    # the /callback handler can save credentials against the right hub.
+    _pending_hub_url: list[str] = ["https://hub.sant.ai"]
+
+    @app.get("/callback")
+    async def auth_callback(
+        token: str = Query(default=None),
+        username: str = Query(default=None),
+    ) -> HTMLResponse:
+        """Receive the token redirect from the hub after browser-based login."""
+        from santai_cli.commands.auth import _save_credentials
+
+        if token:
+            _save_credentials(token, username or "", _pending_hub_url[0])
+
+        html = """<!DOCTYPE html>
+<html>
+<head><title>Santai — Signed in</title>
+<style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#0f0f0f;color:#e5e5e5}</style>
+</head>
+<body>
+<div style="text-align:center">
+  <p style="font-size:1.2rem">Signed in successfully. You can close this tab.</p>
+</div>
+<script>
+  if (window.opener) { window.opener.postMessage('santai-signed-in', '*'); }
+  setTimeout(function(){ window.close(); }, 1500);
+</script>
+</body>
+</html>"""
+        return HTMLResponse(html)
+
+    @app.get("/api/cloud/login-url")
+    async def cloud_login_url(request: Request) -> dict[str, str]:
+        """Return the hub auth URL that will callback to this app's port."""
+        from santai_cli.commands.auth import DEFAULT_HUB_URL, load_credentials
+
+        creds = load_credentials()
+        hub = creds.get("hub_url", DEFAULT_HUB_URL) if creds else DEFAULT_HUB_URL
+        _pending_hub_url[0] = hub
+        port = request.url.port or 80
+        return {"url": f"{hub}/auth/cli?callback_port={port}"}
+
+    # === Cloud Push / Pull Endpoints ===
+
+    _CLOUD_IGNORED_DIRS = {
+        ".git",
+        ".ruff_cache",
+        ".rumdl_cache",
+        "__pycache__",
+        ".venv",
+        "node_modules",
+    }
+    _CLOUD_SENSITIVE = {".env", "credentials.json"}
+    _CLOUD_MAX_BYTES = 50 * 1024 * 1024
+    _CLOUD_IMAGE_EXTS = {
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".webp",
+        ".bmp",
+        ".ico",
+    }
+
+    @app.get("/api/cloud/status")
+    async def cloud_status() -> dict[str, Any]:
+        """Return whether the user is logged in to the Santai cloud."""
+        from santai_cli.commands.auth import DEFAULT_HUB_URL, load_credentials
+
+        creds = load_credentials()
+        hub_url = creds.get("hub_url", DEFAULT_HUB_URL) if creds else DEFAULT_HUB_URL
+        if not creds:
+            return {"logged_in": False, "username": None, "hub_url": hub_url}
+        return {
+            "logged_in": True,
+            "username": creds.get("username"),
+            "hub_url": hub_url,
+        }
+
+    @app.post("/api/cloud/push")
+    async def cloud_push(req: CloudPushRequest) -> StreamingResponse:
+        """Push the current project to the cloud, streaming SSE progress events."""
+        import json as _json
+        import urllib.error
+        import urllib.request
+        import zipfile
+        from urllib.parse import quote
+
+        from santai_cli.commands.auth import DEFAULT_HUB_URL, load_credentials
+        from santai_cli.core.hub import USER_AGENT, get_backend_url
+
+        def _sse(data: dict) -> str:
+            return f"data: {_json.dumps(data)}\n\n"
+
+        def _http_error_msg(e: "urllib.error.HTTPError") -> str:
+            if e.code == 401:
+                return "Session expired. Run 'santai login' to re-authenticate."
+            if e.code == 403:
+                return "Access denied. Check your account permissions."
+            try:
+                body = _json.loads(e.read().decode(errors="replace"))
+                return (
+                    body.get("error")
+                    or body.get("message")
+                    or f"Server error {e.code}."
+                )
+            except Exception:
+                return f"Server error {e.code}."
+
+        def _resolve_or_create(
+            backend: str, token: str, name: str, hub_url: str, username: str
+        ) -> "tuple[str | None, str | None, str | None]":
+            """Return success/failure tuple.
+
+            Returns (base_id, None, None) on success or
+            (None, message, login_url) on failure.
+            """
+            from urllib.parse import quote as _quote
+
+            auth = {"Authorization": f"Bearer {token}", "User-Agent": USER_AGENT}
+            # Look up existing base by author username
+            try:
+                req_list = urllib.request.Request(
+                    f"{backend}/bases?author={_quote(username)}", headers=auth
+                )
+                with urllib.request.urlopen(req_list, timeout=15) as resp:
+                    data = _json.loads(resp.read())
+            except urllib.error.HTTPError as e:
+                login_url = hub_url if e.code in (401, 403) else None
+                return None, _http_error_msg(e), login_url
+            except (urllib.error.URLError, TimeoutError):
+                return None, "Could not reach the hub. Check your connection.", None
+            for base in data.get("data", []):
+                if base.get("name") == name:
+                    return str(base["id"]), None, None
+            # Not found — create it
+            body = _json.dumps({"name": name}).encode()
+            try:
+                req_create = urllib.request.Request(
+                    f"{backend}/bases/init",
+                    data=body,
+                    method="POST",
+                    headers={**auth, "Content-Type": "application/json"},
+                )
+                with urllib.request.urlopen(req_create, timeout=30) as resp:
+                    data = _json.loads(resp.read())
+                    if "id" in data:
+                        return str(data["id"]), None, None
+                    return None, f"Unexpected response creating '{name}'.", None
+            except urllib.error.HTTPError as e:
+                login_url = hub_url if e.code in (401, 403) else None
+                return (
+                    None,
+                    f"Could not create '{name}': {_http_error_msg(e)}",
+                    login_url,
+                )
+            except (urllib.error.URLError, TimeoutError):
+                return None, "Could not reach the hub. Check your connection.", None
+
+        async def event_gen():
+            if _cloud_push_lock.locked():
+                yield _sse(
+                    {"type": "error", "message": "A push is already in progress."}
+                )
+                return
+            await _cloud_push_lock.acquire()
+            try:
+                creds = load_credentials()
+                hub_url = (
+                    creds.get("hub_url", DEFAULT_HUB_URL) if creds else DEFAULT_HUB_URL
+                )
+                if not creds:
+                    yield _sse(
+                        {
+                            "type": "error",
+                            "message": "Not logged in. Run 'santai login' first.",
+                            "login_url": hub_url,
+                        }
+                    )
+                    return
+
+                ignored_files = set(_CLOUD_SENSITIVE)
+                if req.include_env:
+                    ignored_files.discard(".env")
+
+                project_name = project.name
+                backend = get_backend_url(hub_url)
+
+                yield _sse(
+                    {"type": "status", "message": f"Looking up {project_name}..."}
+                )
+
+                base_id, err, login_url = await asyncio.to_thread(
+                    _resolve_or_create,
+                    backend,
+                    creds["token"],
+                    project_name,
+                    hub_url,
+                    creds.get("username", ""),
+                )
+                if err:
+                    event: dict = {"type": "error", "message": err}
+                    if login_url:
+                        event["login_url"] = login_url
+                    yield _sse(event)
+                    return
+
+                yield _sse({"type": "status", "message": "Packaging..."})
+
+                def build_zip() -> bytes | str:
+                    import tempfile as _tmp
+
+                    with _tmp.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
+                        tmp_path = Path(tmp.name)
+                    try:
+                        with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as zf:
+                            for fp in sorted(project.root.rglob("*")):
+                                if not fp.is_file():
+                                    continue
+                                rel = fp.relative_to(project.root)
+                                if any(
+                                    part in _CLOUD_IGNORED_DIRS for part in rel.parts
+                                ):
+                                    continue
+                                if rel.name in ignored_files:
+                                    continue
+                                if fp.suffix.lower() in _CLOUD_IMAGE_EXTS:
+                                    zf.writestr(str(rel), _encode_data_url(fp))
+                                else:
+                                    zf.write(fp, rel)
+                        size = tmp_path.stat().st_size
+                        if size > _CLOUD_MAX_BYTES:
+                            return (
+                                f"Archive is {format_size(size)}, "
+                                "exceeds the 50 MB limit."
+                            )
+                        return tmp_path.read_bytes()
+                    finally:
+                        tmp_path.unlink(missing_ok=True)
+
+                result = await asyncio.to_thread(build_zip)
+                if isinstance(result, str):
+                    yield _sse({"type": "error", "message": result})
+                    return
+
+                zip_bytes: bytes = result
+                yield _sse(
+                    {
+                        "type": "status",
+                        "message": f"Uploading ({format_size(len(zip_bytes))})...",
+                    }
+                )
+
+                def upload(data: bytes) -> dict | str:
+                    boundary = "----SantaiWebUpload"
+                    disposition = (
+                        f'Content-Disposition: form-data; name="file"; '
+                        f'filename="{quote(project_name)}.zip"\r\n'
+                    )
+                    body = b"".join(
+                        [
+                            f"--{boundary}\r\n".encode(),
+                            disposition.encode(),
+                            b"Content-Type: application/zip\r\n\r\n",
+                            data,
+                            b"\r\n",
+                            f"--{boundary}--\r\n".encode(),
+                        ]
+                    )
+                    upload_req = urllib.request.Request(
+                        f"{backend}/bases/{base_id}/upload",
+                        data=body,
+                        method="POST",
+                        headers={
+                            "Authorization": f"Bearer {creds['token']}",
+                            "Content-Type": f"multipart/form-data; boundary={boundary}",
+                            "User-Agent": USER_AGENT,
+                        },
+                    )
+                    try:
+                        with urllib.request.urlopen(upload_req, timeout=120) as resp:
+                            return _json.loads(resp.read())
+                    except urllib.error.HTTPError as e:
+                        if e.code == 401:
+                            return (
+                                "Session expired. Run 'santai login' "
+                                "to re-authenticate."
+                            )
+                        body_text = e.read().decode(errors="replace")
+                        try:
+                            err_data = _json.loads(body_text)
+                            return f"Push failed: {err_data.get('error', body_text)}"
+                        except _json.JSONDecodeError:
+                            return f"Push failed (HTTP {e.code}): {body_text}"
+                    except (urllib.error.URLError, TimeoutError):
+                        return "Could not reach the hub. Check your connection."
+
+                upload_result = await asyncio.to_thread(upload, zip_bytes)
+                if isinstance(upload_result, str):
+                    err_event: dict = {"type": "error", "message": upload_result}
+                    if "login" in upload_result.lower():
+                        err_event["login_url"] = hub_url
+                    yield _sse(err_event)
+                    return
+
+                yield _sse(
+                    {"type": "done", "version": upload_result.get("version", "?")}
+                )
+            finally:
+                _cloud_push_lock.release()
+
+        return StreamingResponse(
+            event_gen(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
+
+    @app.post("/api/cloud/pull")
+    async def cloud_pull(req: CloudPullRequest) -> StreamingResponse:
+        """Pull the current project from the cloud, overwriting local files in place."""
+        import json as _json
+        import urllib.error
+        import urllib.request
+        import zipfile
+
+        from santai_cli.commands.auth import DEFAULT_HUB_URL, load_credentials
+        from santai_cli.core.hub import USER_AGENT, get_backend_url, resolve_base_id
+
+        def _sse(data: dict) -> str:
+            return f"data: {_json.dumps(data)}\n\n"
+
+        async def event_gen():
+            if _cloud_pull_lock.locked():
+                yield _sse(
+                    {"type": "error", "message": "A pull is already in progress."}
+                )
+                return
+            await _cloud_pull_lock.acquire()
+            try:
+                creds = load_credentials()
+                hub_url = (
+                    creds.get("hub_url", DEFAULT_HUB_URL) if creds else DEFAULT_HUB_URL
+                )
+                if not creds:
+                    yield _sse(
+                        {
+                            "type": "error",
+                            "message": "Not logged in. Run 'santai login' first.",
+                            "login_url": hub_url,
+                        }
+                    )
+                    return
+
+                project_name = project.root.name
+                dest_path = project.root.resolve()
+                backend = get_backend_url(hub_url)
+
+                yield _sse(
+                    {"type": "status", "message": f"Looking up {project_name}..."}
+                )
+
+                base_id = await asyncio.to_thread(
+                    resolve_base_id,
+                    backend,
+                    creds["token"],
+                    project_name,
+                    creds.get("username", ""),
+                )
+                if not base_id:
+                    yield _sse(
+                        {
+                            "type": "error",
+                            "message": (
+                                f"Project '{project_name}' not found in the cloud."
+                            ),
+                        }
+                    )
+                    return
+
+                def get_download_info() -> "dict | str":
+                    info_req = urllib.request.Request(
+                        f"{backend}/bases/{base_id}/download",
+                        headers={
+                            "Authorization": f"Bearer {creds['token']}",
+                            "User-Agent": USER_AGENT,
+                        },
+                    )
+                    try:
+                        with urllib.request.urlopen(info_req, timeout=15) as resp:
+                            return _json.loads(resp.read())
+                    except urllib.error.HTTPError as e:
+                        if e.code == 401:
+                            return (
+                                "Session expired. Run 'santai login' "
+                                "to re-authenticate."
+                            )
+                        if e.code == 404:
+                            return f"Project '{project_name}' not found."
+                        return f"Pull failed (HTTP {e.code})."
+                    except (urllib.error.URLError, TimeoutError):
+                        return "Could not reach the hub. Check your connection."
+
+                info = await asyncio.to_thread(get_download_info)
+                if isinstance(info, str):
+                    pull_err: dict = {"type": "error", "message": info}
+                    if "login" in info.lower():
+                        pull_err["login_url"] = hub_url
+                    yield _sse(pull_err)
+                    return
+
+                download_url = info.get("downloadUrl")
+                if not download_url:
+                    yield _sse(
+                        {"type": "error", "message": "No download URL received."}
+                    )
+                    return
+                if not download_url.startswith(("https://", "http://")):
+                    yield _sse(
+                        {
+                            "type": "error",
+                            "message": "Download URL has unexpected scheme.",
+                        }
+                    )
+                    return
+
+                size = info.get("size", 0)
+                yield _sse(
+                    {
+                        "type": "status",
+                        "message": f"Downloading ({format_size(size)})...",
+                    }
+                )
+
+                def download_and_extract() -> "str | None":
+                    import tempfile as _tmp
+
+                    with _tmp.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
+                        tmp_path = Path(tmp.name)
+                    try:
+                        dl_req = urllib.request.Request(download_url)
+                        with (
+                            urllib.request.urlopen(dl_req, timeout=120) as resp,
+                            open(tmp_path, "wb") as f,
+                        ):
+                            shutil.copyfileobj(resp, f)
+
+                        with zipfile.ZipFile(tmp_path, "r") as zf:
+                            # Build extraction plan: strip cloud wrapper
+                            # (manifest.json + files/ prefix)
+                            plan: list[tuple[zipfile.ZipInfo, Path]] = []
+                            for member in zf.infolist():
+                                name = member.filename
+                                if name == "manifest.json":
+                                    continue
+                                if name.startswith("files/"):
+                                    name = name[len("files/") :]
+                                # Skip directory entries and empty names
+                                if not name or name.endswith("/"):
+                                    continue
+                                target = (dest_path / name).resolve()
+                                try:
+                                    target.relative_to(dest_path)
+                                except ValueError:
+                                    return (
+                                        f"Zip contains unsafe path '{member.filename}'."
+                                    )
+                                if member.external_attr >> 28 == 0xA:
+                                    return f"Zip contains symlink '{member.filename}'."
+                                plan.append((member, target))
+                            # Preserve sensitive local files that are never pushed
+                            preserved: dict[Path, bytes] = {}
+                            for fname in _CLOUD_SENSITIVE:
+                                p = dest_path / fname
+                                if p.is_file():
+                                    preserved[p] = p.read_bytes()
+                            # Clear project files absent from the cloud archive.
+                            # Skip directories/files that are never pushed so
+                            # their local state is not destroyed (e.g. .git,
+                            # .venv, node_modules).
+                            for item in dest_path.iterdir():
+                                if (
+                                    item.name.startswith(".")
+                                    or item.name in _CLOUD_IGNORED_DIRS
+                                ):
+                                    continue
+                                if item.is_dir():
+                                    shutil.rmtree(item)
+                                else:
+                                    item.unlink()
+                            # Extract with cloud wrapper stripped
+                            for member, target in plan:
+                                target.parent.mkdir(parents=True, exist_ok=True)
+                                raw = zf.read(member)
+                                if target.suffix.lower() in _CLOUD_IMAGE_EXTS:
+                                    raw = _decode_data_url(raw)
+                                target.write_bytes(raw)
+                            # Restore preserved files
+                            for p, data in preserved.items():
+                                p.write_bytes(data)
+                        return None
+                    except zipfile.BadZipFile:
+                        return "Downloaded file is not a valid zip."
+                    except (urllib.error.URLError, TimeoutError):
+                        return "Download failed. The URL may have expired — try again."
+                    finally:
+                        tmp_path.unlink(missing_ok=True)
+
+                yield _sse({"type": "status", "message": "Extracting..."})
+                err = await asyncio.to_thread(download_and_extract)
+                if err:
+                    yield _sse({"type": "error", "message": err})
+                    return
+
+                yield _sse({"type": "done", "pulled": True})
+            finally:
+                _cloud_pull_lock.release()
+
+        return StreamingResponse(
+            event_gen(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
 
     return app
