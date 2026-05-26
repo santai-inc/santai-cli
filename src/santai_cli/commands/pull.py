@@ -55,7 +55,7 @@ def pull(
 
     console.print(f"Looking up [bold]{name}[/bold]...")
 
-    base_id = resolve_base_id(backend, creds["token"], name)
+    base_id = resolve_base_id(backend, creds["token"], name, creds.get("username", ""))
     if not base_id:
         console.print(f"[red]Project '{name}' not found.[/red]")
         raise typer.Exit(1)

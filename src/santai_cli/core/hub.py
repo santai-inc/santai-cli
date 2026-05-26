@@ -14,7 +14,10 @@ USER_AGENT = f"santai-cli/{_CLI_VERSION}"
 
 
 def get_backend_url(hub_url: str) -> str:
-    return hub_url.replace(":3000", ":3001") if ":3000" in hub_url else hub_url
+    if ":3000" in hub_url:
+        return hub_url.replace(":3000", ":3001")
+    # Production hub: API routes live under /api
+    return hub_url.rstrip("/") + "/api"
 
 
 def create_base(backend: str, token: str, name: str) -> str | None:
@@ -41,13 +44,14 @@ def create_base(backend: str, token: str, name: str) -> str | None:
         return None
 
 
-def resolve_base_id(backend: str, token: str, name: str) -> str | None:
+def resolve_base_id(backend: str, token: str, name: str, username: str) -> str | None:
     """Return the base ID for the authenticated user's base with the given name."""
     import urllib.error
     import urllib.request
+    from urllib.parse import quote
 
     req = urllib.request.Request(
-        f"{backend}/me/bases",
+        f"{backend}/bases?author={quote(username)}",
         headers={"Authorization": f"Bearer {token}", "User-Agent": USER_AGENT},
     )
     try:
@@ -56,7 +60,7 @@ def resolve_base_id(backend: str, token: str, name: str) -> str | None:
     except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError):
         return None
 
-    for base in data.get("bases", []):
+    for base in data.get("data", []):
         if base.get("name") == name:
             return str(base["id"])
     return None

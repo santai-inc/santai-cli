@@ -150,6 +150,7 @@ def build_repo_context_prompt(context: RepoContext) -> str:
             "- Use [[wikilinks]] or markdown links when referencing project files.",
             "- IMPORTANT: If a read_file result includes 'truncated: true', the file was cut off. Acknowledge this to the user rather than treating the partial content as complete.",
             "- IMPORTANT: For multi-step requests (e.g. 'delete X and write Y'): complete EVERY step before calling answer(). Do not call answer() after only the first step.",
+            "- Cloud sync: This project can be synced with Santai Cloud. The chat intercepts these requests automatically — if the user asks to push/save to the cloud or pull/load from the cloud, the action executes directly. If asked how to sync, tell the user they can say 'push to cloud' or 'pull from cloud'.",
         ]
     )
 
