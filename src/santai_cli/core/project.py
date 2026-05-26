@@ -12,6 +12,20 @@ from pathlib import Path
 # but not enforced — projects are free to add, rename, or omit them.
 SANTAI_DIRS = ["media", "history", "notes"]
 
+# Single source of truth for what each folder is for.
+# Consumed by both the smart-place AI prompt (app.py) and the chat system
+# prompt (repo_context.py) so they never drift.
+SANTAI_FOLDER_DESCRIPTIONS: dict[str, str] = {
+    "notes": (
+        "personal notes, summaries, AI research, documentation, "
+        "how-to guides, tutorials, reference pages"
+    ),
+    "media": (
+        "media files, images, audio, video, PDFs, templates, archives, binary data"
+    ),
+    "history": "logs, changelogs, versioned records",
+}
+
 
 @dataclass
 class HistoryEntry:

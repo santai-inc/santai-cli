@@ -12,7 +12,7 @@ import typer
 from rich.console import Console
 
 from santai_cli.commands.auth import DEFAULT_HUB_URL, load_credentials
-from santai_cli.core.hub import get_backend_url, resolve_base_id
+from santai_cli.core.hub import USER_AGENT, get_backend_url, resolve_base_id
 
 console = Console()
 
@@ -62,7 +62,10 @@ def pull(
 
     req = urllib.request.Request(
         f"{backend}/bases/{base_id}/download",
-        headers={"Authorization": f"Bearer {creds['token']}"},
+        headers={
+            "Authorization": f"Bearer {creds['token']}",
+            "User-Agent": USER_AGENT,
+        },
     )
 
     try:
@@ -96,7 +99,9 @@ def pull(
         tmp_path = Path(tmp.name)
 
     try:
-        dl_req = urllib.request.Request(download_url)
+        dl_req = urllib.request.Request(
+            download_url, headers={"User-Agent": USER_AGENT}
+        )
         with urllib.request.urlopen(dl_req, timeout=120) as resp:
             tmp_path.write_bytes(resp.read())
 

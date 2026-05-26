@@ -8,7 +8,7 @@ of all files and content in the repository.
 from dataclasses import dataclass
 from pathlib import Path
 
-from santai_cli.core.project import SantaiProject
+from santai_cli.core.project import SANTAI_FOLDER_DESCRIPTIONS, SantaiProject
 
 
 @dataclass
@@ -60,30 +60,21 @@ def _build_file_tree(root: Path, max_depth: int = 4) -> str:
 
 
 def _get_media_summary(project: SantaiProject) -> str:
-    """Get a summary of media files in the project.
-
-    Args:
-        project: The Santai project.
-
-    Returns:
-        Summary string of media.
-    """
-    media_path = project.media_path
-
+    """Get a summary of media files in the project."""
     summary_parts = []
 
+    media_path = project.media_path
     if media_path.is_dir():
         files = [f for f in media_path.rglob("*") if f.is_file()]
         if files:
             summary_parts.append(f"Media ({len(files)} files):")
             for f in sorted(files)[:20]:
-                rel = f.relative_to(media_path)
-                summary_parts.append(f"  - {rel}")
+                summary_parts.append(f"  - {f.relative_to(media_path)}")
 
     if not summary_parts:
         return ""
 
-    return f"## Media Summary\n\n{'=' * 40}\n\n" + "\n".join(summary_parts)
+    return f"## Media\n\n{'=' * 40}\n\n" + "\n".join(summary_parts)
 
 
 def build_repo_context(project: SantaiProject) -> RepoContext:
@@ -137,18 +128,62 @@ def build_repo_context_prompt(context: RepoContext) -> str:
     sections.extend(
         [
             "",
+            "## File Organization",
+            "This project organizes files into three knowledge-base folders:",
+            f"- **notes/** — {SANTAI_FOLDER_DESCRIPTIONS['notes']}",
+            f"- **media/** — {SANTAI_FOLDER_DESCRIPTIONS['media']}",
+            (
+                f"- **history/** — {SANTAI_FOLDER_DESCRIPTIONS['history']} "
+                "(use `YYYY-MM-DD-brief-description.md` format)"
+            ),
+            "",
+            "**When writing files:**",
+            (
+                "- Always place files under one of these three folders "
+                "(e.g. `notes/my-summary.md`, not just `my-summary.md`)"
+            ),
+            (
+                "- Choose descriptive, lowercase, hyphenated filenames that "
+                "reflect the content"
+            ),
+            (
+                "- **ALWAYS save generated content to a file**: any content "
+                "you create — poems, haikus, lists, summaries, code, "
+                "stories, research, decisions — MUST be written to `notes/` "
+                "using write_file in addition to displaying it in chat. Do "
+                "this automatically, without being asked."
+            ),
+            "- Keep the original extension when moving or referencing existing files",
+            "",
             "## Important Guidelines",
+            (
+                "- IMPORTANT: Call at least one tool per turn. If you have "
+                "nothing to look up or write, call answer() directly."
+            ),
+            (
+                "- IMPORTANT: Use answer() to deliver your response. Call it "
+                "once, after all other operations are complete."
+            ),
+            (
+                "- IMPORTANT: For substantial content you create at the "
+                "user's request (poems, stories, code, multi-paragraph "
+                "summaries, plans, research notes): ALWAYS call write_file() "
+                "first to save it under notes/, then call answer() with the "
+                "content and a brief note that it was saved. Short answers, "
+                "factual responses, and conversational replies do NOT need "
+                "to be written to a file."
+            ),
             (
                 "- You can see the file tree above, but you do NOT have the "
                 "file contents in context."
             ),
             (
                 "- IMPORTANT: Whenever a user asks a question that could be "
-                "answered by a file in this project (notes, media, history, or "
-                "any other file), you MUST call read_file to read the relevant "
-                "file(s) before answering. Never answer knowledge-base "
-                "questions from memory — always fetch fresh content with the "
-                "tool."
+                "answered by a file in this project (notes/, media/, "
+                "history/, or any other file), you MUST call read_file to "
+                "read the relevant file(s) before answering. Never answer "
+                "knowledge-base questions from memory — always fetch fresh "
+                "content with the tool."
             ),
             "- If multiple files might be relevant, read each one before responding.",
             "- Use [[wikilinks]] or markdown links when referencing project files.",
@@ -157,6 +192,11 @@ def build_repo_context_prompt(context: RepoContext) -> str:
                 "true', the file was cut off. Acknowledge this to the user "
                 "rather than treating the partial content as complete."
             ),
+            (
+                "- IMPORTANT: For multi-step requests (e.g. 'delete X and "
+                "write Y'): complete EVERY step before calling answer(). Do "
+                "not call answer() after only the first step."
+            ),
         ]
     )
 
@@ -164,11 +204,13 @@ def build_repo_context_prompt(context: RepoContext) -> str:
         [
             "",
             "## Available Tools",
+            "",
             (
-                "You have access to the following tools. WHEN THE USER ASKS "
-                "YOU TO CREATE OR WRITE A FILE, YOU MUST USE THE write_file "
-                "TOOL - DO NOT JUST TELL THEM HOW TO DO IT:"
+                "- **answer**: Send your final response to the user. "
+                "REQUIRED to produce any output — call once, after all "
+                "other work is done."
             ),
+            "  Arguments: content (string)",
             "",
             "- **write_file**: Write content to a file. Creates directories as needed.",
             "  Arguments: filepath (string), content (string)",
@@ -195,22 +237,10 @@ def build_repo_context_prompt(context: RepoContext) -> str:
             (
                 "- **remove_dir**: Remove a directory. If empty, deletes "
                 "immediately. If non-empty, the tool returns a "
-                "CONFIRM_REQUIRED message — show only that message to the user "
-                "(do not add any preamble or narration), then wait for "
-                "confirmation before calling again with confirmed=true."
+                "CONFIRM_REQUIRED message — relay it exactly to the user, "
+                "then call again with confirmed=true after they confirm."
             ),
             "  Arguments: path (string), confirmed (boolean, optional)",
-            "",
-            (
-                "IMPORTANT: When the user asks you to create, write, or edit a "
-                "file, use the write_file tool - do not describe how to do it "
-                "or suggest commands."
-            ),
-            (
-                "IMPORTANT: For remove_dir, call the tool first without "
-                "narrating — do not say you are about to delete anything. Let "
-                "the tool result determine what to say."
-            ),
         ]
     )
 

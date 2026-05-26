@@ -18,6 +18,7 @@ from pydantic import BaseModel
 
 from santai_cli.core.project import (
     MARKDOWN_LINK_PATTERN,
+    SANTAI_FOLDER_DESCRIPTIONS,
     WIKILINK_PATTERN,
     SantaiProject,
     get_directory_stats,
@@ -69,6 +70,11 @@ class ChatRequest(BaseModel):
 class SettingsRequest(BaseModel):
     anthropic_api_key: str | None = None
     openai_api_key: str | None = None
+
+
+class SmartPlaceRequest(BaseModel):
+    filename: str
+    content: str = ""
 
 
 def format_size(size_bytes: int | float) -> str:
@@ -230,6 +236,170 @@ def _update_markdown_links(root_dir: Path, old_abs: Path, new_abs: Path) -> None
                 md_file.write_text(new_content, encoding="utf-8")
             except OSError as exc:
                 logging.warning("Failed to update links in %s: %s", md_file, exc)
+
+
+_MEDIA_EXTS: frozenset[str] = frozenset(
+    {
+        "png",
+        "jpg",
+        "jpeg",
+        "gif",
+        "svg",
+        "webp",
+        "ico",
+        "bmp",
+        "tiff",
+        "pdf",
+        "zip",
+        "tar",
+        "gz",
+        "mp3",
+        "m4a",
+        "wav",
+        "flac",
+        "aac",
+        "ogg",
+        "wma",
+        "mp4",
+        "mov",
+        "avi",
+        "mkv",
+        "wmv",
+        "flv",
+        "webm",
+        "psd",
+        "ai",
+        "eps",
+        "sketch",
+    }
+)
+
+_SMART_PLACE_ALLOWED = re.compile(r"^(notes|media|history)/[^/]")
+
+_SMART_PLACE_FOLDER_LIST = "\n".join(
+    f"- {folder}/ → {desc}" for folder, desc in SANTAI_FOLDER_DESCRIPTIONS.items()
+)
+
+
+async def _suggest_file_placement(
+    filename: str,
+    content: str,
+    project_root: Path,
+) -> dict[str, str]:
+    """AI-driven file placement into notes/, media/, or history/."""
+    import json as _json
+
+    from santai_cli.core.config import load_config
+
+    is_folder = content.startswith("Folder containing:")
+    ext = (
+        filename.rsplit(".", 1)[-1].lower()
+        if ("." in filename and not is_folder)
+        else ""
+    )
+    slug = re.sub(r"[^\w.-]", "-", filename.lower())
+
+    config = load_config(project_root)
+
+    if config.has_any_provider:
+        if is_folder:
+            system_prompt = (
+                "You are a file organization assistant. Folders belong in "
+                f"one of:\n{_SMART_PLACE_FOLDER_LIST}\n\n"
+                "Place the FOLDER based on what it contains. Path must end "
+                "with the folder name.\n"
+                "Respond ONLY with valid JSON. Example: "
+                '{"path":"notes/my-folder","reasoning":"..."}'
+            )
+        else:
+            system_prompt = (
+                "You are a file organization assistant. Files belong in "
+                f"one of:\n{_SMART_PLACE_FOLDER_LIST}\n\n"
+                "CRITICAL: Keep the EXACT original file extension.\n"
+                "Respond ONLY with valid JSON. Example: "
+                '{"path":"notes/my-file.md","reasoning":"..."}'
+            )
+        user_content = f"File name: {filename}\n\nContent preview:\n{content[:2000]}"
+
+        for provider_name, provider_config in config.providers.items():
+            try:
+                if provider_name == "anthropic":
+                    import anthropic as _anthropic
+
+                    client = _anthropic.AsyncAnthropic(api_key=provider_config.api_key)
+                    response = await client.messages.create(
+                        model=provider_config.model,
+                        max_tokens=150,
+                        system=system_prompt,
+                        messages=[{"role": "user", "content": user_content}],
+                    )
+                    block = response.content[0]
+                    block_text = getattr(block, "text", "")
+                    text = str(block_text).strip()
+                elif provider_name == "openai":
+                    import openai as _openai
+
+                    kw: dict = {"api_key": provider_config.api_key}
+                    if provider_config.base_url:
+                        kw["base_url"] = provider_config.base_url
+                    client = _openai.AsyncOpenAI(**kw)
+                    resp = await client.chat.completions.create(
+                        model=provider_config.model,
+                        max_tokens=150,
+                        temperature=0,
+                        messages=[
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_content},
+                        ],
+                    )
+                    text = (resp.choices[0].message.content or "").strip()
+                else:
+                    continue
+
+                # Models sometimes wrap the JSON in a ```json fence or prepend text.
+                # Pull out the first {...} object before parsing.
+                m = re.search(r"\{.*\}", text, re.DOTALL)
+                if not m:
+                    continue
+                parsed = _json.loads(m.group())
+                path = parsed.get("path", "")
+                if (
+                    isinstance(path, str)
+                    and _SMART_PLACE_ALLOWED.match(path)
+                    and ".." not in path
+                ):
+                    if not is_folder and ext:
+                        suggested_ext = (
+                            path.rsplit(".", 1)[-1].lower()
+                            if "." in Path(path).name
+                            else ""
+                        )
+                        if suggested_ext != ext:
+                            new_path, n = re.subn(r"\.[^.]+$", f".{ext}", path)
+                            path = new_path if n else f"{path}.{ext}"
+                    return {"path": path, "reasoning": parsed.get("reasoning", "")}
+            except Exception:
+                continue
+
+    if ext in _MEDIA_EXTS:
+        return {"path": f"media/{slug}", "reasoning": "Media file"}
+    if is_folder:
+        # Scan the file manifest to detect media-dominant folders.
+        # Empty manifests fall through to the notes/ default.
+        manifest_text = content.replace("Folder containing:", "").strip()
+        names = [n.strip() for n in manifest_text.split(",") if n.strip()]
+        if names:
+            media_count = sum(
+                1
+                for n in names
+                if "." in n and n.rsplit(".", 1)[-1].lower() in _MEDIA_EXTS
+            )
+            if media_count / len(names) > 0.5:
+                return {
+                    "path": f"media/{slug}",
+                    "reasoning": "Folder containing mostly media files",
+                }
+    return {"path": f"notes/{slug}", "reasoning": "Default to notes"}
 
 
 def create_app(project: SantaiProject) -> FastAPI:
@@ -438,10 +608,7 @@ def create_app(project: SantaiProject) -> FastAPI:
         within the folder is preserved and parent directories are created.
         """
         target_dir = safe_path(path)
-        if not target_dir.is_dir():
-            raise HTTPException(
-                status_code=400, detail="Target path is not a directory"
-            )
+        target_dir.mkdir(parents=True, exist_ok=True)
 
         if not file.filename:
             raise HTTPException(status_code=400, detail="No filename provided")
@@ -453,9 +620,13 @@ def create_app(project: SantaiProject) -> FastAPI:
             file_path.parent.mkdir(parents=True, exist_ok=True)
         else:
             file_path = target_dir / file.filename
-            if file_path.exists():
-                raise HTTPException(status_code=409, detail="File already exists")
             safe_path(str(file_path.relative_to(root_dir)))
+
+        if file_path.exists():
+            raise HTTPException(
+                status_code=409,
+                detail=f"'{file_path.name}' already exists — upload aborted",
+            )
 
         with open(file_path, "wb") as f:
             content = await file.read()
@@ -523,6 +694,19 @@ def create_app(project: SantaiProject) -> FastAPI:
             "message": "Directory created",
             "path": str(new_dir.relative_to(root_dir)),
         }
+
+    @app.get("/api/files/exists")
+    async def path_exists(path: str = Query(...)) -> dict[str, bool]:
+        """Return whether a path exists within the project."""
+        return {"exists": safe_path(path).exists()}
+
+    @app.post("/api/files/mkdirp")
+    async def make_directory_recursive(path: str = Query(...)) -> dict[str, Any]:
+        """Create a directory and parent directories (no-op if it exists)."""
+        dir_path = safe_path(path)
+        was_new = not dir_path.exists()
+        dir_path.mkdir(parents=True, exist_ok=True)
+        return {"path": str(dir_path.relative_to(root_dir)), "created": was_new}
 
     @app.post("/api/files/touch")
     async def touch_file(req: TouchRequest) -> dict[str, str]:
@@ -1073,6 +1257,15 @@ def create_app(project: SantaiProject) -> FastAPI:
         profiles = get_agent_profiles()
         agents = [{"name": name, "description": desc} for name, desc in profiles]
         return {"agents": agents}
+
+    @app.post("/api/chat/smart-place")
+    async def chat_smart_place(req: SmartPlaceRequest) -> dict[str, str]:
+        """Suggest a folder placement path for a file using AI classification.
+
+        Returns {"path": "notes/filename.md", "reasoning": "..."}.
+        Falls back to extension-based rules if the AI is unavailable.
+        """
+        return await _suggest_file_placement(req.filename, req.content, project.root)
 
     @app.post("/api/chat")
     async def chat_send(req: ChatRequest) -> StreamingResponse:
