@@ -1571,7 +1571,11 @@ def create_app(project: SantaiProject) -> FastAPI:
                     system=system_instruction,
                     messages=[{"role": "user", "content": user_prompt}],
                 )
-                title = _clean_title(msg.content[0].text)
+                block = msg.content[0]
+                raw_text = (
+                    block.text if isinstance(block, _anthropic.types.TextBlock) else ""
+                )
+                title = _clean_title(raw_text)
             else:
                 import openai as _openai
 
