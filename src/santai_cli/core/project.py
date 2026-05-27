@@ -26,6 +26,31 @@ SANTAI_FOLDER_DESCRIPTIONS: dict[str, str] = {
     "history": "logs, changelogs, versioned records",
 }
 
+# Directories always excluded from copy/merge/push/cherry-pick operations.
+IGNORED_DIRECTORIES: set[str] = {
+    ".git",
+    ".ruff_cache",
+    ".rumdl_cache",
+    "__pycache__",
+    ".venv",
+    "node_modules",
+}
+
+# Files excluded by default (secrets, credentials).
+# Commands may offer opt-in flags (e.g. --include-env) to override.
+SENSITIVE_FILES: set[str] = {
+    ".env",
+    "credentials.json",
+}
+
+
+def validate_santai_structure(path: Path) -> list[str]:
+    """Return a list of missing SANTAI_DIRS in the given path.
+
+    An empty list means the directory has the expected Santai project layout.
+    """
+    return [d for d in SANTAI_DIRS if not (path / d).is_dir()]
+
 
 @dataclass
 class HistoryEntry:

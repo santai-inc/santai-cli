@@ -9,23 +9,13 @@ from typing import Annotated
 import typer
 from rich.console import Console
 
+from santai_cli.core.project import (
+    IGNORED_DIRECTORIES,
+    SENSITIVE_FILES,
+    validate_santai_structure,
+)
+
 console = Console()
-
-# Directories to exclude when copying
-IGNORED_DIRECTORIES = {
-    ".git",
-    ".ruff_cache",
-    ".rumdl_cache",
-    "__pycache__",
-    ".venv",
-}
-
-# Files excluded by default (secrets, credentials).
-# Users can opt-in to include .env via --include-env.
-SENSITIVE_FILES = {
-    ".env",
-    "credentials.json",
-}
 
 
 def _make_ignore_fn(
@@ -97,6 +87,18 @@ def copy(
     if not source_path.is_dir():
         console.print(f"[red]Error: Source path '{source}' is not a directory.[/red]")
         raise typer.Exit(1)
+
+    # Validate Santai project structure
+    missing = validate_santai_structure(source_path)
+    if missing:
+        missing_str = ", ".join(f"{d}/" for d in missing)
+        console.print(
+            f"[yellow]Warning: Source '{source}' does not look like a standard "
+            f"Santai project.[/yellow]"
+        )
+        console.print(f"[yellow]Missing directories: {missing_str}[/yellow]")
+        if not typer.confirm("Continue anyway?", default=False):
+            raise typer.Exit(0)
 
     # Resolve destination path
     dest_path = (Path.cwd() / destination).resolve()

@@ -19,24 +19,9 @@ from santai_cli.core.hub import (
     get_backend_url,
     resolve_base_id,
 )
+from santai_cli.core.project import IGNORED_DIRECTORIES, SENSITIVE_FILES
 
 console = Console()
-
-IGNORED_DIRECTORIES = {
-    ".git",
-    ".ruff_cache",
-    ".rumdl_cache",
-    "__pycache__",
-    ".venv",
-    "node_modules",
-}
-
-# Files excluded by default (secrets, credentials).
-# Users can opt-in to include .env via --include-env.
-SENSITIVE_FILES = {
-    ".env",
-    "credentials.json",
-}
 
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 
