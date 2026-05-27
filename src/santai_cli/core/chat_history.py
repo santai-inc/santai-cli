@@ -1,12 +1,19 @@
 """Persistence layer for chat sessions.
 
-Saves and loads chat sessions as Markdown files with YAML frontmatter under
+Saves and loads chat sessions as Markdown files under
 <project_root>/history/chat-history/.
 
 Filenames use the pattern: MM-DD-YYYY - Title.md
-The session id in the frontmatter is the stable lookup key.
+The session id in the metadata block is the stable lookup key.
 
-File format:
+File format (transcript first, metadata at the bottom):
+
+    **You:**
+    First user message here.
+
+    **Assistant:**
+    Response here.
+
     ---
     id: 20260527-153042-a1b2
     title: "What is recursion?"
@@ -17,12 +24,6 @@ File format:
     agent: null
     message_count: 4
     ---
-
-    **You:**
-    First user message here.
-
-    **Assistant:**
-    Response here.
 """
 
 import json
@@ -157,7 +158,7 @@ def _build_markdown(
     messages: list[dict[str, str]],
 ) -> str:
     agent_val = "null" if agent is None else agent
-    frontmatter = (
+    metadata_block = (
         "---\n"
         f"id: {session_id}\n"
         f"title: {json.dumps(title, ensure_ascii=False)}\n"
@@ -174,33 +175,50 @@ def _build_markdown(
         label = "You" if msg["role"] == "user" else "Assistant"
         body_parts.append(f"**{label}:**\n{msg['content']}")
     body = "\n\n".join(body_parts)
-    return f"{frontmatter}\n\n{body}\n"
+    if body:
+        return f"{body}\n\n{metadata_block}\n"
+    return f"{metadata_block}\n"
+
+
+def _parse_meta_block(block: str) -> dict:
+    """Parse key: value lines from a raw metadata block string."""
+    meta: dict = {}
+    for line in block.splitlines():
+        if ": " in line:
+            key, _, raw = line.partition(": ")
+            raw = raw.strip()
+            if raw == "null":
+                meta[key.strip()] = None
+            elif raw.isdigit():
+                meta[key.strip()] = int(raw)
+            elif raw.startswith('"'):
+                try:
+                    meta[key.strip()] = json.loads(raw)
+                except (json.JSONDecodeError, ValueError):
+                    meta[key.strip()] = raw.strip('"')
+            else:
+                meta[key.strip()] = raw
+    return meta
 
 
 def _parse_markdown(text: str) -> tuple[dict, list[dict[str, str]]]:
-    """Parse frontmatter and messages from a session Markdown file."""
+    """Parse metadata and messages from a session Markdown file.
+
+    Supports two layouts:
+    - New: transcript first, then ``---\\n{meta}\\n---`` at the bottom.
+    - Old: ``---\\n{meta}\\n---`` frontmatter at the top (backwards compat).
+    """
     meta: dict = {}
     body = text
 
-    if text.startswith("---\n"):
-        end = text.find("\n---\n", 4)
-        if end != -1:
-            for line in text[4:end].splitlines():
-                if ": " in line:
-                    key, _, raw = line.partition(": ")
-                    raw = raw.strip()
-                    if raw == "null":
-                        meta[key.strip()] = None
-                    elif raw.isdigit():
-                        meta[key.strip()] = int(raw)
-                    elif raw.startswith('"'):
-                        try:
-                            meta[key.strip()] = json.loads(raw)
-                        except (json.JSONDecodeError, ValueError):
-                            meta[key.strip()] = raw.strip('"')
-                    else:
-                        meta[key.strip()] = raw
-            body = text[end + 5 :]
+    # Metadata block at the bottom: \n---\n{key: val...}\n---
+    # id: is always the first field, so \n---\nid: locates the opening delimiter.
+    if "\n---\nid: " in text:
+        sep_idx = text.find("\n---\nid: ")
+        close_idx = text.find("\n---", sep_idx + 5)
+        if close_idx != -1:
+            meta = _parse_meta_block(text[sep_idx + 5 : close_idx])
+            body = text[:sep_idx]
 
     messages: list[dict[str, str]] = []
     for match in _MSG_PATTERN.finditer(body.strip()):

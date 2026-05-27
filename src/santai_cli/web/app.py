@@ -100,6 +100,12 @@ class UpdateTitleRequest(BaseModel):
     title: str
 
 
+class GenerateTitleRequest(BaseModel):
+    messages: list[dict[str, str]]
+    provider: str
+    model: str
+
+
 _IMAGE_MIME: dict[str, str] = {
     ".png": "image/png",
     ".jpg": "image/jpeg",
@@ -1522,6 +1528,70 @@ def create_app(project: SantaiProject) -> FastAPI:
         except OSError as e:
             raise HTTPException(status_code=500, detail=str(e)) from e
         return {"status": "updated"}
+
+    @app.post("/api/chat/generate-title")
+    async def chat_generate_title(req: GenerateTitleRequest) -> dict[str, str]:
+        """Generate a concise smart title for a chat session using the LLM."""
+        from santai_cli.core.chat_history import auto_title
+        from santai_cli.core.config import load_config
+
+        config = load_config(project.root)
+        if req.provider not in config.providers:
+            from santai_cli.core.chat_history import auto_title as _at
+
+            return {"title": _at(req.messages)}
+
+        provider_config = config.providers[req.provider]
+
+        first_user = next(
+            (m.get("content", "") for m in req.messages if m.get("role") == "user"), ""
+        )
+
+        system_instruction = (
+            "Respond with ONLY a short title (3-6 words). "
+            "No explanation, no punctuation at the end, no quotes."
+        )
+        user_prompt = (
+            f"Give a short title for this conversation:\n\nUser: {first_user[:300]}"
+        )
+
+        def _clean_title(raw: str) -> str:
+            """Extract the first line and reject anything that looks conversational."""
+            cleaned = raw.split("\n")[0].strip().strip("\"'*# ")
+            return cleaned if 2 <= len(cleaned) <= 70 else ""
+
+        try:
+            if req.provider == "anthropic" and not provider_config.base_url:
+                import anthropic as _anthropic
+
+                client = _anthropic.AsyncAnthropic(api_key=provider_config.api_key)
+                msg = await client.messages.create(
+                    model=req.model,
+                    max_tokens=30,
+                    system=system_instruction,
+                    messages=[{"role": "user", "content": user_prompt}],
+                )
+                title = _clean_title(msg.content[0].text)
+            else:
+                import openai as _openai
+
+                kw: dict = {"api_key": provider_config.api_key}
+                if provider_config.base_url:
+                    kw["base_url"] = provider_config.base_url
+                client = _openai.AsyncOpenAI(**kw)
+                completion = await client.chat.completions.create(
+                    model=req.model,
+                    max_tokens=30,
+                    messages=[
+                        {"role": "system", "content": system_instruction},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                )
+                title = _clean_title(completion.choices[0].message.content or "")
+        except Exception:
+            title = ""
+
+        return {"title": title or auto_title(req.messages)}
 
     @app.get("/api/settings")
     async def get_settings() -> dict[str, Any]:

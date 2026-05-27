@@ -1683,21 +1683,20 @@
         .chat-history-new-btn {
             display: flex;
             align-items: center;
-            gap: 6px;
-            width: calc(100% - 16px);
-            margin: 8px 8px 4px;
-            padding: 7px 10px;
-            background: rgba(99,102,241,0.08);
-            border: 1px dashed rgba(99,102,241,0.3);
-            border-radius: 7px;
+            gap: 4px;
+            padding: 3px 8px;
+            background: rgba(34,197,94,0.1);
+            border: 1px solid rgba(34,197,94,0.35);
+            border-radius: 5px;
             font-size: 12px;
             font-family: inherit;
-            color: #6366f1;
+            color: #16a34a;
             cursor: pointer;
             transition: background 0.12s;
             flex-shrink: 0;
+            font-weight: 500;
         }
-        .chat-history-new-btn:hover { background: rgba(99,102,241,0.14); }
+        .chat-history-new-btn:hover { background: rgba(34,197,94,0.18); }
         .chat-history-list {
             flex: 1;
             overflow-y: auto;
@@ -1719,6 +1718,23 @@
             transition: background 0.12s;
         }
         .chat-history-item:hover { background: rgba(0,0,0,0.05); }
+        .chat-history-delete-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text-secondary, #aaa);
+            font-size: 13px;
+            padding: 2px 4px;
+            border-radius: 4px;
+            flex-shrink: 0;
+            opacity: 0;
+            transition: opacity 0.12s;
+        }
+        .chat-history-item:hover .chat-history-delete-btn { opacity: 1; }
+        .chat-history-delete-btn:hover { background: rgba(239,68,68,0.12); color: #ef4444; }
+        .chat-history-item.active { background: rgba(34,197,94,0.1); }
+        .chat-history-item.active .chat-history-item-title { color: #16a34a; }
+        .chat-history-item.active:hover { background: rgba(34,197,94,0.15); }
         .chat-history-item-body {
             flex: 1;
             min-width: 0;
@@ -1735,20 +1751,6 @@
             color: var(--text-secondary, #888);
             margin-top: 2px;
         }
-        .chat-history-delete-btn {
-            background: none;
-            border: none;
-            cursor: pointer;
-            color: var(--text-secondary, #aaa);
-            font-size: 13px;
-            padding: 2px 4px;
-            border-radius: 4px;
-            flex-shrink: 0;
-            opacity: 0;
-            transition: opacity 0.12s;
-        }
-        .chat-history-item:hover .chat-history-delete-btn { opacity: 1; }
-        .chat-history-delete-btn:hover { background: rgba(239,68,68,0.12); color: #ef4444; }
 
         .chat-fullscreen-btn {
             background: transparent;
@@ -4231,11 +4233,21 @@
                                 </svg>
                                 Settings
                             </button>
+                            <div style="display:flex;align-items:center;gap:2px;margin-left:4px;">
+                            <button class="chat-history-icon-btn" id="chat-history-icon-btn" onclick="toggleChatHistoryPanel()" title="Chat history">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="1 4 1 10 7 10" />
+                                    <path d="M3.51 15a9 9 0 102.13-9.36L1 10" />
+                                    <line x1="12" y1="7" x2="12" y2="12" />
+                                    <polyline points="12 12 15 14" />
+                                </svg>
+                            </button>
                             <button class="chat-fullscreen-btn" id="chat-fullscreen-btn" onclick="toggleChatFullscreen()" title="Toggle fullscreen">
                                 <svg id="chat-fullscreen-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
                                 </svg>
                             </button>
+                            </div>
                         </div>
                     </div>
                     <div class="chat-header-controls">
@@ -4249,14 +4261,6 @@
                             <div class="chat-custom-select-list" id="chat-model-select-list"></div>
                             <select id="chat-model-select" style="display:none;"></select>
                         </div>
-                        <button class="chat-history-icon-btn" id="chat-history-icon-btn" onclick="toggleChatHistoryPanel()" title="Chat history">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <polyline points="1 4 1 10 7 10" />
-                                <path d="M3.51 15a9 9 0 102.13-9.36L1 10" />
-                                <line x1="12" y1="7" x2="12" y2="12" />
-                                <polyline points="12 12 15 14" />
-                            </svg>
-                        </button>
                         <button class="chat-ctrl-btn" onclick="clearChat()">Clear</button>
                     </div>
                 </div>
@@ -4264,12 +4268,14 @@
                 <div class="chat-history-panel" id="chat-history-panel" style="display:none;">
                     <div class="chat-history-header">
                         <span>Chat History</span>
-                        <button class="chat-history-close-btn" onclick="toggleChatHistoryPanel()" title="Close">✕</button>
+                        <div style="display:flex;align-items:center;gap:6px;">
+                            <button class="chat-history-new-btn" onclick="startNewChat(); toggleChatHistoryPanel();">
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                New Chat
+                            </button>
+                            <button class="chat-history-close-btn" onclick="toggleChatHistoryPanel()" title="Close">✕</button>
+                        </div>
                     </div>
-                    <button class="chat-history-new-btn" onclick="startNewChat(); toggleChatHistoryPanel();">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                        New chat
-                    </button>
                     <div class="chat-history-list" id="chat-history-list"></div>
                 </div>
                 <!-- Messages container (position:relative for scroll btn) -->
@@ -7986,6 +7992,8 @@
 
         // --- Chat History Panel ---
 
+        let _historyPollTimer = null;
+
         function toggleChatHistoryPanel() {
             const panel = document.getElementById('chat-history-panel');
             const btn = document.getElementById('chat-history-icon-btn');
@@ -7994,29 +8002,42 @@
             if (isOpen) {
                 panel.style.display = 'none';
                 btn?.classList.remove('active');
+                clearInterval(_historyPollTimer);
+                _historyPollTimer = null;
+                _lastSessionsRenderKey = '';
             } else {
                 panel.style.display = 'flex';
                 btn?.classList.add('active');
                 loadChatHistorySessions();
+                _historyPollTimer = setInterval(loadChatHistorySessions, 1000);
             }
         }
+
+        let _lastSessionsRenderKey = '';
 
         async function loadChatHistorySessions() {
             const listEl = document.getElementById('chat-history-list');
             if (!listEl) return;
-            listEl.innerHTML = '<div class="chat-history-empty">Loading…</div>';
+            // Only show loading spinner on first open (list is empty)
+            if (!listEl.children.length) listEl.innerHTML = '<div class="chat-history-empty">Loading…</div>';
             try {
                 const res = await fetch('/api/chat/history');
                 if (!res.ok) throw new Error('Failed to load');
                 const sessions = await res.json();
-                if (sessions.length === 0) {
+                const hidden = _getHiddenSessions();
+                const visible = sessions.filter(s => !hidden.has(s.id));
+                // Skip re-render if nothing changed (prevents flashing on poll)
+                const renderKey = visible.map(s => `${s.id}|${s.updated_at}|${s.title}|${s.id === _currentChatSessionId}`).join(',');
+                if (renderKey === _lastSessionsRenderKey) return;
+                _lastSessionsRenderKey = renderKey;
+                if (visible.length === 0) {
                     listEl.innerHTML = '<div class="chat-history-empty">No saved chats yet.</div>';
                     return;
                 }
                 listEl.innerHTML = '';
-                sessions.forEach(s => {
+                visible.forEach(s => {
                     const item = document.createElement('div');
-                    item.className = 'chat-history-item';
+                    item.className = 'chat-history-item' + (s.id === _currentChatSessionId ? ' active' : '');
                     const dateStr = s.updated_at ? s.updated_at.slice(0, 10) : '';
                     const msgStr = s.message_count === 1 ? '1 msg' : `${s.message_count} msgs`;
                     item.innerHTML = `
@@ -8024,7 +8045,7 @@
                             <div class="chat-history-item-title">${_escapeHtml(s.title)}</div>
                             <div class="chat-history-item-meta">${dateStr} · ${msgStr}${s.agent ? ' · ' + _escapeHtml(s.agent) : ''}</div>
                         </div>
-                        <button class="chat-history-delete-btn" onclick="deleteChatSession('${s.id}', event)" title="Delete">✕</button>
+                        <button class="chat-history-delete-btn" onclick="hideChatSession('${s.id}', event)" title="Remove from history">✕</button>
                     `;
                     listEl.appendChild(item);
                 });
@@ -8087,18 +8108,49 @@
             }
         }
 
-        async function deleteChatSession(sessionId, event) {
+        const _HIDDEN_SESSIONS_KEY = 'santai-hidden-sessions';
+
+        function _getHiddenSessions() {
+            try { return new Set(JSON.parse(localStorage.getItem(_HIDDEN_SESSIONS_KEY) || '[]')); }
+            catch { return new Set(); }
+        }
+
+        function hideChatSession(sessionId, event) {
             if (event) event.stopPropagation();
-            try {
-                await fetch(`/api/chat/history/${sessionId}`, {method: 'DELETE'});
-                if (_currentChatSessionId === sessionId) {
-                    _currentChatSessionId = null;
-                    _currentChatSessionTitle = null;
-                }
-                loadChatHistorySessions();
-            } catch (e) {
-                console.error('deleteChatSession error:', e);
+            const hidden = _getHiddenSessions();
+            hidden.add(sessionId);
+            localStorage.setItem(_HIDDEN_SESSIONS_KEY, JSON.stringify([...hidden]));
+            if (_currentChatSessionId === sessionId) {
+                _currentChatSessionId = null;
+                _currentChatSessionTitle = null;
             }
+            loadChatHistorySessions();
+        }
+
+        let _titleGenEpoch = 0;
+
+        async function generateSmartTitle() {
+            const myEpoch = ++_titleGenEpoch;
+            if (chatMessages.length < 2) return;
+            const modelSelect = document.getElementById('chat-model-select');
+            const modelValue = modelSelect ? modelSelect.value : '';
+            let provider = '', model = '';
+            if (modelValue) {
+                try { const p = JSON.parse(modelValue); provider = p.provider || ''; model = p.model || ''; } catch {}
+            }
+            if (!provider || !model) return;
+            try {
+                const res = await fetch('/api/chat/generate-title', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ messages: chatMessages.filter(m => m.role === 'user' || m.role === 'assistant').slice(0, 2), provider, model }),
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    // Discard result if a new chat started while we were waiting
+                    if (data.title && myEpoch === _titleGenEpoch) _currentChatSessionTitle = data.title;
+                }
+            } catch {}
         }
 
         async function saveCurrentChatSession() {
@@ -8110,13 +8162,22 @@
                 try { const p = JSON.parse(modelValue); provider = p.provider || ''; model = p.model || ''; } catch {}
             }
             const agent = document.getElementById('chat-agent-select')?.value || null;
+            // Derive a fallback title client-side so the backend never falls back to "Untitled chat"
+            let titleToSave = _currentChatSessionTitle;
+            if (!titleToSave) {
+                const firstUser = chatMessages.find(m => m.role === 'user');
+                if (firstUser) {
+                    const t = firstUser.content.trim();
+                    titleToSave = t.slice(0, 60) + (t.length > 60 ? '…' : '');
+                }
+            }
             try {
                 const res = await fetch('/api/chat/history', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
                         session_id: _currentChatSessionId,
-                        title: _currentChatSessionTitle,
+                        title: titleToSave || null,
                         provider,
                         model,
                         agent: agent || null,
@@ -8131,10 +8192,10 @@
             } catch {}
         }
 
-        function startNewChat() {
-            // Save current session before clearing if there are messages
+        async function startNewChat() {
+            _titleGenEpoch++; // invalidate any in-flight title generation
             if (chatMessages.length > 0) {
-                saveCurrentChatSession();
+                await saveCurrentChatSession(); // wait for save to complete before resetting state
             }
             _currentChatSessionId = null;
             _currentChatSessionTitle = null;
@@ -8304,7 +8365,12 @@
                 if (fullResponse) {
                     chatMessages.push({role: 'assistant', content: fullResponse});
                     saveChatHistory();
-                    saveCurrentChatSession();
+                    // Generate a smart title on the first exchange, then save
+                    if (!_currentChatSessionTitle && _currentChatSessionId === null) {
+                        generateSmartTitle().then(() => saveCurrentChatSession());
+                    } else {
+                        saveCurrentChatSession();
+                    }
                 }
 
             } catch (e) {
