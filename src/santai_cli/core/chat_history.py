@@ -94,7 +94,7 @@ def auto_title(messages: list[dict[str, str]]) -> str:
     for msg in messages:
         if msg.get("role") == "user":
             text = msg.get("content", "").strip()
-            return text[:60] + ("…" if len(text) > 60 else "")
+            return text[:40] + ("…" if len(text) > 40 else "")
     return "Untitled chat"
 
 

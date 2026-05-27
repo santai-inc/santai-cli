@@ -1548,7 +1548,7 @@ def create_app(project: SantaiProject) -> FastAPI:
         )
 
         system_instruction = (
-            "Respond with ONLY a short title (3-6 words). "
+            "Respond with ONLY a short title (2-4 words, 30 characters max). "
             "No explanation, no punctuation at the end, no quotes."
         )
         user_prompt = (
@@ -1558,7 +1558,7 @@ def create_app(project: SantaiProject) -> FastAPI:
         def _clean_title(raw: str) -> str:
             """Extract the first line and reject anything that looks conversational."""
             cleaned = raw.split("\n")[0].strip().strip("\"'*# ")
-            return cleaned if 2 <= len(cleaned) <= 70 else ""
+            return cleaned if 2 <= len(cleaned) <= 40 else ""
 
         try:
             if req.provider == "anthropic" and not provider_config.base_url:

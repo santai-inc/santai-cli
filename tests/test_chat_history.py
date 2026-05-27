@@ -43,11 +43,11 @@ def test_auto_title_uses_first_user_message():
     assert auto_title(msgs) == "What is the capital of France?"
 
 
-def test_auto_title_truncates_at_60_chars():
+def test_auto_title_truncates_at_40_chars():
     long_msg = "A" * 80
     result = auto_title([{"role": "user", "content": long_msg}])
-    assert result == "A" * 60 + "…"
-    assert len(result) == 61  # 60 chars + ellipsis (U+2026, 1 code point)
+    assert result == "A" * 40 + "…"
+    assert len(result) == 41  # 40 chars + ellipsis (U+2026, 1 code point)
 
 
 def test_auto_title_skips_non_user_messages():

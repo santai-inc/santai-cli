@@ -1300,7 +1300,7 @@
             overflow: hidden;
             text-overflow: ellipsis;
             margin-bottom: 2px;
-            display: inline;
+            display: block;
         }
 
         .preview-title span {
@@ -1315,6 +1315,23 @@
             gap: 8px;
             flex-shrink: 0;
         }
+
+        .chat-history-resume-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 10px;
+            background: rgba(34,197,94,0.1);
+            border: 1px solid rgba(34,197,94,0.35);
+            border-radius: 6px;
+            font-size: 12px;
+            font-family: inherit;
+            font-weight: 500;
+            color: #16a34a;
+            cursor: pointer;
+            transition: background 0.12s;
+        }
+        .chat-history-resume-btn:hover { background: rgba(34,197,94,0.18); }
 
         .preview-open-new-window {
             background: none;
@@ -4164,6 +4181,10 @@
                         <span id="preview-size">0 KB</span>
                     </div>
                     <div class="preview-header-actions">
+                        <button class="chat-history-resume-btn" id="preview-resume-chat-btn" onclick="resumeChatFromPreview()" title="Resume this chat" style="display:none;">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+                            Resume Chat
+                        </button>
                         <button class="preview-open-new-window" id="preview-open-new-window-btn" onclick="openPreviewInNewTab()" title="Open in new window">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
@@ -4507,6 +4528,8 @@
         let previewPath = null;
         let previewHistory = []; // paths navigated via markdown links, for back-button
         let previewReturnClusterId = null; // set when a file is opened from a cluster list
+        let _previewPollTimer = null;
+        let _previewLastContent = null;
         function hasPreviewContent() {
             const header = document.getElementById('preview-file-header');
             return Boolean(header) && header.style.display !== 'none';
@@ -4558,6 +4581,9 @@
 
         // File Preview Functions
         async function openFilePreview(path, historyMode = 'clear') {
+            clearInterval(_previewPollTimer);
+            _previewPollTimer = null;
+            _previewLastContent = null;
             if (historyMode === 'push') {
                 if (previewPath) previewHistory.push(previewPath);
             } else if (historyMode === 'clear') {
@@ -4590,6 +4616,21 @@
 
                 document.getElementById('preview-filename').textContent = data.name;
                 document.getElementById('preview-size').textContent = data.size_formatted;
+
+                // Show Resume Chat button for chat-history .md files
+                const resumeBtn = document.getElementById('preview-resume-chat-btn');
+                const isChatHistory = path.includes('history/chat-history/') && path.endsWith('.md');
+                if (isChatHistory && data.content) {
+                    const idMatch = data.content.match(/\nid:\s*([^\n]+)/);
+                    if (idMatch) {
+                        resumeBtn._sessionId = idMatch[1].trim();
+                        resumeBtn.style.display = 'inline-flex';
+                    } else {
+                        resumeBtn.style.display = 'none';
+                    }
+                } else {
+                    resumeBtn.style.display = 'none';
+                }
 
                 if (!data.preview) {
                     content.innerHTML = `
@@ -4660,6 +4701,10 @@
                 } else if (data.type === 'image') {
                     content.innerHTML = `<img class="preview-image" src="${data.url}" alt="${data.name}">`;
                 }
+                _previewLastContent = data.content ?? null;
+                if (!_previewPollTimer) {
+                    _previewPollTimer = setInterval(_pollPreviewContent, 2000);
+                }
             } catch (err) {
                 content.innerHTML = `
                     <div class="preview-message">
@@ -4670,6 +4715,18 @@
                     </div>
                 `;
             }
+        }
+
+        async function _pollPreviewContent() {
+            if (!previewPath) return;
+            try {
+                const res = await fetch(`/api/files/content?path=${encodeURIComponent(previewPath)}`);
+                if (!res.ok) return;
+                const data = await res.json();
+                const newContent = data.content ?? null;
+                if (newContent === _previewLastContent) return;
+                openFilePreview(previewPath, 'replace');
+            } catch { /* ignore poll errors */ }
         }
 
         function resizeGraphIfFullscreen() {
@@ -4687,6 +4744,9 @@
         }
 
         function resetPreviewState() {
+            clearInterval(_previewPollTimer);
+            _previewPollTimer = null;
+            _previewLastContent = null;
             previewPath = null;
             previewHistory = [];
             updateTreePreviewState();
@@ -8127,6 +8187,11 @@
             loadChatHistorySessions();
         }
 
+        function resumeChatFromPreview() {
+            const btn = document.getElementById('preview-resume-chat-btn');
+            if (btn && btn._sessionId) resumeChatSession(btn._sessionId);
+        }
+
         let _titleGenEpoch = 0;
 
         async function generateSmartTitle() {
@@ -8168,7 +8233,7 @@
                 const firstUser = chatMessages.find(m => m.role === 'user');
                 if (firstUser) {
                     const t = firstUser.content.trim();
-                    titleToSave = t.slice(0, 60) + (t.length > 60 ? '…' : '');
+                    titleToSave = t.slice(0, 40) + (t.length > 40 ? '…' : '');
                 }
             }
             try {
