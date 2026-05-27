@@ -27,17 +27,15 @@ When launched without `--model`, santai presents an interactive numbered list of
 Available models:
 
   Anthropic:
-    1. claude-sonnet-4-20250514 *
-    2. claude-opus-4-20250514
-    3. claude-haiku-4-20250514
+    1. claude-sonnet-4-6 *
+    2. claude-opus-4-7
+    3. claude-haiku-4-5-20251001
 
   OpenAI:
     4. gpt-4o *
-    5. gpt-4o-mini
-    6. o3-mini
-    7. gpt-4.1
-    8. gpt-4.1-mini
-    9. gpt-4.1-nano
+    5. gpt-4.1
+    6. gpt-4.1-mini
+    7. o3-mini
 
 Select a model (number):
 ```
@@ -81,7 +79,7 @@ Start with a specific model:
 
 ```bash
 santai chat --model gpt-4o
-santai chat --model claude-sonnet-4-20250514
+santai chat --model claude-sonnet-4-6
 ```
 
 Use an agent profile with a specific model:

@@ -29,7 +29,7 @@ Use the history directory and AI agents to create a decision log:
 
 ```bash
 # Start a chat session with the documentation agent
-santai chat --agent documentation --model claude-sonnet-4-20250514
+santai chat --agent documentation --model claude-sonnet-4-6
 ```
 
 In the chat, ask it to write a history entry:
@@ -198,7 +198,7 @@ Compare responses from different AI models on the same question:
 
 ```bash
 # Ask Anthropic
-santai chat --model claude-sonnet-4-20250514
+santai chat --model claude-sonnet-4-6
 # Ask your question, note the response, then /quit
 
 # Ask OpenAI
