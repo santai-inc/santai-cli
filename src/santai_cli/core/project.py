@@ -120,6 +120,10 @@ class SantaiProject:
     def notes_path(self) -> Path:
         return self.root / "notes"
 
+    @property
+    def chat_history_path(self) -> Path:
+        return self.root / "history" / "chat-history"
+
 
 def get_project(path: Path | None = None) -> SantaiProject | None:
     """Get the Santai project at the given path or current directory.

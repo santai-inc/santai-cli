@@ -1,0 +1,352 @@
+"""Tests for chat history persistence (save, load, list, delete, resume)."""
+
+from pathlib import Path
+
+import pytest
+
+from santai_cli.core.chat import ChatSession
+from santai_cli.core.chat_history import (
+    auto_title,
+    delete_session,
+    generate_session_id,
+    get_chat_history_dir,
+    list_sessions,
+    load_session,
+    restore_chat_session,
+    save_session,
+)
+from santai_cli.core.project import SantaiProject
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _make_project(tmp_path: Path) -> SantaiProject:
+    return SantaiProject(root=tmp_path, name=tmp_path.name)
+
+
+def _make_session(user: str = "hello", assistant: str = "world") -> ChatSession:
+    s = ChatSession(system_prompt="test prompt")
+    s.add_user_message(user)
+    s.add_assistant_message(assistant)
+    return s
+
+
+# ---------------------------------------------------------------------------
+# Unit tests: core module
+# ---------------------------------------------------------------------------
+
+
+def test_auto_title_uses_first_user_message():
+    msgs = [{"role": "user", "content": "What is the capital of France?"}]
+    assert auto_title(msgs) == "What is the capital of France?"
+
+
+def test_auto_title_truncates_at_60_chars():
+    long_msg = "A" * 80
+    result = auto_title([{"role": "user", "content": long_msg}])
+    assert result == "A" * 60 + "…"
+    assert len(result) == 61  # 60 chars + ellipsis (U+2026, 1 code point)
+
+
+def test_auto_title_skips_non_user_messages():
+    msgs = [
+        {"role": "assistant", "content": "hi"},
+        {"role": "user", "content": "my question"},
+    ]
+    assert auto_title(msgs) == "my question"
+
+
+def test_auto_title_fallback_on_empty():
+    assert auto_title([]) == "Untitled chat"
+
+
+def test_generate_session_id_format():
+    sid = generate_session_id()
+    parts = sid.split("-")
+    assert len(parts) == 3  # YYYYMMDD, HHMMSS, 4hexchars
+    assert len(parts[0]) == 8
+    assert len(parts[1]) == 6
+    assert len(parts[2]) == 4
+
+
+def test_save_creates_chat_history_dir(tmp_path: Path):
+    project = _make_project(tmp_path)
+    session = _make_session()
+    assert not get_chat_history_dir(project).exists()
+    save_session(project, session, None, None, "anthropic", "claude-3-5-sonnet", None)
+    assert get_chat_history_dir(project).is_dir()
+
+
+def test_save_and_load_round_trip(tmp_path: Path):
+    project = _make_project(tmp_path)
+    session = _make_session("Tell me a joke", "Why did the chicken cross the road?")
+    sid = save_session(
+        project, session, None, "My Chat", "anthropic", "claude-sonnet-4-6", "code"
+    )
+
+    loaded = load_session(project, sid)
+    assert loaded.id == sid
+    assert loaded.title == "My Chat"
+    assert loaded.provider == "anthropic"
+    assert loaded.model == "claude-sonnet-4-6"
+    assert loaded.agent == "code"
+    assert loaded.message_count == 2
+    assert len(loaded.messages) == 2
+    assert loaded.messages[0] == {"role": "user", "content": "Tell me a joke"}
+    assert loaded.messages[1]["role"] == "assistant"
+
+
+def test_save_auto_generates_title_from_messages(tmp_path: Path):
+    project = _make_project(tmp_path)
+    session = _make_session("What is recursion?")
+    sid = save_session(
+        project, session, None, None, "anthropic", "claude-sonnet-4-6", None
+    )
+    loaded = load_session(project, sid)
+    assert loaded.title == "What is recursion?"
+
+
+def test_update_session_overwrites_no_duplicate(tmp_path: Path):
+    project = _make_project(tmp_path)
+    session = _make_session()
+    sid = save_session(project, session, None, None, "anthropic", "model", None)
+
+    # Save again with same id
+    session.add_user_message("follow-up")
+    session.add_assistant_message("answer")
+    save_session(project, session, sid, None, "anthropic", "model", None)
+
+    chat_dir = get_chat_history_dir(project)
+    files = list(chat_dir.glob("*.md"))
+    assert len(files) == 1
+    loaded = load_session(project, sid)
+    assert loaded.message_count == 4
+
+
+def test_save_preserves_created_at_on_update(tmp_path: Path):
+    project = _make_project(tmp_path)
+    session = _make_session()
+    sid = save_session(project, session, None, None, "anthropic", "model", None)
+    first = load_session(project, sid)
+    original_created_at = first.created_at
+
+    session.add_user_message("more")
+    session.add_assistant_message("data")
+    save_session(project, session, sid, None, "anthropic", "model", None)
+    updated = load_session(project, sid)
+    assert updated.created_at == original_created_at
+
+
+def test_list_sessions_returns_newest_first(tmp_path: Path):
+    import time
+
+    project = _make_project(tmp_path)
+    for i in range(3):
+        s = _make_session(f"question {i}")
+        save_session(project, s, None, f"Chat {i}", "anthropic", "model", None)
+        time.sleep(0.01)  # ensure distinct updated_at timestamps
+
+    sessions = list_sessions(project)
+    assert len(sessions) == 3
+    # Newest first: updated_at should be descending
+    for j in range(len(sessions) - 1):
+        assert sessions[j].updated_at >= sessions[j + 1].updated_at
+
+
+def test_list_sessions_empty_when_no_dir(tmp_path: Path):
+    project = _make_project(tmp_path)
+    assert list_sessions(project) == []
+
+
+def test_delete_session(tmp_path: Path):
+    project = _make_project(tmp_path)
+    session = _make_session()
+    sid = save_session(project, session, None, None, "anthropic", "model", None)
+
+    delete_session(project, sid)
+    with pytest.raises(FileNotFoundError):
+        load_session(project, sid)
+
+
+def test_delete_session_raises_when_missing(tmp_path: Path):
+    project = _make_project(tmp_path)
+    with pytest.raises(FileNotFoundError):
+        delete_session(project, "nonexistent-id")
+
+
+def test_load_session_raises_when_missing(tmp_path: Path):
+    project = _make_project(tmp_path)
+    with pytest.raises(FileNotFoundError):
+        load_session(project, "nonexistent-id")
+
+
+def test_restore_chat_session(tmp_path: Path):
+    project = _make_project(tmp_path)
+    original = _make_session("question", "answer")
+    sid = save_session(project, original, None, None, "anthropic", "model", None)
+
+    persisted = load_session(project, sid)
+    restored = restore_chat_session(persisted)
+
+    assert len(restored.messages) == 2
+    assert restored.messages[0].role == "user"
+    assert restored.messages[0].content == "question"
+    assert restored.messages[1].role == "assistant"
+    assert restored.messages[1].content == "answer"
+
+
+def test_chat_history_path_on_project(tmp_path: Path):
+    project = _make_project(tmp_path)
+    assert project.chat_history_path == tmp_path / "history" / "chat-history"
+
+
+def test_get_chat_history_dir(tmp_path: Path):
+    project = _make_project(tmp_path)
+    assert get_chat_history_dir(project) == tmp_path / "history" / "chat-history"
+
+
+# ---------------------------------------------------------------------------
+# Integration tests: web API endpoints
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def web_client(tmp_path: Path):
+    """Create a FastAPI test client with a temporary project."""
+    from fastapi.testclient import TestClient
+
+    from santai_cli.web.app import create_app
+
+    project = SantaiProject(root=tmp_path, name=tmp_path.name)
+    app = create_app(project)
+    return TestClient(app), project
+
+
+def test_api_list_empty(web_client):
+    client, _ = web_client
+    resp = client.get("/api/chat/history")
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+def test_api_save_and_list(web_client):
+    client, _ = web_client
+    payload = {
+        "provider": "anthropic",
+        "model": "claude-sonnet-4-6",
+        "messages": [
+            {"role": "user", "content": "Hello"},
+            {"role": "assistant", "content": "Hi there!"},
+        ],
+    }
+    save_resp = client.post("/api/chat/history", json=payload)
+    assert save_resp.status_code == 200
+    sid = save_resp.json()["session_id"]
+    assert sid
+
+    list_resp = client.get("/api/chat/history")
+    assert list_resp.status_code == 200
+    sessions = list_resp.json()
+    assert len(sessions) == 1
+    assert sessions[0]["id"] == sid
+    assert sessions[0]["title"] == "Hello"
+    assert sessions[0]["message_count"] == 2
+
+
+def test_api_load_session(web_client):
+    client, _ = web_client
+    payload = {
+        "provider": "anthropic",
+        "model": "claude-sonnet-4-6",
+        "agent": "code",
+        "messages": [
+            {"role": "user", "content": "Explain recursion"},
+            {"role": "assistant", "content": "Recursion is…"},
+        ],
+    }
+    sid = client.post("/api/chat/history", json=payload).json()["session_id"]
+
+    resp = client.get(f"/api/chat/history/{sid}")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["id"] == sid
+    assert data["agent"] == "code"
+    assert len(data["messages"]) == 2
+    assert data["messages"][0]["content"] == "Explain recursion"
+
+
+def test_api_load_missing_returns_404(web_client):
+    client, _ = web_client
+    resp = client.get("/api/chat/history/does-not-exist")
+    assert resp.status_code == 404
+
+
+def test_api_delete_session(web_client):
+    client, _ = web_client
+    payload = {
+        "provider": "openai",
+        "model": "gpt-4o",
+        "messages": [{"role": "user", "content": "hi"}],
+    }
+    sid = client.post("/api/chat/history", json=payload).json()["session_id"]
+    del_resp = client.delete(f"/api/chat/history/{sid}")
+    assert del_resp.status_code == 200
+
+    get_resp = client.get(f"/api/chat/history/{sid}")
+    assert get_resp.status_code == 404
+
+
+def test_api_delete_missing_returns_404(web_client):
+    client, _ = web_client
+    resp = client.delete("/api/chat/history/nonexistent")
+    assert resp.status_code == 404
+
+
+def test_api_update_title(web_client):
+    client, _ = web_client
+    payload = {
+        "provider": "anthropic",
+        "model": "claude-sonnet-4-6",
+        "messages": [{"role": "user", "content": "Original title from message"}],
+    }
+    sid = client.post("/api/chat/history", json=payload).json()["session_id"]
+
+    patch_resp = client.patch(
+        f"/api/chat/history/{sid}/title", json={"title": "My Custom Title"}
+    )
+    assert patch_resp.status_code == 200
+
+    loaded = client.get(f"/api/chat/history/{sid}").json()
+    assert loaded["title"] == "My Custom Title"
+
+
+def test_api_update_with_existing_session_id(web_client):
+    client, _ = web_client
+    payload = {
+        "provider": "anthropic",
+        "model": "claude-sonnet-4-6",
+        "messages": [{"role": "user", "content": "First message"}],
+    }
+    sid = client.post("/api/chat/history", json=payload).json()["session_id"]
+
+    # Update with same session_id (should overwrite, not create new)
+    payload2 = {
+        "session_id": sid,
+        "provider": "anthropic",
+        "model": "claude-sonnet-4-6",
+        "messages": [
+            {"role": "user", "content": "First message"},
+            {"role": "assistant", "content": "Response"},
+            {"role": "user", "content": "Follow-up"},
+        ],
+    }
+    resp2 = client.post("/api/chat/history", json=payload2)
+    assert resp2.status_code == 200
+    assert resp2.json()["session_id"] == sid
+
+    list_resp = client.get("/api/chat/history")
+    assert len(list_resp.json()) == 1  # still only one session
+    loaded = client.get(f"/api/chat/history/{sid}").json()
+    assert loaded["message_count"] == 3

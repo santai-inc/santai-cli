@@ -86,6 +86,20 @@ class SmartPlaceRequest(BaseModel):
     content: str = ""
 
 
+class SaveSessionRequest(BaseModel):
+    session_id: str | None = None
+    title: str | None = None
+    provider: str
+    model: str
+    agent: str | None = None
+    messages: list[dict[str, str]]
+    tool_turns: list[dict] = []
+
+
+class UpdateTitleRequest(BaseModel):
+    title: str
+
+
 _IMAGE_MIME: dict[str, str] = {
     ".png": "image/png",
     ".jpg": "image/jpeg",
@@ -1392,6 +1406,122 @@ def create_app(project: SantaiProject) -> FastAPI:
                 "X-Accel-Buffering": "no",
             },
         )
+
+    @app.get("/api/chat/history")
+    async def chat_history_list() -> list[dict[str, Any]]:
+        """Return metadata for all saved chat sessions, newest first."""
+        from santai_cli.core.chat_history import list_sessions
+
+        sessions = list_sessions(project)
+        return [
+            {
+                "id": s.id,
+                "title": s.title,
+                "created_at": s.created_at,
+                "updated_at": s.updated_at,
+                "provider": s.provider,
+                "model": s.model,
+                "agent": s.agent,
+                "message_count": s.message_count,
+            }
+            for s in sessions
+        ]
+
+    @app.post("/api/chat/history")
+    async def chat_history_save(req: SaveSessionRequest) -> dict[str, str]:
+        """Save or update a chat session. Returns the session_id."""
+        from santai_cli.core.chat import ChatMessage, ChatSession
+        from santai_cli.core.chat_history import save_session
+
+        session = ChatSession(tool_turns=req.tool_turns)
+        for msg in req.messages:
+            role = msg.get("role", "")
+            content = msg.get("content", "")
+            if role == "user":
+                session.messages.append(ChatMessage(role="user", content=content))
+            elif role == "assistant":
+                session.messages.append(ChatMessage(role="assistant", content=content))
+
+        session_id = save_session(
+            project=project,
+            session=session,
+            session_id=req.session_id,
+            title=req.title,
+            provider=req.provider,
+            model=req.model,
+            agent=req.agent,
+        )
+        return {"session_id": session_id}
+
+    @app.get("/api/chat/history/{session_id}")
+    async def chat_history_load(session_id: str) -> dict[str, Any]:
+        """Return the full chat session including messages."""
+        from santai_cli.core.chat_history import load_session
+
+        try:
+            s = load_session(project, session_id)
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="Session not found") from None
+        return {
+            "id": s.id,
+            "title": s.title,
+            "created_at": s.created_at,
+            "updated_at": s.updated_at,
+            "provider": s.provider,
+            "model": s.model,
+            "agent": s.agent,
+            "message_count": s.message_count,
+            "system_prompt": s.system_prompt,
+            "messages": s.messages,
+            "tool_turns": s.tool_turns,
+        }
+
+    @app.delete("/api/chat/history/{session_id}")
+    async def chat_history_delete(session_id: str) -> dict[str, str]:
+        """Delete a chat session."""
+        from santai_cli.core.chat_history import delete_session
+
+        try:
+            delete_session(project, session_id)
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="Session not found") from None
+        return {"status": "deleted"}
+
+    @app.patch("/api/chat/history/{session_id}/title")
+    async def chat_history_update_title(
+        session_id: str, req: UpdateTitleRequest
+    ) -> dict[str, str]:
+        """Update the title of a saved chat session."""
+        from santai_cli.core.chat_history import (
+            _build_markdown,
+            _find_session_path,
+            _parse_markdown,
+            get_chat_history_dir,
+        )
+
+        path = _find_session_path(get_chat_history_dir(project), session_id)
+        if path is None:
+            raise HTTPException(status_code=404, detail="Session not found")
+        try:
+            from datetime import UTC, datetime
+
+            meta, messages = _parse_markdown(path.read_text(encoding="utf-8"))
+            path.write_text(
+                _build_markdown(
+                    session_id=meta.get("id", session_id),
+                    title=req.title,
+                    created_at=meta.get("created_at", ""),
+                    updated_at=datetime.now(UTC).isoformat(),
+                    provider=meta.get("provider", ""),
+                    model=meta.get("model", ""),
+                    agent=meta.get("agent"),
+                    messages=messages,
+                ),
+                encoding="utf-8",
+            )
+        except OSError as e:
+            raise HTTPException(status_code=500, detail=str(e)) from e
+        return {"status": "updated"}
 
     @app.get("/api/settings")
     async def get_settings() -> dict[str, Any]:
