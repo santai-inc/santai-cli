@@ -41,6 +41,7 @@ _MULTI_DASH = re.compile(r"-{2,}")
 _MULTI_SPACE = re.compile(r" {2,}")
 _FENCED_CODE_BLOCK = re.compile(r"```[^\n]*\n.*?```", re.DOTALL)
 _INDEX_FILE = "_index.json"
+_HIDDEN_FILE = "_hidden.json"
 
 
 def get_chat_history_dir(project: SantaiProject) -> Path:
@@ -385,18 +386,22 @@ def load_session(project: SantaiProject, session_id: str) -> PersistedChatSessio
 
 
 def list_sessions(project: SantaiProject) -> list[ChatSessionMetadata]:
-    """Return metadata for all saved sessions, newest first."""
+    """Return metadata for all saved sessions, newest first, excluding hidden ones."""
     chat_dir = get_chat_history_dir(project)
     if not chat_dir.is_dir():
         return []
 
+    hidden = _load_hidden(chat_dir)
     entries: list[ChatSessionMetadata] = []
     for path in chat_dir.glob("*.md"):
         try:
             meta, messages = _parse_markdown(path.read_text(encoding="utf-8"))
+            sid = meta.get("id", path.stem)
+            if sid in hidden:
+                continue
             entries.append(
                 ChatSessionMetadata(
-                    id=meta.get("id", path.stem),
+                    id=sid,
                     title=meta.get("title", "Untitled chat"),
                     created_at=meta.get("created_at", ""),
                     updated_at=meta.get("updated_at", ""),
@@ -411,6 +416,34 @@ def list_sessions(project: SantaiProject) -> list[ChatSessionMetadata]:
 
     entries.sort(key=lambda e: e.updated_at, reverse=True)
     return entries
+
+
+def _load_hidden(chat_dir: Path) -> set[str]:
+    """Return the set of session IDs hidden from the history panel."""
+    try:
+        return set(json.loads((chat_dir / _HIDDEN_FILE).read_text(encoding="utf-8")))
+    except (OSError, json.JSONDecodeError):
+        return set()
+
+
+def _save_hidden(chat_dir: Path, hidden: set[str]) -> None:
+    (chat_dir / _HIDDEN_FILE).write_text(json.dumps(sorted(hidden)), encoding="utf-8")
+
+
+def hide_session(project: SantaiProject, session_id: str) -> None:
+    """Hide a session from the history panel without deleting the file."""
+    chat_dir = get_chat_history_dir(project)
+    hidden = _load_hidden(chat_dir)
+    hidden.add(session_id)
+    _save_hidden(chat_dir, hidden)
+
+
+def unhide_session(project: SantaiProject, session_id: str) -> None:
+    """Make a previously hidden session visible again."""
+    chat_dir = get_chat_history_dir(project)
+    hidden = _load_hidden(chat_dir)
+    hidden.discard(session_id)
+    _save_hidden(chat_dir, hidden)
 
 
 def rename_session(project: SantaiProject, session_id: str, new_title: str) -> None:
@@ -472,6 +505,10 @@ def delete_session(project: SantaiProject, session_id: str) -> None:
     index = _load_index(chat_dir)
     index.pop(session_id, None)
     _save_index(chat_dir, index)
+    hidden = _load_hidden(chat_dir)
+    if session_id in hidden:
+        hidden.discard(session_id)
+        _save_hidden(chat_dir, hidden)
 
 
 def restore_chat_session(persisted: PersistedChatSession) -> ChatSession:

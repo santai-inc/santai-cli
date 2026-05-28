@@ -13,11 +13,13 @@ from santai_cli.core.chat_history import (
     delete_session,
     generate_session_id,
     get_chat_history_dir,
+    hide_session,
     list_sessions,
     load_session,
     rename_session,
     restore_chat_session,
     save_session,
+    unhide_session,
 )
 from santai_cli.core.project import SantaiProject
 
@@ -297,6 +299,53 @@ def test_rename_session_same_sanitized_name_updates_in_place(tmp_path: Path):
     files = list(chat_dir.glob("*.md"))
     assert len(files) == 1
     assert files[0].name == original_name
+
+
+def test_hide_session_excludes_from_list(tmp_path: Path):
+    project = _make_project(tmp_path)
+    s1 = _make_session("question one")
+    s2 = _make_session("question two")
+    sid1 = save_session(project, s1, None, "Chat 1", "anthropic", "model", None)
+    sid2 = save_session(project, s2, None, "Chat 2", "anthropic", "model", None)
+
+    hide_session(project, sid1)
+
+    visible = list_sessions(project)
+    ids = [s.id for s in visible]
+    assert sid1 not in ids
+    assert sid2 in ids
+
+    # File still exists on disk
+    chat_dir = get_chat_history_dir(project)
+    assert len(list(chat_dir.glob("*.md"))) == 2
+
+
+def test_unhide_session_restores_to_list(tmp_path: Path):
+    project = _make_project(tmp_path)
+    session = _make_session()
+    sid = save_session(project, session, None, None, "anthropic", "model", None)
+
+    hide_session(project, sid)
+    assert all(s.id != sid for s in list_sessions(project))
+
+    unhide_session(project, sid)
+    assert any(s.id == sid for s in list_sessions(project))
+
+
+def test_delete_session_cleans_hidden_set(tmp_path: Path):
+    project = _make_project(tmp_path)
+    session = _make_session()
+    sid = save_session(project, session, None, None, "anthropic", "model", None)
+
+    hide_session(project, sid)
+    delete_session(project, sid)
+
+    # After real delete, hidden set should no longer contain the id
+    chat_dir = get_chat_history_dir(project)
+    import json
+
+    hidden = set(json.loads((chat_dir / "_hidden.json").read_text()))
+    assert sid not in hidden
 
 
 def test_rebuild_index_finds_existing_files(tmp_path: Path):

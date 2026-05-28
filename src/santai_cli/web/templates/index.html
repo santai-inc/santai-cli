@@ -8205,7 +8205,7 @@
                             <button class="chat-history-edit-btn" onclick="startRenameSession(event,'${s.id}')" title="Rename">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" /></svg>
                             </button>
-                            <button class="chat-history-delete-btn" onclick="deleteChatSession('${s.id}',event)" title="Delete chat">✕</button>
+                            <button class="chat-history-delete-btn" onclick="hideChatSession('${s.id}',event)" title="Remove from history">✕</button>
                         `;
                         listEl.appendChild(item);
                     });
@@ -8269,14 +8269,12 @@
             }
         }
 
-        async function deleteChatSession(sessionId, event) {
+        async function hideChatSession(sessionId, event) {
             if (event) event.stopPropagation();
-            if (!confirm('Delete this chat? This cannot be undone.')) return;
             try {
-                const res = await fetch(`/api/chat/history/${sessionId}`, { method: 'DELETE' });
-                if (!res.ok) throw new Error('Delete failed');
+                await fetch(`/api/chat/history/${sessionId}/hide`, { method: 'POST' });
             } catch (e) {
-                console.error('deleteChatSession error:', e);
+                console.error('hideChatSession error:', e);
                 return;
             }
             if (_currentChatSessionId === sessionId) {

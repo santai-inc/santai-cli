@@ -1493,6 +1493,14 @@ def create_app(project: SantaiProject) -> FastAPI:
             raise HTTPException(status_code=404, detail="Session not found") from None
         return {"status": "deleted"}
 
+    @app.post("/api/chat/history/{session_id}/hide")
+    async def chat_history_hide(session_id: str) -> dict[str, str]:
+        """Hide a session from the history panel without deleting the file."""
+        from santai_cli.core.chat_history import hide_session
+
+        hide_session(project, session_id)
+        return {"status": "hidden"}
+
     @app.patch("/api/chat/history/{session_id}/title")
     async def chat_history_update_title(
         session_id: str, req: UpdateTitleRequest
