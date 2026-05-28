@@ -4390,7 +4390,7 @@
                     </svg>
                 </button>
             </div>
-            <p style="font-size: 13px; color: var(--text-primary); opacity: 0.65; margin: 0 0 12px;">
+            <p id="cloud-saves-subtitle" style="font-size: 13px; color: var(--text-primary); opacity: 0.65; margin: 0 0 12px;">
                 Select a save to load. This will overwrite your current local files.
             </p>
             <div class="cloud-saves-list" id="cloud-saves-list">
@@ -4401,8 +4401,8 @@
                     This will overwrite your current local files.
                 </p>
                 <div style="display: flex; gap: 8px; justify-content: center;">
-                    <button class="btn" onclick="cloudSaveConfirmCancel()">Cancel</button>
                     <button class="btn btn-primary" onclick="cloudSaveConfirmLoad()">Load</button>
+                    <button class="btn" onclick="cloudSaveConfirmCancel()">Cancel</button>
                 </div>
             </div>
         </div>
@@ -9337,6 +9337,7 @@
         function cloudPullPrepare(manifestKey) {
             _pendingManifestKey = manifestKey;
             document.getElementById('cloud-saves-list').style.display = 'none';
+            document.getElementById('cloud-saves-subtitle').style.display = 'none';
             document.getElementById('cloud-save-confirm-pane').style.display = '';
         }
 
@@ -9344,6 +9345,7 @@
             _pendingManifestKey = null;
             document.getElementById('cloud-save-confirm-pane').style.display = 'none';
             document.getElementById('cloud-saves-list').style.display = '';
+            document.getElementById('cloud-saves-subtitle').style.display = '';
         }
 
         function cloudSaveConfirmLoad() {
@@ -9514,6 +9516,7 @@
             document.getElementById('cloud-saves-modal').classList.remove('show');
             document.getElementById('cloud-save-confirm-pane').style.display = 'none';
             document.getElementById('cloud-saves-list').style.display = '';
+            document.getElementById('cloud-saves-subtitle').style.display = '';
             _pendingManifestKey = null;
         }
 
