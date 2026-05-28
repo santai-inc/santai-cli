@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from importlib.metadata import PackageNotFoundError, version
+from pathlib import Path
 
 try:
     _CLI_VERSION = version("santai-cli")
@@ -42,6 +43,91 @@ def create_base(backend: str, token: str, name: str) -> str | None:
             return str(data["id"]) if "id" in data else None
     except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError):
         return None
+
+
+def fetch_prev_files(
+    backend: str, token: str, base_id: str, image_exts: set[str]
+) -> tuple[set[str], dict[str, str]]:
+    """Return (all_paths, text_content) from the latest cloud save for diffing.
+
+    Falls back to empty sets/dicts on any error so callers can treat it as
+    'no previous save' without crashing.
+    """
+    import urllib.error
+    import urllib.request
+
+    auth = {"Authorization": f"Bearer {token}", "User-Agent": USER_AGENT}
+
+    # 1. Get the latest save key from the cloud-saves list
+    try:
+        saves_req = urllib.request.Request(
+            f"{backend}/ai/edit/cloud-saves/{base_id}", headers=auth
+        )
+        with urllib.request.urlopen(saves_req, timeout=15) as resp:
+            data = json.loads(resp.read())
+        saves = (
+            data if isinstance(data, list) else data.get("saves", data.get("data", []))
+        )
+        if not saves:
+            return set(), {}
+        latest_key = saves[0].get("key")
+        if not latest_key:
+            return set(), {}
+    except Exception:
+        return set(), {}
+
+    # 2. Load file content for that save
+    try:
+        load_req = urllib.request.Request(
+            f"{backend}/ai/edit/load-from-cloud",
+            data=json.dumps({"manifestKey": latest_key}).encode(),
+            method="POST",
+            headers={**auth, "Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(load_req, timeout=60) as resp:
+            result = json.loads(resp.read())
+        if not result.get("success"):
+            return set(), {}
+        files: list = result.get("files", [])
+        all_paths = {f["path"] for f in files if f.get("path")}
+        text_content = {
+            f["path"]: f.get("content", "")
+            for f in files
+            if f.get("path") and Path(f["path"]).suffix.lower() not in image_exts
+        }
+        return all_paths, text_content
+    except Exception:
+        return set(), {}
+
+
+def make_diff_title(
+    prev_paths: set[str],
+    curr_paths: set[str],
+    prev_text: dict[str, str],
+    curr_text: dict[str, str],
+) -> str:
+    """Generate a human-readable summary of what changed between two file snapshots."""
+    added = sorted(curr_paths - prev_paths)
+    deleted = sorted(prev_paths - curr_paths)
+    modified = sorted(
+        p
+        for p in curr_paths & prev_paths
+        if p in prev_text and p in curr_text and curr_text[p] != prev_text[p]
+    )
+
+    def _fmt(verb: str, names: list) -> str:
+        if not names:
+            return ""
+        label = Path(names[0]).name
+        rest = len(names) - 1
+        return f"{verb} {label}" if not rest else f"{verb} {label} and {rest} more"
+
+    parts = [
+        s
+        for s in [_fmt("Add", added), _fmt("Update", modified), _fmt("Delete", deleted)]
+        if s
+    ]
+    return ", ".join(parts)
 
 
 def resolve_base_id(backend: str, token: str, name: str, username: str) -> str | None:

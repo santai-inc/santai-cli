@@ -18,6 +18,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from santai_cli.core.project import (
+    IMAGE_EXTENSIONS,
     MARKDOWN_LINK_PATTERN,
     SANTAI_FOLDER_DESCRIPTIONS,
     WIKILINK_PATTERN,
@@ -1599,15 +1600,7 @@ def create_app(project: SantaiProject) -> FastAPI:
     }
     _CLOUD_SENSITIVE = {".env", "credentials.json"}
     _CLOUD_MAX_BYTES = 50 * 1024 * 1024
-    _CLOUD_IMAGE_EXTS = {
-        ".png",
-        ".jpg",
-        ".jpeg",
-        ".gif",
-        ".webp",
-        ".bmp",
-        ".ico",
-    }
+    _CLOUD_IMAGE_EXTS = IMAGE_EXTENSIONS
 
     @app.get("/api/cloud/status")
     async def cloud_status() -> dict[str, Any]:
@@ -1634,7 +1627,12 @@ def create_app(project: SantaiProject) -> FastAPI:
         from urllib.parse import quote
 
         from santai_cli.commands.auth import DEFAULT_HUB_URL, load_credentials
-        from santai_cli.core.hub import USER_AGENT, get_backend_url
+        from santai_cli.core.hub import (
+            USER_AGENT,
+            fetch_prev_files,
+            get_backend_url,
+            make_diff_title,
+        )
 
         def _sse(data: dict) -> str:
             return f"data: {_json.dumps(data)}\n\n"
@@ -1770,13 +1768,15 @@ def create_app(project: SantaiProject) -> FastAPI:
 
                 yield _sse({"type": "status", "message": "Packaging..."})
 
-                def build_zip() -> "tuple[bytes, int] | str":
+                def build_zip() -> "tuple[bytes, int, set[str], dict[str, str]] | str":
                     import tempfile as _tmp
 
                     with _tmp.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
                         tmp_path = Path(tmp.name)
                     try:
                         file_count = 0
+                        curr_paths: set[str] = set()
+                        curr_text: dict[str, str] = {}
                         with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as zf:
                             for fp in sorted(project.root.rglob("*")):
                                 if not fp.is_file():
@@ -1788,10 +1788,18 @@ def create_app(project: SantaiProject) -> FastAPI:
                                     continue
                                 if rel.name in ignored_files:
                                     continue
+                                rel_str = str(rel)
+                                curr_paths.add(rel_str)
                                 if fp.suffix.lower() in _CLOUD_IMAGE_EXTS:
-                                    zf.writestr(str(rel), _encode_data_url(fp))
+                                    zf.writestr(rel_str, _encode_data_url(fp))
                                 else:
                                     zf.write(fp, rel)
+                                    try:
+                                        curr_text[rel_str] = fp.read_text(
+                                            errors="replace"
+                                        )
+                                    except Exception:
+                                        curr_text[rel_str] = ""
                                 file_count += 1
                         size = tmp_path.stat().st_size
                         if size > _CLOUD_MAX_BYTES:
@@ -1799,17 +1807,36 @@ def create_app(project: SantaiProject) -> FastAPI:
                                 f"Archive is {format_size(size)}, "
                                 "exceeds the 50 MB limit."
                             )
-                        return tmp_path.read_bytes(), file_count
+                        return tmp_path.read_bytes(), file_count, curr_paths, curr_text
                     finally:
                         tmp_path.unlink(missing_ok=True)
 
-                result = await asyncio.to_thread(build_zip)
+                _prev_task = asyncio.to_thread(
+                    fetch_prev_files,
+                    backend,
+                    creds["token"],
+                    base_id,
+                    _CLOUD_IMAGE_EXTS,
+                )
+                (prev_paths, prev_text), result = await asyncio.gather(
+                    _prev_task, asyncio.to_thread(build_zip)
+                )
                 if isinstance(result, str):
                     yield _sse({"type": "error", "message": result})
                     return
 
-                zip_bytes, _file_count = result
-                _push_title = f"Web snapshot · {_file_count} file{'s' if _file_count != 1 else ''}"
+                zip_bytes, _file_count, curr_paths, curr_text = result
+                _diff = make_diff_title(prev_paths, curr_paths, prev_text, curr_text)
+                _n = _file_count
+                _push_title = (
+                    _diff
+                    if _diff
+                    else (
+                        "Initial push"
+                        if not prev_paths
+                        else f"Snapshot · {_n} file{'s' if _n != 1 else ''}"
+                    )
+                )
                 yield _sse(
                     {
                         "type": "status",
