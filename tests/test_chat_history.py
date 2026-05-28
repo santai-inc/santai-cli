@@ -8,7 +8,6 @@ from santai_cli.core.chat import ChatSession
 from santai_cli.core.chat_history import (
     _mask_code_blocks,
     _parse_markdown,
-    _rebuild_index,
     auto_title,
     delete_session,
     generate_session_id,
@@ -225,14 +224,17 @@ def test_code_block_masking_ignores_speaker_labels_inside_fences():
 
 def test_parse_markdown_code_block_not_split(tmp_path: Path):
     """A message containing a fenced code block with speaker labels is parsed intact."""
+    code_block = "```\n**You:** Hello!\n**Assistant:** Hi!\n```"
     content_with_block = (
         "**You:**\nHow do I greet someone?\n\n"
-        "**Assistant:**\nHere is an example:\n\n```\n**You:** Hello!\n**Assistant:** Hi!\n```\n\n"
-        '---\nid: test-id-0001\ntitle: "test"\ncreated_at: 2026-01-01T00:00:00+00:00\n'
-        "updated_at: 2026-01-01T00:00:00+00:00\nprovider: anthropic\nmodel: m\nagent: null\n"
+        f"**Assistant:**\nHere is an example:\n\n{code_block}\n\n"
+        '---\nid: test-id-0001\ntitle: "test"\n'
+        "created_at: 2026-01-01T00:00:00+00:00\n"
+        "updated_at: 2026-01-01T00:00:00+00:00\n"
+        "provider: anthropic\nmodel: m\nagent: null\n"
         "message_count: 2\n---\n"
     )
-    meta, messages = _parse_markdown(content_with_block)
+    _meta, messages = _parse_markdown(content_with_block)
     assert len(messages) == 2
     assert messages[1]["role"] == "assistant"
     assert "```" in messages[1]["content"]
