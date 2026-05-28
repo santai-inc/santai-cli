@@ -88,22 +88,10 @@ def _save_index(chat_dir: Path, index: dict[str, str]) -> None:
 def _rebuild_index(chat_dir: Path) -> dict[str, str]:
     """Rebuild the index by scanning all .md files (O(n) fallback)."""
     index: dict[str, str] = {}
-    id_inline_prefix = "\n---\nid: "
-    id_front_prefix = "---\nid: "
     for path in chat_dir.glob("*.md"):
         try:
-            text = path.read_text(encoding="utf-8")
-            session_id = None
-            if id_inline_prefix in text:
-                start = text.find(id_inline_prefix) + len(id_inline_prefix)
-                end = text.find("\n", start)
-                if end != -1:
-                    session_id = text[start:end].strip()
-            elif text.startswith(id_front_prefix):
-                start = len(id_front_prefix)
-                end = text.find("\n", start)
-                if end != -1:
-                    session_id = text[start:end].strip()
+            meta, _ = _parse_markdown(path.read_text(encoding="utf-8"))
+            session_id = meta.get("id", "")
             if session_id:
                 index[session_id] = path.name
         except OSError:
@@ -224,7 +212,7 @@ def _build_markdown(
 ) -> str:
     agent_val = "null" if agent is None else agent
     metadata_block = (
-        "---\n"
+        "<!-- santai\n"
         f"id: {session_id}\n"
         f"title: {json.dumps(title, ensure_ascii=False)}\n"
         f"created_at: {created_at}\n"
@@ -233,7 +221,7 @@ def _build_markdown(
         f"model: {model}\n"
         f"agent: {agent_val}\n"
         f"message_count: {len(messages)}\n"
-        "---"
+        "-->"
     )
     body_parts = []
     for msg in messages:
@@ -266,19 +254,29 @@ def _parse_meta_block(block: str) -> dict:
     return meta
 
 
+_META_OPEN = "<!-- santai\n"
+_META_CLOSE = "\n-->"
+
+
 def _parse_markdown(text: str) -> tuple[dict, list[dict[str, str]]]:
     """Parse metadata and messages from a session Markdown file.
 
-    Supports two layouts:
-    - New: transcript first, then ``---\\n{meta}\\n---`` at the bottom.
-    - Old: ``---\\n{meta}\\n---`` frontmatter at the top (backwards compat).
+    Supports three layouts (newest first):
+    - HTML comment: transcript, then ``<!-- santai\\n{meta}\\n-->``.
+    - Legacy dash block: transcript, then ``---\\n{meta}\\n---``.
+    - Old frontmatter: ``---\\n{meta}\\n---`` at the very top.
     """
     meta: dict = {}
     body = text
 
-    # Metadata block at the bottom: \n---\n{key: val...}\n---
-    # id: is always the first field, so \n---\nid: locates the opening delimiter.
-    if "\n---\nid: " in text:
+    if _META_OPEN in text:
+        sep_idx = text.find(_META_OPEN)
+        close_idx = text.find(_META_CLOSE, sep_idx)
+        if close_idx != -1:
+            meta = _parse_meta_block(text[sep_idx + len(_META_OPEN) : close_idx])
+            body = text[:sep_idx]
+    elif "\n---\nid: " in text:
+        # Legacy: dash-delimited block at the bottom.
         sep_idx = text.find("\n---\nid: ")
         close_idx = text.find("\n---", sep_idx + 5)
         if close_idx != -1:
