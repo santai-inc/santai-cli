@@ -14,6 +14,46 @@ except PackageNotFoundError:
 
 USER_AGENT = f"santai-cli/{_CLI_VERSION}"
 
+# Directories that hold user-created content — prefer these as the headline file.
+_CONTENT_DIRS: frozenset[str] = frozenset({"media", "notes"})
+
+# Boilerplate filenames that should never be the headline even when added.
+_SCAFFOLD_NAMES: frozenset[str] = frozenset(
+    {
+        ".env.example",
+        ".gitignore",
+        ".eslintrc",
+        ".prettierrc",
+        ".editorconfig",
+        "requirements.txt",
+        "requirements-dev.txt",
+        "package.json",
+        "package-lock.json",
+        "yarn.lock",
+        "makefile",
+        "dockerfile",
+        "docker-compose.yml",
+        "docker-compose.yaml",
+        "setup.py",
+        "pyproject.toml",
+        "setup.cfg",
+        "tsconfig.json",
+        "vite.config.js",
+        "vite.config.ts",
+        "claude.md",
+    }
+)
+
+
+def _headline_sort_key(path_str: str) -> tuple[int, int, str]:
+    """Sort key that surfaces user content files before scaffolding/dotfiles."""
+    p = Path(path_str)
+    name_lower = p.name.lower()
+    in_content_dir = bool(p.parts) and p.parts[0] in _CONTENT_DIRS
+    is_low_priority = name_lower.startswith(".") or name_lower in _SCAFFOLD_NAMES
+    tier = 0 if in_content_dir else (2 if is_low_priority else 1)
+    return (tier, len(p.parts), name_lower)
+
 
 def get_backend_url(hub_url: str) -> str:
     if ":3000" in hub_url:
@@ -110,12 +150,15 @@ def make_diff_title(
     curr_text: dict[str, str],
 ) -> str:
     """Generate a human-readable summary of what changed between two file snapshots."""
-    added = sorted(curr_paths - prev_paths)
-    deleted = sorted(prev_paths - curr_paths)
+    added = sorted(curr_paths - prev_paths, key=_headline_sort_key)
+    deleted = sorted(prev_paths - curr_paths, key=_headline_sort_key)
     modified = sorted(
-        p
-        for p in curr_paths & prev_paths
-        if p in prev_text and p in curr_text and curr_text[p] != prev_text[p]
+        (
+            p
+            for p in curr_paths & prev_paths
+            if p in prev_text and p in curr_text and curr_text[p] != prev_text[p]
+        ),
+        key=_headline_sort_key,
     )
 
     # Flatten all changes; headline is the first, the rest become "and N more".
