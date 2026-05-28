@@ -34,7 +34,9 @@ TEMPLATES_DIR = Path(__file__).parent / "templates"
 STATIC_DIR = Path(__file__).parent / "static"
 
 # Files hidden from all file-tree listings (in addition to dotfiles).
-_HIDDEN_FILES: set[str] = {"rumdl.toml"}
+from santai_cli.core.project import _UI_HIDDEN_NAMES  # noqa: E402
+
+_HIDDEN_FILES: set[str] = set(_UI_HIDDEN_NAMES)
 
 
 class RenameRequest(BaseModel):
@@ -66,6 +68,7 @@ class ChatRequest(BaseModel):
     provider: str
     model: str
     agent: str | None = None
+    session_context: str | None = None
 
 
 class SettingsRequest(BaseModel):
@@ -84,6 +87,25 @@ class CloudPullRequest(BaseModel):
 class SmartPlaceRequest(BaseModel):
     filename: str
     content: str = ""
+
+
+class SaveSessionRequest(BaseModel):
+    session_id: str | None = None
+    title: str | None = None
+    provider: str
+    model: str
+    agent: str | None = None
+    messages: list[dict[str, str]]
+
+
+class UpdateTitleRequest(BaseModel):
+    title: str
+
+
+class GenerateTitleRequest(BaseModel):
+    messages: list[dict[str, str]]
+    provider: str
+    model: str
 
 
 _IMAGE_MIME: dict[str, str] = {
@@ -1349,6 +1371,10 @@ def create_app(project: SantaiProject) -> FastAPI:
         repo_context = build_repo_context(project)
         system_prompt = inject_repo_context(system_prompt, repo_context)
 
+        if req.session_context:
+            note = f"\n\n[Session context: {req.session_context}]"
+            system_prompt = (system_prompt + note) if system_prompt else note.strip()
+
         session = ChatSession(system_prompt=system_prompt, project_root=project.root)
         for msg in req.messages:
             if msg.get("role") == "user":
@@ -1392,6 +1418,188 @@ def create_app(project: SantaiProject) -> FastAPI:
                 "X-Accel-Buffering": "no",
             },
         )
+
+    @app.get("/api/chat/history")
+    async def chat_history_list() -> list[dict[str, Any]]:
+        """Return metadata for all saved chat sessions, newest first."""
+        from santai_cli.core.chat_history import list_sessions
+
+        sessions = list_sessions(project)
+        return [
+            {
+                "id": s.id,
+                "title": s.title,
+                "created_at": s.created_at,
+                "updated_at": s.updated_at,
+                "provider": s.provider,
+                "model": s.model,
+                "agent": s.agent,
+                "message_count": s.message_count,
+            }
+            for s in sessions
+        ]
+
+    @app.post("/api/chat/history")
+    async def chat_history_save(req: SaveSessionRequest) -> dict[str, str]:
+        """Save or update a chat session. Returns the session_id."""
+        from santai_cli.core.chat import ChatMessage, ChatSession
+        from santai_cli.core.chat_history import save_session
+
+        session = ChatSession()
+        for msg in req.messages:
+            role = msg.get("role", "")
+            content = msg.get("content", "")
+            if role == "user":
+                session.messages.append(ChatMessage(role="user", content=content))
+            elif role == "assistant":
+                session.messages.append(ChatMessage(role="assistant", content=content))
+
+        session_id = save_session(
+            project=project,
+            session=session,
+            session_id=req.session_id,
+            title=req.title,
+            provider=req.provider,
+            model=req.model,
+            agent=req.agent,
+        )
+        return {"session_id": session_id}
+
+    @app.get("/api/chat/history/{session_id}")
+    async def chat_history_load(session_id: str) -> dict[str, Any]:
+        """Return the full chat session including messages."""
+        from santai_cli.core.chat_history import load_session
+
+        try:
+            s = load_session(project, session_id)
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="Session not found") from None
+        return {
+            "id": s.id,
+            "title": s.title,
+            "created_at": s.created_at,
+            "updated_at": s.updated_at,
+            "provider": s.provider,
+            "model": s.model,
+            "agent": s.agent,
+            "message_count": s.message_count,
+            "system_prompt": s.system_prompt,
+            "messages": s.messages,
+            "tool_turns": s.tool_turns,
+        }
+
+    @app.delete("/api/chat/history/{session_id}")
+    async def chat_history_delete(session_id: str) -> dict[str, str]:
+        """Delete a chat session."""
+        from santai_cli.core.chat_history import delete_session
+
+        try:
+            delete_session(project, session_id)
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="Session not found") from None
+        return {"status": "deleted"}
+
+    @app.post("/api/chat/history/{session_id}/hide")
+    async def chat_history_hide(session_id: str) -> dict[str, str]:
+        """Hide a session from the history panel without deleting the file."""
+        from santai_cli.core.chat_history import hide_session
+
+        try:
+            hide_session(project, session_id)
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="Session not found") from None
+        return {"status": "hidden"}
+
+    @app.post("/api/chat/history/{session_id}/unhide")
+    async def chat_history_unhide(session_id: str) -> dict[str, str]:
+        """Unhide a session so it reappears in the history panel."""
+        from santai_cli.core.chat_history import unhide_session
+
+        unhide_session(project, session_id)
+        return {"status": "visible"}
+
+    @app.patch("/api/chat/history/{session_id}/title")
+    async def chat_history_update_title(
+        session_id: str, req: UpdateTitleRequest
+    ) -> dict[str, str]:
+        """Update the title of a saved chat session and rename the file to match."""
+        from santai_cli.core.chat_history import rename_session
+
+        try:
+            rename_session(project, session_id, req.title)
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="Session not found") from None
+        except OSError as e:
+            raise HTTPException(status_code=500, detail=str(e)) from e
+        return {"status": "updated"}
+
+    @app.post("/api/chat/generate-title")
+    async def chat_generate_title(req: GenerateTitleRequest) -> dict[str, str]:
+        """Generate a concise smart title for a chat session using the LLM."""
+        from santai_cli.core.chat_history import auto_title
+        from santai_cli.core.config import load_config
+
+        config = load_config(project.root)
+        if req.provider not in config.providers:
+            from santai_cli.core.chat_history import auto_title as _at
+
+            return {"title": _at(req.messages)}
+
+        provider_config = config.providers[req.provider]
+
+        first_user = next(
+            (m.get("content", "") for m in req.messages if m.get("role") == "user"), ""
+        )
+
+        system_instruction = (
+            "Respond with ONLY a short title (2-4 words, 30 characters max). "
+            "No explanation, no punctuation at the end, no quotes."
+        )
+        user_prompt = (
+            f"Give a short title for this conversation:\n\nUser: {first_user[:300]}"
+        )
+
+        def _clean_title(raw: str) -> str:
+            """Extract the first line and reject anything that looks conversational."""
+            cleaned = raw.split("\n")[0].strip().strip("\"'*# ")
+            return cleaned if 2 <= len(cleaned) <= 40 else ""
+
+        try:
+            if req.provider == "anthropic" and not provider_config.base_url:
+                import anthropic as _anthropic
+
+                client = _anthropic.AsyncAnthropic(api_key=provider_config.api_key)
+                msg = await client.messages.create(
+                    model=req.model,
+                    max_tokens=30,
+                    system=system_instruction,
+                    messages=[{"role": "user", "content": user_prompt}],
+                )
+                block = msg.content[0]
+                raw_text = (
+                    block.text if isinstance(block, _anthropic.types.TextBlock) else ""
+                )
+                title = _clean_title(raw_text)
+            else:
+                import openai as _openai
+
+                kw: dict = {"api_key": provider_config.api_key}
+                if provider_config.base_url:
+                    kw["base_url"] = provider_config.base_url
+                client = _openai.AsyncOpenAI(**kw)
+                completion = await client.chat.completions.create(
+                    model=req.model,
+                    max_tokens=30,
+                    messages=[
+                        {"role": "system", "content": system_instruction},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                )
+                title = _clean_title(completion.choices[0].message.content or "")
+        except Exception:
+            title = ""
+
+        return {"title": title or auto_title(req.messages)}
 
     @app.get("/api/settings")
     async def get_settings() -> dict[str, Any]:

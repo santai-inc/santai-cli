@@ -5,6 +5,7 @@ using Rich for terminal formatting and streaming response display.
 """
 
 import asyncio
+import contextlib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
@@ -18,6 +19,13 @@ from rich.prompt import Prompt
 from rich.text import Text
 
 from santai_cli.core.chat import ChatSession, stream_response
+from santai_cli.core.chat_history import (
+    auto_title,
+    list_sessions,
+    load_session,
+    restore_chat_session,
+    save_session,
+)
 from santai_cli.core.config import (
     ChatConfig,
     get_agent_profiles,
@@ -41,6 +49,8 @@ class _ChatState:
     model: str
     agent: str | None
     project: SantaiProject | None = None
+    session_id: str | None = None
+    session_title: str | None = None
 
 
 def chat(
@@ -74,6 +84,8 @@ def chat(
     REPL commands:
       /quit     Exit the chat
       /clear    Clear conversation history
+      /save     Save this chat (optional: /save <title>)
+      /history  List saved chats and optionally resume one
       /agent    List or switch agent profiles
       /model    Re-select the model
       /help     Show available commands
@@ -329,6 +341,7 @@ def _repl_loop(
 
         if full_response is not None:
             state.session.add_assistant_message(full_response)
+            _autosave_session(state)
         else:
             # Remove the user message if the response failed
             state.session.messages.pop()
@@ -360,11 +373,19 @@ def _handle_command(command: str, state: _ChatState) -> str:
                 "[cyan]/clear[/]         Clear conversation history\n"
                 "[cyan]/agent[/]         List agents, or /agent <name> to switch\n"
                 "[cyan]/model[/]         Re-select the model\n"
+                "[cyan]/save[/]          Save this chat (optional: /save <title>)\n"
+                "[cyan]/history[/]       List saved chats and optionally resume one\n"
                 "[cyan]/help[/]          Show this help message",
                 title="Commands",
                 border_style="dim",
             )
         )
+
+    elif cmd == "/save":
+        _cmd_save(state, arg)
+
+    elif cmd == "/history":
+        _cmd_history(state)
 
     elif cmd == "/agent":
         if arg:
@@ -394,6 +415,117 @@ def _handle_command(command: str, state: _ChatState) -> str:
         console.print(f"[red]Unknown command: {cmd}[/]. Type /help for options.\n")
 
     return "continue"
+
+
+def _autosave_session(state: _ChatState) -> None:
+    """Silently save the current session if a project is available."""
+    if state.project is None:
+        return
+    with contextlib.suppress(Exception):
+        state.session_id = save_session(
+            project=state.project,
+            session=state.session,
+            session_id=state.session_id,
+            title=state.session_title,
+            provider=state.provider,
+            model=state.model,
+            agent=state.agent,
+        )
+
+
+def _cmd_save(state: _ChatState, title: str | None) -> None:
+    """Handle the /save command."""
+    if state.project is None:
+        console.print("[yellow]Not in a project — cannot save chat history.[/]\n")
+        return
+    msgs = [
+        {"role": m.role, "content": m.content}
+        for m in state.session.messages
+        if m.role in ("user", "assistant")
+    ]
+    if not msgs:
+        console.print("[dim]Nothing to save yet.[/]\n")
+        return
+    if title:
+        state.session_title = title
+    try:
+        state.session_id = save_session(
+            project=state.project,
+            session=state.session,
+            session_id=state.session_id,
+            title=state.session_title,
+            provider=state.provider,
+            model=state.model,
+            agent=state.agent,
+        )
+        display_title = state.session_title or auto_title(msgs)
+        console.print(f"[green]Saved:[/] {display_title}\n")
+    except Exception as e:
+        console.print(f"[red]Save failed:[/] {e}\n")
+
+
+def _cmd_history(state: _ChatState) -> None:
+    """Handle the /history command — list sessions and optionally resume one."""
+    if state.project is None:
+        console.print("[yellow]Not in a project — no chat history available.[/]\n")
+        return
+    sessions = list_sessions(state.project)
+    if not sessions:
+        console.print("[dim]No saved chats found.[/]\n")
+        return
+
+    console.print("\n[bold]Saved chats:[/]\n")
+    for i, meta in enumerate(sessions[:20], 1):
+        dt = meta.updated_at[:10] if meta.updated_at else "?"
+        msg_count = f"({meta.message_count} msgs)"
+        console.print(f"  [cyan]{i:2}[/])  [{dt}] {meta.title}  [dim]{msg_count}[/]")
+    console.print()
+
+    selection = Prompt.ask(
+        "Enter number to resume, or press Enter to cancel",
+        default="",
+    ).strip()
+    if not selection:
+        return
+    try:
+        idx = int(selection) - 1
+        if not (0 <= idx < len(sessions[:20])):
+            raise ValueError
+    except ValueError:
+        console.print("[red]Invalid selection.[/]\n")
+        return
+
+    meta = sessions[idx]
+    try:
+        persisted = load_session(state.project, meta.id)
+    except FileNotFoundError:
+        console.print("[red]Session file not found.[/]\n")
+        return
+
+    restored = restore_chat_session(persisted)
+    # Keep the live system_prompt (may include updated repo context)
+    restored.system_prompt = state.session.system_prompt
+    restored.project_root = state.session.project_root
+
+    state.session = restored
+    state.session_id = persisted.id
+    state.session_title = persisted.title
+    state.provider = persisted.provider or state.provider
+    state.model = persisted.model or state.model
+
+    console.print(f"\n[dim]Resumed:[/] {persisted.title}")
+    console.print(f"[dim]({len(persisted.messages)} messages restored)[/]\n")
+
+    # Re-display the last exchange so the user has context
+    user_msgs = [m for m in persisted.messages if m.get("role") == "user"]
+    asst_msgs = [m for m in persisted.messages if m.get("role") == "assistant"]
+    if user_msgs:
+        snippet = user_msgs[-1]["content"][:200]
+        console.print(f"[bold green]You[/] [dim](last)[/]: {snippet}")
+    if asst_msgs:
+        snippet = asst_msgs[-1]["content"][:200]
+        console.print(f"[bold cyan]Assistant[/] [dim](last)[/]: {snippet}")
+    console.print()
 
 
 def _stream_assistant_response(state: _ChatState) -> str | None:

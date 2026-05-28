@@ -145,6 +145,10 @@ class SantaiProject:
     def notes_path(self) -> Path:
         return self.root / "notes"
 
+    @property
+    def chat_history_path(self) -> Path:
+        return self.root / "history" / "chat-history"
+
 
 def get_project(path: Path | None = None) -> SantaiProject | None:
     """Get the Santai project at the given path or current directory.
@@ -177,7 +181,11 @@ def _get_all_files(path: Path) -> list[FileInfo]:
 
     files = []
     for f in path.rglob("*"):
-        if f.is_file():
+        if (
+            f.is_file()
+            and not f.name.startswith(".")
+            and f.name not in _UI_HIDDEN_NAMES
+        ):
             stat = f.stat()
             files.append(
                 FileInfo(
@@ -360,6 +368,11 @@ WIKILINK_PATTERN = re.compile(r"\[\[([^\]|]+)(?:\|([^\]]+))?\]\]")
 
 _SKIP_DIRS = frozenset({"__pycache__", "node_modules", ".venv", "venv", ".git"})
 
+# Internal files that should never appear in any UI listing (graph, recent files, etc.)
+_UI_HIDDEN_NAMES: frozenset[str] = frozenset(
+    {"rumdl.toml", "_index.json", "_hidden.json"}
+)
+
 # Project meta-files that should never appear as graph nodes
 _GRAPH_EXCLUDE_NAMES_LOWER = frozenset(
     {
@@ -367,8 +380,8 @@ _GRAPH_EXCLUDE_NAMES_LOWER = frozenset(
         "claude.md",
         "readme.md",
         "readme.rst",
-        "rumdl.toml",
     }
+    | {n.lower() for n in _UI_HIDDEN_NAMES}
 )
 
 
@@ -760,6 +773,8 @@ def get_file_graph(project: SantaiProject) -> FileGraph:
         ".csv",
     }
 
+    chat_history_dir = project.chat_history_path
+
     # Known santai subdirectories
     for dir_name in SANTAI_DIRS:
         dir_path = project.root / dir_name
@@ -768,6 +783,8 @@ def get_file_graph(project: SantaiProject) -> FileGraph:
 
         for file_path in dir_path.rglob("*"):
             if not file_path.is_file() or file_path.name.startswith("."):
+                continue
+            if file_path.is_relative_to(chat_history_dir):
                 continue
             _add_file_to_graph(
                 file_path,
