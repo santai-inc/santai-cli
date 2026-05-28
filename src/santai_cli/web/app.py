@@ -139,7 +139,7 @@ def _save_push_title(root: Path, version: object, title: str) -> None:
     import json as _json
 
     path = root / ".santai" / "push-titles.json"
-    path.parent.mkdir(exist_ok=True)
+    path.parent.mkdir(parents=True, exist_ok=True)
     try:
         existing: dict = _json.loads(path.read_text()) if path.exists() else {}
         existing[str(version)] = title
@@ -2097,15 +2097,18 @@ def create_app(project: SantaiProject) -> FastAPI:
                                 plan.append((member, target))
                             preserved = _clear_and_preserve()
                             count = 0
-                            for member, target in plan:
-                                target.parent.mkdir(parents=True, exist_ok=True)
-                                raw = zf.read(member)
-                                if target.suffix.lower() in _CLOUD_IMAGE_EXTS:
-                                    raw = _decode_data_url(raw)
-                                target.write_bytes(raw)
-                                count += 1
-                            for p, data in preserved.items():
-                                p.write_bytes(data)
+                            try:
+                                for member, target in plan:
+                                    target.parent.mkdir(parents=True, exist_ok=True)
+                                    raw = zf.read(member)
+                                    if target.suffix.lower() in _CLOUD_IMAGE_EXTS:
+                                        raw = _decode_data_url(raw)
+                                    target.write_bytes(raw)
+                                    count += 1
+                                for p, data in preserved.items():
+                                    p.write_bytes(data)
+                            except OSError as exc:
+                                return f"Failed to write files: {exc}", count
                         return None, count
                     except zipfile.BadZipFile:
                         return "Downloaded file is not a valid zip.", 0
@@ -2168,32 +2171,35 @@ def create_app(project: SantaiProject) -> FastAPI:
 
                         def apply_files(files: list) -> "str | None":
                             preserved = _clear_and_preserve()
-                            for file_obj in files:
-                                path_str = file_obj.get("path", "")
-                                if not path_str:
-                                    continue
-                                target = (dest_path / path_str).resolve()
-                                try:
-                                    target.relative_to(dest_path)
-                                except ValueError:
-                                    return f"Unsafe path '{path_str}'."
-                                target.parent.mkdir(parents=True, exist_ok=True)
-                                content = file_obj.get("content", "")
-                                if target.suffix.lower() in _CLOUD_IMAGE_EXTS:
-                                    raw = _decode_data_url(
-                                        content.encode()
-                                        if isinstance(content, str)
-                                        else content
-                                    )
-                                else:
-                                    raw = (
-                                        content.encode()
-                                        if isinstance(content, str)
-                                        else content
-                                    )
-                                target.write_bytes(raw)
-                            for p, data in preserved.items():
-                                p.write_bytes(data)
+                            try:
+                                for file_obj in files:
+                                    path_str = file_obj.get("path", "")
+                                    if not path_str:
+                                        continue
+                                    target = (dest_path / path_str).resolve()
+                                    try:
+                                        target.relative_to(dest_path)
+                                    except ValueError:
+                                        return f"Unsafe path '{path_str}'."
+                                    target.parent.mkdir(parents=True, exist_ok=True)
+                                    content = file_obj.get("content", "")
+                                    if target.suffix.lower() in _CLOUD_IMAGE_EXTS:
+                                        raw = _decode_data_url(
+                                            content.encode()
+                                            if isinstance(content, str)
+                                            else content
+                                        )
+                                    else:
+                                        raw = (
+                                            content.encode()
+                                            if isinstance(content, str)
+                                            else content
+                                        )
+                                    target.write_bytes(raw)
+                                for p, data in preserved.items():
+                                    p.write_bytes(data)
+                            except OSError as exc:
+                                return f"Failed to write files: {exc}"
                             return None
 
                         apply_err = await asyncio.to_thread(apply_files, files_data)

@@ -122,7 +122,10 @@ def push(
                 rel_str = str(rel)
                 curr_paths.add(rel_str)
                 zf.write(file_path, rel)
-                if file_path.suffix.lower() not in IMAGE_EXTENSIONS:
+                if (
+                    file_path.suffix.lower() not in IMAGE_EXTENSIONS
+                    and file_path.stat().st_size <= 1_000_000
+                ):
                     try:
                         curr_text[rel_str] = file_path.read_text(errors="replace")
                     except Exception:

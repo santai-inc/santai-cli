@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
@@ -74,6 +75,7 @@ def fetch_prev_files(
         if not latest_key:
             return set(), {}
     except Exception:
+        logging.debug("fetch_prev_files: failed to fetch saves list", exc_info=True)
         return set(), {}
 
     # 2. Load file content for that save
@@ -97,6 +99,7 @@ def fetch_prev_files(
         }
         return all_paths, text_content
     except Exception:
+        logging.debug("fetch_prev_files: failed to load file content", exc_info=True)
         return set(), {}
 
 

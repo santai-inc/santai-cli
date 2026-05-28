@@ -703,55 +703,6 @@
         .cloud-status.error { color: #ef4444; }
         .cloud-status.success { color: var(--accent); }
 
-        .cloud-inline-form {
-            display: none;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        .cloud-inline-form.visible { display: flex; }
-
-        .cloud-confirm-msg {
-            font-size: 12px;
-            color: var(--text-secondary, var(--text-muted));
-            line-height: 1.4;
-        }
-
-        .cloud-inline-form input[type="text"] {
-            background: rgba(255,255,255,0.6);
-            border: 1px solid rgba(0,0,0,0.12);
-            border-radius: 8px;
-            padding: 7px 10px;
-            font-size: 12px;
-            color: var(--text-primary);
-            width: 100%;
-            box-sizing: border-box;
-        }
-
-        .cloud-inline-form input[type="text"]:focus {
-            outline: none;
-            border-color: var(--accent);
-        }
-
-        .cloud-form-row {
-            display: flex;
-            gap: 6px;
-        }
-
-        .cloud-form-row .btn {
-            flex: 1;
-            justify-content: center;
-            font-size: 13px;
-            padding: 7px 6px;
-        }
-
-        #cloud-pull-cancel-btn {
-            background: rgba(0, 0, 0, 0.06);
-        }
-
-        #cloud-pull-cancel-btn:hover {
-            background: rgba(0, 0, 0, 0.1);
-        }
 
         .btn {
             background: rgba(255, 255, 255, 0.7);
@@ -3938,13 +3889,7 @@
                             Pull from Cloud
                         </button>
                     </div>
-                    <div class="cloud-inline-form" id="cloud-pull-confirm">
-                        <span class="cloud-confirm-msg" id="cloud-confirm-msg">Replace local files with the latest cloud version?</span>
-                        <div class="cloud-form-row">
-                            <button class="btn btn-primary" onclick="cloudPullConfirmStored()">Replace</button>
-                            <button class="btn" id="cloud-pull-cancel-btn" onclick="cloudPullCancel()">Cancel</button>
-                        </div>
-                    </div>
+
                     <span class="cloud-status" id="cloud-status"></span>
                 </div>
                 <ul class="tree-view" id="tree-view"></ul>
@@ -9357,11 +9302,6 @@
             cloudPullConfirm(key);
         }
 
-        function cloudPullCancel() {
-            _pendingManifestKey = null;
-            document.getElementById('cloud-pull-confirm').classList.remove('visible');
-            setCloudStatus('');
-        }
 
         async function cloudPullConfirm(manifestKey) {
             if (_cloudStreaming) return;
