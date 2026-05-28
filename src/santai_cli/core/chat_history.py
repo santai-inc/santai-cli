@@ -439,7 +439,9 @@ def _load_hidden(chat_dir: Path) -> set[str]:
     """Return the set of session IDs hidden from the history panel."""
     try:
         data = json.loads((chat_dir / _HIDDEN_FILE).read_text(encoding="utf-8"))
-        return set(data) if isinstance(data, list) else set()
+        return (
+            {s for s in data if isinstance(s, str)} if isinstance(data, list) else set()
+        )
     except (OSError, json.JSONDecodeError):
         return set()
 
