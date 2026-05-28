@@ -2155,6 +2155,26 @@
             background: rgba(254, 242, 242, 0.95);
         }
 
+        .toast-undo-btn {
+            background: none;
+            border: 1px solid currentColor;
+            border-radius: 6px;
+            color: inherit;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            margin-left: 10px;
+            opacity: 0.8;
+            padding: 2px 8px;
+            transition: opacity 0.15s, background 0.15s;
+            vertical-align: middle;
+        }
+        .toast-undo-btn:hover {
+            background: rgba(0, 0, 0, 0.08);
+            opacity: 1;
+        }
+
         /* Hidden file input */
         #file-input, #folder-upload-input {
             display: none;
@@ -4591,6 +4611,25 @@
         let previewReturnClusterId = null; // set when a file is opened from a cluster list
         let _previewPollTimer = null;
         let _previewLastContent = null;
+        let _editOriginalContent = null; // content before editing, used for undo
+
+        // Undo manager — stack-based, stores up to 50 reversible operations
+        class UndoManager {
+            constructor(maxHistory = 50) {
+                this._stack = [];
+                this._maxHistory = maxHistory;
+            }
+            push(op) {
+                this._stack.push(op);
+                if (this._stack.length > this._maxHistory) this._stack.shift();
+            }
+            pop() { return this._stack.pop() || null; }
+            canUndo() { return this._stack.length > 0; }
+            peek() { return this._stack[this._stack.length - 1] || null; }
+            clear() { this._stack = []; }
+            get size() { return this._stack.length; }
+        }
+        const undoManager = new UndoManager();
         function hasPreviewContent() {
             const header = document.getElementById('preview-file-header');
             return Boolean(header) && header.style.display !== 'none';
@@ -4915,6 +4954,7 @@
                     return;
                 }
 
+                _editOriginalContent = data.content; // capture for undo
                 document.getElementById('edit-modal-title').textContent = `Edit: ${data.name}`;
                 document.getElementById('edit-textarea').value = data.content;
                 document.getElementById('edit-modal').classList.add('show');
@@ -4928,6 +4968,7 @@
             if (!previewPath) return;
 
             const content = document.getElementById('edit-textarea').value;
+            const previousContent = _editOriginalContent;
 
             try {
                 const res = await fetch(`/api/files/save?path=${encodeURIComponent(previewPath)}`, {
@@ -4941,8 +4982,13 @@
                     throw new Error(err.detail || 'Failed to save file');
                 }
 
+                if (previousContent !== null && previousContent !== content) {
+                    const fname = previewPath.split('/').pop();
+                    undoManager.push({ type: 'SAVE', path: previewPath, previousContent, label: `Edit "${fname}"` });
+                }
+
                 closeModals();
-                showToast('File saved successfully');
+                showToast('File saved successfully', false, true);
                 openFilePreview(previewPath); // Refresh preview
             } catch (err) {
                 showToast(err.message, true);
@@ -5647,7 +5693,14 @@
                         const err = await res.json();
                         throw new Error(err.detail || 'Failed to move');
                     }
-                    showToast(`Moved "${item.name}" to ${dropFolder || 'root'}`);
+                    const originalParent = item.path.split('/').slice(0, -1).join('/');
+                    const newPath = dropFolder ? `${dropFolder}/${item.name}` : item.name;
+                    undoManager.push({
+                        type: 'MOVE',
+                        moves: [{ originalPath: item.path, originalParent, itemName: item.name, newPath }],
+                        label: `Move "${item.name}" to ${dropFolder || 'root'}`
+                    });
+                    showToast(`Moved "${item.name}" to ${dropFolder || 'root'}`, false, true);
                 } catch (err) {
                     showToast(err.message, true);
                     return;
@@ -5669,7 +5722,18 @@
                 const succeeded = results.filter(r => r.status === 'fulfilled').length;
                 const failed = results.filter(r => r.status === 'rejected');
                 if (succeeded > 0) {
-                    showToast(`Moved ${succeeded} item${succeeded !== 1 ? 's' : ''} to ${dropFolder || 'root'}`);
+                    const movedItems = moveable.filter((_, i) => results[i].status === 'fulfilled');
+                    const moves = movedItems.map(item => {
+                        const originalParent = item.path.split('/').slice(0, -1).join('/');
+                        const newPath = dropFolder ? `${dropFolder}/${item.name}` : item.name;
+                        return { originalPath: item.path, originalParent, itemName: item.name, newPath };
+                    });
+                    undoManager.push({
+                        type: 'MOVE',
+                        moves,
+                        label: `Move ${succeeded} item${succeeded !== 1 ? 's' : ''} to ${dropFolder || 'root'}`
+                    });
+                    showToast(`Moved ${succeeded} item${succeeded !== 1 ? 's' : ''} to ${dropFolder || 'root'}`, false, true);
                 }
                 if (failed.length > 0) {
                     showToast(failed[0].reason?.message || 'Some items failed to move', true);
@@ -5690,11 +5754,15 @@
                 if (!confirm(`"${selectedItem.name}" is one of the recommended santai folders — rename anyway?`)) return;
             }
 
+            const originalPath = selectedItem.path;
+            const originalName = selectedItem.name;
+            const parentFolder = originalPath.split('/').slice(0, -1).join('/');
+
             try {
                 const res = await fetch('/api/files/rename', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ old_path: selectedItem.path, new_name: newName })
+                    body: JSON.stringify({ old_path: originalPath, new_name: newName })
                 });
 
                 if (!res.ok) {
@@ -5702,8 +5770,19 @@
                     throw new Error(err.detail || 'Failed to rename');
                 }
 
+                const newPath = parentFolder ? `${parentFolder}/${newName}` : newName;
+                undoManager.push({
+                    type: 'RENAME',
+                    originalPath,
+                    originalName,
+                    newName,
+                    newPath,
+                    parentFolder,
+                    label: `Rename "${originalName}" to "${newName}"`
+                });
+
                 closeModals();
-                showToast('Renamed successfully');
+                showToast('Renamed successfully', false, true);
                 loadFiles(currentPath);
                 loadTree();
             } catch (err) {
@@ -5764,8 +5843,11 @@
                     throw new Error(err.detail || 'Failed to create folder');
                 }
 
+                const createdPath = currentPath ? `${currentPath}/${name}` : name;
+                undoManager.push({ type: 'CREATE_FOLDER', path: createdPath, label: `New folder "${name}"` });
+
                 closeModals();
-                showToast('Folder created');
+                showToast('Folder created', false, true);
                 loadFiles(currentPath);
                 loadTree();
             } catch (err) {
@@ -5796,8 +5878,10 @@
                 }
 
                 const data = await res.json();
+                undoManager.push({ type: 'CREATE_FILE', path: data.path, label: `New file "${name}"` });
+
                 closeModals();
-                showToast('File created');
+                showToast('File created', false, true);
                 loadFiles(currentPath);
                 loadTree();
                 openFilePreview(data.path);
@@ -6321,6 +6405,66 @@
             }
         }
 
+        // Undo helpers
+
+        async function _undoSave(op) {
+            const res = await fetch(`/api/files/save?path=${encodeURIComponent(op.path)}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: op.previousContent })
+            });
+            if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'Failed to restore file'); }
+            if (previewPath === op.path) openFilePreview(op.path);
+        }
+
+        async function _undoMove(op) {
+            for (const m of op.moves) {
+                const res = await fetch('/api/files/move', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ source_path: m.newPath, target_folder: m.originalParent })
+                });
+                if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'Failed to undo move'); }
+            }
+        }
+
+        async function _undoRename(op) {
+            const res = await fetch('/api/files/rename', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ old_path: op.newPath, new_name: op.originalName })
+            });
+            if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'Failed to undo rename'); }
+        }
+
+        async function _undoCreate(op) {
+            const res = await fetch(`/api/files?path=${encodeURIComponent(op.path)}`, { method: 'DELETE' });
+            if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'Failed to undo create'); }
+            if (previewPath && (previewPath === op.path || previewPath.startsWith(op.path + '/'))) closePreview();
+        }
+
+        async function performUndo() {
+            if (!undoManager.canUndo()) {
+                showToast('Nothing to undo');
+                return;
+            }
+            const op = undoManager.pop();
+            try {
+                switch (op.type) {
+                    case 'SAVE':          await _undoSave(op);   break;
+                    case 'MOVE':          await _undoMove(op);   break;
+                    case 'RENAME':        await _undoRename(op); break;
+                    case 'CREATE_FILE':
+                    case 'CREATE_FOLDER': await _undoCreate(op); break;
+                }
+                showToast(`Undid: ${op.label}`);
+                loadFiles(currentPath);
+                loadTree();
+            } catch (err) {
+                showToast(`Undo failed: ${err.message}`, true);
+            }
+        }
+
         document.querySelectorAll('.modal-overlay').forEach(m => {
             m.addEventListener('click', (e) => {
                 if (e.target === m) closeModals();
@@ -6373,15 +6517,31 @@
         }
 
         // Toast
-        function showToast(message, isError = false) {
+        function showToast(message, isError = false, undoable = false) {
             const toast = document.getElementById('toast');
-            toast.textContent = message;
+            clearTimeout(toast._hideTimer);
+            const safe = message.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            if (undoable && undoManager.canUndo()) {
+                toast.innerHTML = `${safe} <button class="toast-undo-btn" onclick="performUndo()">Undo</button>`;
+            } else {
+                toast.textContent = message;
+            }
             toast.className = 'toast show' + (isError ? ' error' : '');
-            setTimeout(() => toast.classList.remove('show'), 3000);
+            toast._hideTimer = setTimeout(() => toast.classList.remove('show'), 4000);
         }
 
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
+            const active = document.activeElement;
+            const inInput = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA');
+
+            // Ctrl+Z / Cmd+Z — undo (skip when typing in an input or textarea)
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey && !inInput) {
+                e.preventDefault();
+                performUndo();
+                return;
+            }
+
             if (e.key === 'Delete' && selectedItem) {
                 deleteSelected();
             }
