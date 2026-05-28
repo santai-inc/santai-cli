@@ -1508,6 +1508,14 @@ def create_app(project: SantaiProject) -> FastAPI:
         hide_session(project, session_id)
         return {"status": "hidden"}
 
+    @app.post("/api/chat/history/{session_id}/unhide")
+    async def chat_history_unhide(session_id: str) -> dict[str, str]:
+        """Unhide a session so it reappears in the history panel."""
+        from santai_cli.core.chat_history import unhide_session
+
+        unhide_session(project, session_id)
+        return {"status": "visible"}
+
     @app.patch("/api/chat/history/{session_id}/title")
     async def chat_history_update_title(
         session_id: str, req: UpdateTitleRequest
