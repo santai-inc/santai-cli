@@ -30,7 +30,9 @@ AVAILABLE_MODELS: dict[str, list[str]] = {
         "gpt-4.1",
         "gpt-4.1-mini",
         "gpt-4o",
+        "gpt-4o-mini",
         "o3-mini",
+        "o4-mini",
     ],
 }
 
@@ -61,13 +63,22 @@ class ChatConfig:
         """Return a list of (display_label, provider, model) for interactive selection.
 
         Each configured provider contributes its available models to the list.
+        Labels combine a friendly display name with the raw model ID so users
+        can see both what they're picking and the underlying identifier.
         """
+        # Imported lazily to avoid a circular import (models.py imports from
+        # config.py for ProviderConfig).
+        from santai_cli.core.models import display_label_for_model
+
         choices: list[tuple[str, str, str]] = []
         for provider_name, config in self.providers.items():
             for model in config.available_models:
-                # Mark the configured/default model
                 marker = " *" if model == config.model else ""
-                label = f"{provider_name}: {model}{marker}"
+                display = display_label_for_model(model)
+                if display == model:
+                    label = f"{provider_name}: {model}{marker}"
+                else:
+                    label = f"{display}  ({provider_name}/{model}){marker}"
                 choices.append((label, provider_name, model))
         return choices
 

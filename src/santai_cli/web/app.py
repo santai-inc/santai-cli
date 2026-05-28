@@ -998,288 +998,45 @@ def create_app(project: SantaiProject) -> FastAPI:
 
     # === Chat API Endpoints ===
 
-    # Models to never show in the dropdown regardless of what the proxy returns.
-    _BLOCKED_MODELS: set[str] = {
-        "deepseekr1-bedrock",  # fakes tool calls as plain text
-        "llama3.3-bedrock",  # fakes tool calls as plain text
-        "llama3.1-bedrock",  # no tool use in streaming mode
-        "llama3.2-1B-bedrock",  # no tool use in streaming mode
-        "qwen3-coder-bedrock",  # invalid model identifier
-        "jamba.2-bedrock",  # deprecated
-        "grok2-xai",  # deprecated
-    }
-
-    _MODEL_DISPLAY_NAMES: dict[str, str] = {
-        # Direct Anthropic models
-        "claude-opus-4-7": "Claude Opus 4.7",
-        "claude-sonnet-4-6": "Claude Sonnet 4.6",
-        "claude-haiku-4-5-20251001": "Claude Haiku 4.5",
-        "claude-3-7-sonnet-20250219": "Claude Sonnet 3.7",
-        "claude-3-5-sonnet-20241022": "Claude Sonnet 3.5",
-        "claude-3-5-haiku-20241022": "Claude Haiku 3.5",
-        # Anthropic via direct API
-        "anthropic-4.5": "Claude Sonnet 4.5",
-        # Anthropic via Bedrock
-        "anthropic-claude-bedrock4.5": "Claude Sonnet 4.5",
-        "anthropic-claude-bedrock4.6": "Claude Sonnet 4.6",
-        "anthropic-claude-bedrock4.6opus": "Claude Opus 4.6",
-        "anthropic-claude-bedrock4.7opus": "Claude Opus 4.7",
-        "anthropic-claude-bedrock4.5-haiku": "Claude Haiku 4.5",
-        "anthropic-claude-opus-4.5-bedrock": "Claude Opus 4.5",
-        # These config names are outdated — both point to Sonnet 4.5 in the proxy
-        "anthropic-claude-bedrock4.0": "Claude Sonnet 4.5",
-        "anthropic-claude-bedrock3.7": "Claude Sonnet 4.5",
-        # Amazon
-        "us.amazon.nova-pro-v1:0": "Nova Pro",
-        "novapro-bedrock": "Nova Pro",
-        # xAI Grok
-        "grok3-xai": "Grok 3",
-        # Google Gemini
-        "gemini-flash-2": "Gemini 2.0 Flash",
-        "gemini-3": "Gemini 3 Pro Preview",
-        # Moonshot AI
-        "Kimi-K2.5": "Kimi K2.5",
-        # OpenAI (direct)
-        "gpt-4o": "GPT-4o",
-        "gpt-4o-mini": "GPT-4o mini",
-        "gpt-4.1": "GPT-4.1",
-        "gpt-4.1-mini": "GPT-4.1 mini",
-        "gpt-4.1-nano": "GPT-4.1 nano",
-        "chatgpt-4o-latest": "GPT-4o",
-        "o1": "o1",
-        "o1-mini": "o1-mini",
-        "o1-preview": "o1-preview",
-        "o3": "o3",
-        "o3-mini": "o3-mini",
-        "o4-mini": "o4-mini",
-        # OpenAI (via proxy)
-        "gpt-5big-santai": "GPT-5",
-        "gpt-5.4-santai": "GPT-5.4",
-        "gpt-5mini-santai": "GPT-5 Mini",
-        "gpt-5.5": "GPT-5.5",
-        "gpt-5.5-pro": "GPT-5.5 Pro",
-    }
-
-    # Words that should render as uppercase acronyms
-    _ACRONYMS = {"gpt", "xai", "ai", "llm", "aws", "us"}
-    # Segments to drop entirely (provider noise)
-    _NOISE = {"anthropic", "bedrock", "amazon"}
-
-    def _prettify_model_id(model_id: str) -> str:
-        """Convert a raw model ID to a human-readable label.
-
-        e.g. 'anthropic-claude-bedrock4.5-haiku'  -> 'Claude Haiku 4.5'
-             'claude-3-5-haiku-20241022'           -> 'Claude Haiku 3.5'
-             'claude-3-7-sonnet-20250219'          -> 'Claude Sonnet 3.7'
-             'gemini-2.5-pro'                      -> 'Gemini 2.5 Pro'
-             'llama3.1-70b'                        -> 'Llama 3.1 70b'
-             'us.amazon.nova-pro-v1:0'             -> 'Nova Pro'
-        """
-        # Drop trailing revision suffixes like :0
-        model_id = re.sub(r":\d+$", "", model_id)
-        # Strip trailing 8-digit release dates (e.g. -20241022, -20250219)
-        model_id = re.sub(r"-\d{8}$", "", model_id)
-        # Strip trailing YYYY-MM-DD dates (e.g. -2024-11-20)
-        model_id = re.sub(r"-\d{4}-\d{2}-\d{2}$", "", model_id)
-        # Strip trailing -latest alias
-        model_id = re.sub(r"-latest$", "", model_id)
-
-        # Split on hyphens/underscores, then expand dot-namespaced word segments
-        # (e.g. 'us.amazon.nova') but keep decimal versions ('2.5') and
-        # alpha+version segments ('llama3.1') intact.
-        raw_parts: list[str] = []
-        for seg in re.split(r"[-_]", model_id):
-            if (
-                "." in seg
-                and not re.match(r"^(v?\d|bedrock)", seg, re.IGNORECASE)
-                and not re.search(r"\d\.", seg)  # skip if digit precedes dot (version)
-            ):
-                raw_parts.extend(seg.split("."))
-            else:
-                raw_parts.append(seg)
-
-        # Collapse consecutive single-digit numeric tokens into a dotted version.
-        # e.g. ['claude', '3', '5', 'haiku'] -> ['claude', '3.5', 'haiku']
-        collapsed: list[str] = []
-        i = 0
-        while i < len(raw_parts):
-            if (
-                re.fullmatch(r"\d", raw_parts[i])
-                and i + 1 < len(raw_parts)
-                and re.fullmatch(r"\d+", raw_parts[i + 1])
-            ):
-                collapsed.append(f"{raw_parts[i]}.{raw_parts[i + 1]}")
-                i += 2
-            else:
-                collapsed.append(raw_parts[i])
-                i += 1
-        raw_parts = collapsed
-
-        words: list[str] = []
-        trailing_versions: list[str] = []
-        is_claude = raw_parts and raw_parts[0].lower() == "claude"
-        for part in raw_parts:
-            if not part:
-                continue
-            low = part.lower()
-            if low in _NOISE:
-                continue
-            # 'bedrock4.5', 'bedrock4.6opus' → trailing version + optional word suffix
-            bm = re.match(r"^bedrock([\d.]+)([a-zA-Z]*)$", part, re.IGNORECASE)
-            if bm:
-                trailing_versions.append(bm.group(1))
-                if bm.group(2):
-                    words.append(bm.group(2).capitalize())
-                continue
-            # Pure version/numeric segment — for Claude IDs push to end so the
-            # family word comes first: "Claude Haiku 3.5" not "Claude 3.5 Haiku"
-            if re.match(r"^v?\d", low):
-                if is_claude:
-                    trailing_versions.append(part)
-                else:
-                    words.append(part)
-                continue
-            # Alpha prefix glued to version, e.g. 'llama3.1', 'gpt4o'
-            am = re.match(r"^([a-zA-Z]+)(\d.*)$", part)
-            if am:
-                prefix, ver = am.group(1), am.group(2)
-                words.append(
-                    prefix.upper()
-                    if prefix.lower() in _ACRONYMS
-                    else prefix.capitalize()
-                )
-                words.append(ver)
-                continue
-            if low in _ACRONYMS:
-                words.append(part.upper())
-            else:
-                words.append(part.capitalize())
-        return " ".join(words + trailing_versions)
-
-    # Cache provider API clients keyed by api_key so a config change gets a
-    # fresh client automatically without re-instantiating on every request.
-    _anthropic_clients: dict[str, Any] = {}
-    _openai_clients: dict[str, Any] = {}
-
-    # Chat-model prefixes to keep from the OpenAI /v1/models response.
-    # Excludes embeddings, TTS, Whisper, DALL-E, legacy completions, etc.
-    _OPENAI_CHAT_PREFIXES = (
-        "gpt-4",
-        "gpt-3.5-turbo",
-        "o1",
-        "o3",
-        "o4",
-        "chatgpt-4o",
-        "gpt-5",
-    )
-
     @app.get("/api/chat/models")
     async def chat_models() -> dict[str, Any]:
         """Return available AI models based on configured API keys.
 
         When a provider has a base_url (e.g. a LiteLLM proxy), fetches the
         model list dynamically from the proxy's /v1/models endpoint instead
-        of using the hardcoded AVAILABLE_MODELS list.
+        of using the hardcoded AVAILABLE_MODELS list. Discovery logic and
+        display labels live in santai_cli.core.models so the CLI uses the
+        same code path.
         """
-        import anthropic as _anthropic
-        import httpx
-        import openai as _openai
-
         from santai_cli.core.config import load_config
+        from santai_cli.core.models import (
+            ModelDiscoveryError,
+            discover_models,
+            display_label_for_model,
+        )
 
         config = load_config(project.root)
         models: list[dict[str, str | bool]] = []
-        # Maps provider_name -> {type, display} for providers that failed.
         provider_errors: dict[str, dict[str, str]] = {}
+
         for provider_name, provider_config in config.providers.items():
-
-            def _err(kind: str, pc=provider_config) -> dict[str, str]:
-                return {"type": kind, "display": pc.name}
-
-            if provider_config.base_url:
-                # Fetch model list from LiteLLM proxy
-                proxy_models: list[str] = []
-                try:
-                    base = provider_config.base_url.rstrip("/")
-                    async with httpx.AsyncClient(timeout=5.0) as client:
-                        resp = await client.get(
-                            f"{base}/v1/models",
-                            headers={
-                                "Authorization": f"Bearer {provider_config.api_key}"
-                            },
-                        )
-                        resp.raise_for_status()
-                        data = resp.json()
-                        proxy_models = [m["id"] for m in data.get("data", [])]
-                except httpx.HTTPStatusError as e:
-                    if e.response.status_code in (401, 403):
-                        provider_errors[provider_name] = _err("invalid_key")
-                    else:
-                        provider_errors[provider_name] = _err("unavailable")
-                except Exception:
-                    provider_errors[provider_name] = _err("unavailable")
-                if not proxy_models and provider_name not in provider_errors:
-                    provider_errors[provider_name] = _err("unavailable")
-                model_list = proxy_models
-            elif provider_name == "anthropic":
-                try:
-                    if provider_config.api_key not in _anthropic_clients:
-                        _anthropic_clients[provider_config.api_key] = (
-                            _anthropic.AsyncAnthropic(api_key=provider_config.api_key)
-                        )
-                    ac = _anthropic_clients[provider_config.api_key]
-                    page = await ac.models.list(limit=100)
-                    model_list = [m.id for m in page.data]
-                except _anthropic.AuthenticationError:
-                    model_list = []
-                    provider_errors[provider_name] = _err("invalid_key")
-                except Exception:
-                    model_list = []
-                    provider_errors[provider_name] = _err("unavailable")
-            elif provider_name == "openai":
-                try:
-                    if provider_config.api_key not in _openai_clients:
-                        _openai_clients[provider_config.api_key] = _openai.AsyncOpenAI(
-                            api_key=provider_config.api_key
-                        )
-                    oc = _openai_clients[provider_config.api_key]
-                    page = await oc.models.list()
-                    model_list = sorted(
-                        [
-                            m.id
-                            for m in page.data
-                            if m.id.startswith(_OPENAI_CHAT_PREFIXES)
-                            # Exclude dated snapshots (e.g. gpt-4o-2024-11-20).
-                            # These are identical to the base model and clutter
-                            # the list; the base ID is always present alongside them.
-                            and not re.search(r"-\d{4}-\d{2}-\d{2}$", m.id)
-                        ],
-                        reverse=True,
-                    )
-                except _openai.AuthenticationError:
-                    model_list = []
-                    provider_errors[provider_name] = _err("invalid_key")
-                except Exception:
-                    model_list = []
-                    provider_errors[provider_name] = _err("unavailable")
-            else:
-                # Unknown provider type (e.g. Bedrock, custom). Use the
-                # pre-configured model list from config — this is intentional
-                # fallback behaviour, not a sign that the provider is broken.
-                model_list = provider_config.available_models
+            try:
+                model_list = await discover_models(provider_name, provider_config)
+            except ModelDiscoveryError as e:
+                provider_errors[provider_name] = {
+                    "type": e.kind,
+                    "display": provider_config.name,
+                }
+                model_list = []
 
             for model_name in model_list:
-                if model_name in _BLOCKED_MODELS:
-                    continue
-                is_default = model_name == provider_config.model
                 models.append(
                     {
                         "provider": provider_name,
                         "provider_display": provider_config.name,
                         "model": model_name,
-                        "display": _MODEL_DISPLAY_NAMES.get(model_name)
-                        or _prettify_model_id(model_name),
-                        "default": is_default,
+                        "display": display_label_for_model(model_name),
+                        "default": model_name == provider_config.model,
                     }
                 )
 

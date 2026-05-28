@@ -8,6 +8,7 @@ Web interfaces.
 import asyncio
 import json
 import logging
+import re
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -46,6 +47,15 @@ _DISABLE_THINKING_MODELS: set[str] = {
 
 def _max_tokens_for_model(model: str) -> int:
     return _MAX_TOKENS_BY_MODEL.get(model, _DEFAULT_MAX_TOKENS)
+
+
+# OpenAI reasoning models (o1, o3, o4, ...) reject `max_tokens` and require
+# `max_completion_tokens` instead. Match base IDs and any -mini/-pro variants.
+_OPENAI_REASONING_RE = re.compile(r"^o[1-9](?:-|$)")
+
+
+def _is_openai_reasoning_model(model: str) -> bool:
+    return bool(_OPENAI_REASONING_RE.match(model))
 
 
 TOOLS = [
@@ -529,7 +539,11 @@ async def _stream_openai_with_tools(
     }
     # Don't impose a max_tokens cap for proxy providers — they enforce their own limits.
     if not base_url:
-        create_kwargs["max_tokens"] = _max_tokens_for_model(model)
+        cap = _max_tokens_for_model(model)
+        if _is_openai_reasoning_model(model):
+            create_kwargs["max_completion_tokens"] = cap
+        else:
+            create_kwargs["max_tokens"] = cap
     if model in _DISABLE_THINKING_MODELS:
         create_kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
     # Force tool use when requested (skip for models known to not support it).

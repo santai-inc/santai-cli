@@ -89,6 +89,11 @@ def chat(
         if config is None:
             raise typer.Exit(1)
 
+    # Replace the hardcoded fallback model lists with whatever each provider
+    # actually serves right now. Falls back silently if the live fetch fails
+    # (network issue, expired key, proxy down).
+    asyncio.run(_populate_live_models(config))
+
     # Load agent system prompt if specified
     system_prompt = None
     active_agent = agent
@@ -121,6 +126,24 @@ def chat(
         _repl_loop(session, config, provider, selected_model, active_agent, project)
     except KeyboardInterrupt:
         console.print("\n[dim]Chat ended.[/]")
+
+
+async def _populate_live_models(config: ChatConfig) -> None:
+    """Replace each provider's available_models with the live catalog.
+
+    Runs all providers concurrently. Per-provider failures fall back to the
+    pre-existing list (the hardcoded AVAILABLE_MODELS values). The CLI never
+    surfaces discovery errors to the user — it just shows whatever it has.
+    """
+    from santai_cli.core.models import discover_models_or_fallback
+
+    providers = list(config.providers.items())
+    results = await asyncio.gather(
+        *(discover_models_or_fallback(name, pc) for name, pc in providers)
+    )
+    for (_, pc), (models, _err) in zip(providers, results, strict=True):
+        if models:
+            pc.available_models = models
 
 
 def _select_model(
