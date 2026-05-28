@@ -9377,6 +9377,13 @@
                                 await Promise.all([refreshTree(), refreshFiles()]);
                                 setCloudStatus('Successfully pulled from cloud.', 'success');
                             } else {
+                                if (data.title && data.version != null) {
+                                    try {
+                                        const stored = JSON.parse(localStorage.getItem('santai-push-titles') || '{}');
+                                        stored[String(data.version)] = data.title;
+                                        localStorage.setItem('santai-push-titles', JSON.stringify(stored));
+                                    } catch {}
+                                }
                                 setCloudStatus('Successfully saved to the cloud.', 'success');
                             }
                             setTimeout(() => setCloudStatus(''), 4000);
@@ -9419,6 +9426,8 @@
                     listEl.innerHTML = '<div class="cloud-saves-empty">No cloud saves found for this project.</div>';
                     return;
                 }
+                let _storedTitles = {};
+                try { _storedTitles = JSON.parse(localStorage.getItem('santai-push-titles') || '{}'); } catch {}
                 listEl.innerHTML = '';
                 saves.forEach((save, idx) => {
                     const item = document.createElement('div');
@@ -9433,7 +9442,9 @@
                     const _isCli = rawOrigin === 'cli' || /\bfrom\s+cli\b/i.test(rawTitle);
                     if (_isCli) {
                         originTag = 'CLI';
-                        displayTitle = rawTitle.replace(/\bpush\s+from\s+cli\b[\s·\-]*/i, '').trim();
+                        // Use locally-stored diff title if available, else strip generic prefix
+                        const _stored = save.version != null ? _storedTitles[String(save.version)] : null;
+                        displayTitle = _stored || rawTitle.replace(/\bpush\s+from\s+cli\b[\s·\-]*/i, '').trim();
                     } else {
                         originTag = 'Hub';
                         displayTitle = rawTitle.replace(/\b(push\s+)?from\s+(the\s+)?hub\b[\s·\-]*/i, '').replace(/\bsantai\s+hub\b[\s·\-]*/i, '').trim();

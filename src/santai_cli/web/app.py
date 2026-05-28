@@ -1906,7 +1906,11 @@ def create_app(project: SantaiProject) -> FastAPI:
                     return
 
                 yield _sse(
-                    {"type": "done", "version": upload_result.get("version", "?")}
+                    {
+                        "type": "done",
+                        "version": upload_result.get("version", "?"),
+                        "title": _push_title,
+                    }
                 )
             finally:
                 _cloud_push_lock.release()
