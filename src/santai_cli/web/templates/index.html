@@ -364,6 +364,12 @@
 
         .user-menu-item.danger { color: #ef4444; }
 
+        .user-menu-divider {
+            height: 1px;
+            background: rgba(0,0,0,0.07);
+            margin: 2px 0;
+        }
+
         .sidebar-section {
             background: rgba(0, 0, 0, 0.04);
             border-radius: 12px;
@@ -9204,6 +9210,7 @@
         let _cloudLoggedIn = false;
         let _cloudUsername = null;
         let _cloudAvatarUrl = null;
+        let _hubBaseUrl = localStorage.getItem('santai-hub-base-url') || null;
         let _chatPullPendingConfirm = false;
         let _chatPostLoginPending = null; // 'push' | 'pull'
 
@@ -9234,10 +9241,17 @@
                 const avatarInner = _cloudAvatarUrl
                     ? `<img src="${_cloudAvatarUrl}" alt="${name}" referrerpolicy="no-referrer" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" onerror="this.parentElement.textContent='${initial}'">`
                     : initial;
+                const hubLink = _hubBaseUrl ? `
+                        <div class="user-menu-item" onclick="window.open('${_hubBaseUrl}','_blank','noopener')">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:14px;height:14px;flex-shrink:0"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                            View on Santai Hub
+                        </div>
+                        <div class="user-menu-divider"></div>` : '';
                 el.innerHTML = `<div class="user-menu-wrapper" id="user-menu-wrapper">
                     <button class="user-avatar" onclick="toggleUserMenu(event)" title="${name}">${avatarInner}</button>
                     <div class="user-menu" id="user-menu">
                         <div class="user-menu-name">Signed in as <a href="https://hub.sant.ai/profile/${name}" target="_blank" rel="noopener">@${name}</a></div>
+                        ${hubLink}
                         <div class="user-menu-item danger" onclick="cloudSignOut()">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:14px;height:14px;flex-shrink:0"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
                             Sign Out
@@ -9389,6 +9403,11 @@
                                 await Promise.all([refreshTree(), refreshFiles()]);
                                 setCloudStatus('Successfully pulled from cloud.', 'success');
                             } else {
+                                if (data.base_id && data.hub_url) {
+                                    _hubBaseUrl = `${data.hub_url}/base/${data.base_id}?returnTo=%2Fexplore`;
+                                    localStorage.setItem('santai-hub-base-url', _hubBaseUrl);
+                                    _renderAuthWidget();
+                                }
                                 setCloudStatus('Successfully saved to the cloud.', 'success');
                             }
                             setTimeout(() => setCloudStatus(''), 4000);
@@ -9517,6 +9536,11 @@
                                 await Promise.all([refreshTree(), refreshFiles()]);
                                 finalMsg = 'Done! Your local files have been updated with the latest version from the cloud.';
                             } else {
+                                if (data.base_id && data.hub_url) {
+                                    _hubBaseUrl = `${data.hub_url}/base/${data.base_id}?returnTo=%2Fexplore`;
+                                    localStorage.setItem('santai-hub-base-url', _hubBaseUrl);
+                                    _renderAuthWidget();
+                                }
                                 finalMsg = 'Done! Your project has been saved to the cloud.';
                             }
                             msgDiv.textContent = finalMsg;
