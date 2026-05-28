@@ -9330,10 +9330,14 @@
 
         async function cloudPullConfirm(manifestKey) {
             if (_cloudStreaming) return;
+            if (!manifestKey) {
+                setCloudStatus('Could not identify save version — check browser console for save object fields.', 'error');
+                return;
+            }
             _cloudStreaming = true;
             setCloudStatus('Looking up project...');
             try {
-                const body = manifestKey ? {manifest_key: manifestKey} : {};
+                const body = {manifest_key: manifestKey};
                 const response = await fetch('/api/cloud/pull', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
@@ -9442,7 +9446,8 @@
                     if (save.createdAt) parts.push(new Date(save.createdAt).toLocaleString());
                     if (save.size) parts.push(_fmtBytes(save.size));
                     if (save.filesCount) parts.push(save.filesCount + ' files');
-                    const manifestKey = save.manifestKey ?? save.manifest_key ?? null;
+                    const manifestKey = save.manifestKey ?? save.manifest_key ?? save.key ?? save.id ?? null;
+                    console.log('[cloud-saves] save object:', save, '→ manifestKey:', manifestKey);
 
                     const tagHtml = originTag
                         ? '<span class="cloud-save-tag">' + _escHtml(originTag) + '</span>'
