@@ -1227,7 +1227,7 @@
             display: flex;
             flex-direction: column;
             gap: 6px;
-            max-height: 320px;
+            max-height: 420px;
             overflow-y: auto;
             margin-bottom: 4px;
             padding-right: 4px;
@@ -1291,7 +1291,27 @@
         .cloud-save-info {
             font-size: 12px;
             color: var(--text-primary);
-            opacity: 0.5;
+            opacity: 0.65;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .cloud-save-tag {
+            display: inline-flex;
+            align-items: center;
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            padding: 1px 6px;
+            border-radius: 4px;
+            background: var(--fill-active);
+            border: 1px solid var(--glass-border);
+            color: var(--text-primary);
+            opacity: 1;
+            flex-shrink: 0;
         }
 
         .cloud-saves-empty,
@@ -1300,7 +1320,7 @@
             color: var(--text-primary);
             font-size: 14px;
             padding: 24px 0;
-            opacity: 0.45;
+            opacity: 0.6;
         }
 
         .right-rail {
@@ -4356,7 +4376,7 @@
 
     <!-- Cloud Saves Modal -->
     <div class="modal-overlay" id="cloud-saves-modal">
-        <div class="modal" style="min-width: 440px; max-width: 560px;">
+        <div class="modal" style="min-width: 520px; max-width: 680px;">
             <div class="edit-modal-header" style="margin-bottom: 6px;">
                 <h2 style="margin: 0; font-size: 17px; display: flex; align-items: center; gap: 8px;">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:20px;height:20px;flex-shrink:0;">
@@ -4370,7 +4390,7 @@
                     </svg>
                 </button>
             </div>
-            <p style="font-size: 13px; color: var(--text-primary); opacity: 0.5; margin: 0 0 12px;">
+            <p style="font-size: 13px; color: var(--text-primary); opacity: 0.65; margin: 0 0 12px;">
                 Select a save to load. This will overwrite your current local files.
             </p>
             <div class="cloud-saves-list" id="cloud-saves-list">
@@ -9399,16 +9419,43 @@
                 saves.forEach((save, idx) => {
                     const item = document.createElement('div');
                     item.className = 'cloud-save-item';
-                    const title = save.title || save.name || ('Save ' + (save.version ?? idx + 1));
+
+                    // Detect origin and derive a meaningful display title
+                    const rawTitle = save.title || save.name || '';
+                    const rawOrigin = save.origin || save.source || '';
+                    let originTag = null;
+                    let displayTitle = rawTitle;
+
+                    const _isCli = rawOrigin === 'cli' || /\bfrom\s+cli\b/i.test(rawTitle);
+                    if (_isCli) {
+                        originTag = 'CLI';
+                        displayTitle = rawTitle.replace(/\bpush\s+from\s+cli\b[\s·\-]*/i, '').trim();
+                    } else {
+                        originTag = 'Hub';
+                        displayTitle = rawTitle.replace(/\b(push\s+)?from\s+(the\s+)?hub\b[\s·\-]*/i, '').replace(/\bsantai\s+hub\b[\s·\-]*/i, '').trim();
+                    }
+                    if (!displayTitle) {
+                        displayTitle = save.version ? 'Version ' + save.version : ('Save ' + (idx + 1));
+                    }
+
                     const parts = [];
                     if (save.createdAt) parts.push(new Date(save.createdAt).toLocaleString());
                     if (save.size) parts.push(_fmtBytes(save.size));
                     if (save.filesCount) parts.push(save.filesCount + ' files');
                     const manifestKey = save.manifestKey ?? save.manifest_key ?? null;
+
+                    const tagHtml = originTag
+                        ? '<span class="cloud-save-tag">' + _escHtml(originTag) + '</span>'
+                        : '';
+                    const infoText = parts.length ? _escHtml(parts.join(' · ')) : '';
+                    const infoHtml = (infoText || tagHtml)
+                        ? '<div class="cloud-save-info">' + infoText + tagHtml + '</div>'
+                        : '';
+
                     item.innerHTML =
                         '<div class="cloud-save-meta">' +
-                        '<div class="cloud-save-title">' + _escHtml(title) + '</div>' +
-                        (parts.length ? '<div class="cloud-save-info">' + _escHtml(parts.join(' · ')) + '</div>' : '') +
+                        '<div class="cloud-save-title">' + _escHtml(displayTitle) + '</div>' +
+                        infoHtml +
                         '</div>' +
                         '<button class="btn btn-primary" style="flex-shrink:0;font-size:13px;padding:6px 14px;">Load</button>';
                     item.querySelector('button').addEventListener('click', () => {

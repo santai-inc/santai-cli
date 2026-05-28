@@ -1770,12 +1770,13 @@ def create_app(project: SantaiProject) -> FastAPI:
 
                 yield _sse({"type": "status", "message": "Packaging..."})
 
-                def build_zip() -> bytes | str:
+                def build_zip() -> "tuple[bytes, int] | str":
                     import tempfile as _tmp
 
                     with _tmp.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
                         tmp_path = Path(tmp.name)
                     try:
+                        file_count = 0
                         with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as zf:
                             for fp in sorted(project.root.rglob("*")):
                                 if not fp.is_file():
@@ -1791,13 +1792,14 @@ def create_app(project: SantaiProject) -> FastAPI:
                                     zf.writestr(str(rel), _encode_data_url(fp))
                                 else:
                                     zf.write(fp, rel)
+                                file_count += 1
                         size = tmp_path.stat().st_size
                         if size > _CLOUD_MAX_BYTES:
                             return (
                                 f"Archive is {format_size(size)}, "
                                 "exceeds the 50 MB limit."
                             )
-                        return tmp_path.read_bytes()
+                        return tmp_path.read_bytes(), file_count
                     finally:
                         tmp_path.unlink(missing_ok=True)
 
@@ -1806,7 +1808,8 @@ def create_app(project: SantaiProject) -> FastAPI:
                     yield _sse({"type": "error", "message": result})
                     return
 
-                zip_bytes: bytes = result
+                zip_bytes, _file_count = result
+                _push_title = f"Web snapshot · {_file_count} file{'s' if _file_count != 1 else ''}"
                 yield _sse(
                     {
                         "type": "status",
@@ -1814,14 +1817,23 @@ def create_app(project: SantaiProject) -> FastAPI:
                     }
                 )
 
-                def upload(data: bytes) -> dict | str:
+                def upload(data: bytes, title: str) -> dict | str:
                     boundary = "----SantaiWebUpload"
+
+                    def _field(name: str, value: str) -> bytes:
+                        return (
+                            f"--{boundary}\r\n"
+                            f'Content-Disposition: form-data; name="{name}"\r\n\r\n'
+                            f"{value}\r\n"
+                        ).encode()
+
                     disposition = (
                         f'Content-Disposition: form-data; name="file"; '
                         f'filename="{quote(project_name)}.zip"\r\n'
                     )
                     body = b"".join(
                         [
+                            _field("title", title),
                             f"--{boundary}\r\n".encode(),
                             disposition.encode(),
                             b"Content-Type: application/zip\r\n\r\n",
@@ -1858,7 +1870,7 @@ def create_app(project: SantaiProject) -> FastAPI:
                     except (urllib.error.URLError, TimeoutError):
                         return "Could not reach the hub. Check your connection."
 
-                upload_result = await asyncio.to_thread(upload, zip_bytes)
+                upload_result = await asyncio.to_thread(upload, zip_bytes, _push_title)
                 if isinstance(upload_result, str):
                     err_event: dict = {"type": "error", "message": upload_result}
                     if "login" in upload_result.lower():
