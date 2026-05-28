@@ -34,7 +34,7 @@ MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 
 def _should_include(path: Path, ignored_files: set[str]) -> bool:
     return (
-        not any(part in IGNORED_DIRECTORIES for part in path.parts)
+        not any(part in IGNORED_DIRECTORIES or part == ".santai" for part in path.parts)
         and path.name not in ignored_files
     )
 

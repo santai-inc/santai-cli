@@ -134,6 +134,20 @@ def format_size(size_bytes: int | float) -> str:
     return f"{size_bytes:.1f} TB"
 
 
+def _save_push_title(root: Path, version: object, title: str) -> None:
+    """Persist a computed push title to .santai/push-titles.json."""
+    import json as _json
+
+    path = root / ".santai" / "push-titles.json"
+    path.parent.mkdir(exist_ok=True)
+    try:
+        existing: dict = _json.loads(path.read_text()) if path.exists() else {}
+        existing[str(version)] = title
+        path.write_text(_json.dumps(existing, indent=2))
+    except Exception:
+        pass
+
+
 def format_time_ago(dt: datetime) -> str:
     """Format datetime as relative time (e.g., '2 hours ago')."""
     now = datetime.now()
@@ -1569,6 +1583,16 @@ def create_app(project: SantaiProject) -> FastAPI:
                     if isinstance(data, list)
                     else data.get("saves", data.get("data", []))
                 )
+                _titles_path = project.root / ".santai" / "push-titles.json"
+                if _titles_path.exists():
+                    try:
+                        _local = _json.loads(_titles_path.read_text())
+                        for _s in saves:
+                            _v = str(_s.get("version", ""))
+                            if _v in _local:
+                                _s["localTitle"] = _local[_v]
+                    except Exception:
+                        pass
                 return {"saves": saves, "base_id": base_id}
             except urllib.error.HTTPError as e:
                 try:
@@ -1783,7 +1807,8 @@ def create_app(project: SantaiProject) -> FastAPI:
                                     continue
                                 rel = fp.relative_to(project.root)
                                 if any(
-                                    part in _CLOUD_IGNORED_DIRS for part in rel.parts
+                                    part in _CLOUD_IGNORED_DIRS or part == ".santai"
+                                    for part in rel.parts
                                 ):
                                     continue
                                 if rel.name in ignored_files:
@@ -1906,10 +1931,12 @@ def create_app(project: SantaiProject) -> FastAPI:
                     yield _sse(err_event)
                     return
 
+                _pushed_version = upload_result.get("version", "?")
+                _save_push_title(project.root, _pushed_version, _push_title)
                 yield _sse(
                     {
                         "type": "done",
-                        "version": upload_result.get("version", "?"),
+                        "version": _pushed_version,
                         "title": _push_title,
                     }
                 )
@@ -2007,10 +2034,96 @@ def create_app(project: SantaiProject) -> FastAPI:
                             item.unlink()
                     return preserved
 
+                def _get_download_info(url: str) -> "dict | str":
+                    dl_req = urllib.request.Request(
+                        url,
+                        headers={
+                            "Authorization": f"Bearer {creds['token']}",
+                            "User-Agent": USER_AGENT,
+                        },
+                    )
+                    try:
+                        with urllib.request.urlopen(dl_req, timeout=15) as resp:
+                            return _json.loads(resp.read())
+                    except urllib.error.HTTPError as e:
+                        if e.code == 401:
+                            return (
+                                "Session expired. Run 'santai login' "
+                                "to re-authenticate."
+                            )
+                        if e.code == 404:
+                            return f"Project '{project_name}' not found."
+                        return f"Pull failed (HTTP {e.code})."
+                    except (urllib.error.URLError, TimeoutError):
+                        return "Could not reach the hub. Check your connection."
+
+                def _do_zip_extract(url: str) -> "tuple[str | None, int]":
+                    import tempfile as _tmp
+
+                    with _tmp.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
+                        tmp_path = Path(tmp.name)
+                    try:
+                        zip_dl = urllib.request.Request(url)
+                        with (
+                            urllib.request.urlopen(zip_dl, timeout=120) as resp,
+                            open(tmp_path, "wb") as f,
+                        ):
+                            shutil.copyfileobj(resp, f)
+
+                        with zipfile.ZipFile(tmp_path, "r") as zf:
+                            plan: list[tuple[zipfile.ZipInfo, Path]] = []
+                            for member in zf.infolist():
+                                name = member.filename
+                                if name == "manifest.json":
+                                    continue
+                                if name.startswith("files/"):
+                                    name = name[len("files/") :]
+                                if not name or name.endswith("/"):
+                                    continue
+                                target = (dest_path / name).resolve()
+                                try:
+                                    target.relative_to(dest_path)
+                                except ValueError:
+                                    return (
+                                        f"Zip contains unsafe path"
+                                        f" '{member.filename}'.",
+                                        0,
+                                    )
+                                if member.external_attr >> 28 == 0xA:
+                                    return (
+                                        f"Zip contains symlink '{member.filename}'.",
+                                        0,
+                                    )
+                                plan.append((member, target))
+                            preserved = _clear_and_preserve()
+                            count = 0
+                            for member, target in plan:
+                                target.parent.mkdir(parents=True, exist_ok=True)
+                                raw = zf.read(member)
+                                if target.suffix.lower() in _CLOUD_IMAGE_EXTS:
+                                    raw = _decode_data_url(raw)
+                                target.write_bytes(raw)
+                                count += 1
+                            for p, data in preserved.items():
+                                p.write_bytes(data)
+                        return None, count
+                    except zipfile.BadZipFile:
+                        return "Downloaded file is not a valid zip.", 0
+                    except (urllib.error.URLError, TimeoutError):
+                        return (
+                            "Download failed. URL may have expired — try again.",
+                            0,
+                        )
+                    finally:
+                        tmp_path.unlink(missing_ok=True)
+
+                assert base_id is not None
+                files_restored = 0
+
                 if req.manifest_key:
-                    # Versioned pull: fetch file contents from hub
+                    # Versioned pull: try load-from-cloud first
                     def load_from_cloud() -> "dict | str":
-                        load_req = urllib.request.Request(
+                        lc_req = urllib.request.Request(
                             f"{backend}/ai/edit/load-from-cloud",
                             data=_json.dumps(
                                 {"manifestKey": req.manifest_key}
@@ -2023,7 +2136,7 @@ def create_app(project: SantaiProject) -> FastAPI:
                             },
                         )
                         try:
-                            with urllib.request.urlopen(load_req, timeout=60) as resp:
+                            with urllib.request.urlopen(lc_req, timeout=60) as resp:
                                 return _json.loads(resp.read())
                         except urllib.error.HTTPError as e:
                             if e.code == 401:
@@ -2037,99 +2150,143 @@ def create_app(project: SantaiProject) -> FastAPI:
 
                     yield _sse({"type": "status", "message": "Loading save..."})
                     load_result = await asyncio.to_thread(load_from_cloud)
-                    if isinstance(load_result, str):
-                        load_err: dict = {"type": "error", "message": load_result}
-                        if "login" in load_result.lower():
-                            load_err["login_url"] = hub_url
-                        yield _sse(load_err)
-                        return
-                    if not load_result.get("success"):
-                        yield _sse({"type": "error", "message": "Failed to load save."})
-                        return
-
-                    files_data: list = load_result.get("files", [])
-                    yield _sse(
-                        {
-                            "type": "status",
-                            "message": f"Applying {len(files_data)} files...",
-                        }
+                    _lc_ok = (
+                        not isinstance(load_result, str)
+                        and bool(load_result.get("success"))
+                        and bool(load_result.get("files"))
                     )
 
-                    def apply_files(files: list) -> "str | None":
-                        preserved = _clear_and_preserve()
-                        for file_obj in files:
-                            path_str = file_obj.get("path", "")
-                            if not path_str:
-                                continue
-                            target = (dest_path / path_str).resolve()
-                            try:
-                                target.relative_to(dest_path)
-                            except ValueError:
-                                return f"Unsafe path '{path_str}'."
-                            target.parent.mkdir(parents=True, exist_ok=True)
-                            content = file_obj.get("content", "")
-                            if target.suffix.lower() in _CLOUD_IMAGE_EXTS:
-                                raw = _decode_data_url(
-                                    content.encode()
-                                    if isinstance(content, str)
-                                    else content
-                                )
-                            else:
-                                raw = (
-                                    content.encode()
-                                    if isinstance(content, str)
-                                    else content
-                                )
-                            target.write_bytes(raw)
-                        for p, data in preserved.items():
-                            p.write_bytes(data)
-                        return None
+                    if _lc_ok:
+                        assert not isinstance(load_result, str)
+                        files_data: list = load_result.get("files", [])
+                        yield _sse(
+                            {
+                                "type": "status",
+                                "message": f"Applying {len(files_data)} files...",
+                            }
+                        )
 
-                    err = await asyncio.to_thread(apply_files, files_data)
-                    if err:
-                        yield _sse({"type": "error", "message": err})
-                        return
+                        def apply_files(files: list) -> "str | None":
+                            preserved = _clear_and_preserve()
+                            for file_obj in files:
+                                path_str = file_obj.get("path", "")
+                                if not path_str:
+                                    continue
+                                target = (dest_path / path_str).resolve()
+                                try:
+                                    target.relative_to(dest_path)
+                                except ValueError:
+                                    return f"Unsafe path '{path_str}'."
+                                target.parent.mkdir(parents=True, exist_ok=True)
+                                content = file_obj.get("content", "")
+                                if target.suffix.lower() in _CLOUD_IMAGE_EXTS:
+                                    raw = _decode_data_url(
+                                        content.encode()
+                                        if isinstance(content, str)
+                                        else content
+                                    )
+                                else:
+                                    raw = (
+                                        content.encode()
+                                        if isinstance(content, str)
+                                        else content
+                                    )
+                                target.write_bytes(raw)
+                            for p, data in preserved.items():
+                                p.write_bytes(data)
+                            return None
+
+                        apply_err = await asyncio.to_thread(apply_files, files_data)
+                        if apply_err:
+                            yield _sse({"type": "error", "message": apply_err})
+                            return
+                        files_restored = len(files_data)
+                    else:
+                        # Fallback: try versioned zip download
+                        import re as _re
+
+                        _vm = _re.search(r"/v(\d+)\.zip$", req.manifest_key or "")
+                        _ver = _vm.group(1) if _vm else None
+                        _dl_url: str | None = None
+                        _dl_size = 0
+                        _fell_to_latest = False
+
+                        for _cand in filter(
+                            None,
+                            [
+                                (f"{backend}/bases/{base_id}/download?version={_ver}")
+                                if _ver
+                                else None,
+                                f"{backend}/bases/{base_id}/download",
+                            ],
+                        ):
+                            _di = await asyncio.to_thread(_get_download_info, _cand)
+                            if not isinstance(_di, str) and _di.get("downloadUrl"):
+                                _dl_url = _di["downloadUrl"]
+                                _dl_size = _di.get("size", 0)
+                                _fell_to_latest = (
+                                    "?version=" not in _cand and _ver is not None
+                                )
+                                break
+
+                        if not _dl_url:
+                            _orig = (
+                                load_result
+                                if isinstance(load_result, str)
+                                else "Failed to load save."
+                            )
+                            _fb_err: dict = {"type": "error", "message": _orig}
+                            if "login" in _orig.lower():
+                                _fb_err["login_url"] = hub_url
+                            yield _sse(_fb_err)
+                            return
+
+                        assert isinstance(_dl_url, str)
+                        if not _dl_url.startswith(("https://", "http://")):
+                            yield _sse(
+                                {
+                                    "type": "error",
+                                    "message": "Download URL has unexpected scheme.",
+                                }
+                            )
+                            return
+
+                        _sz_msg = format_size(_dl_size)
+                        _status = (
+                            f"Could not load that version — restoring latest"
+                            f" ({_sz_msg})..."
+                            if _fell_to_latest
+                            else f"Downloading ({_sz_msg})..."
+                        )
+                        yield _sse({"type": "status", "message": _status})
+                        yield _sse({"type": "status", "message": "Extracting..."})
+                        _zex_err, files_restored = await asyncio.to_thread(
+                            _do_zip_extract, _dl_url
+                        )
+                        if _zex_err:
+                            yield _sse({"type": "error", "message": _zex_err})
+                            return
 
                 else:
                     # Latest pull: download zip from hub
-                    def get_download_info() -> "dict | str":
-                        info_req = urllib.request.Request(
-                            f"{backend}/bases/{base_id}/download",
-                            headers={
-                                "Authorization": f"Bearer {creds['token']}",
-                                "User-Agent": USER_AGENT,
-                            },
-                        )
-                        try:
-                            with urllib.request.urlopen(info_req, timeout=15) as resp:
-                                return _json.loads(resp.read())
-                        except urllib.error.HTTPError as e:
-                            if e.code == 401:
-                                return (
-                                    "Session expired. Run 'santai login' "
-                                    "to re-authenticate."
-                                )
-                            if e.code == 404:
-                                return f"Project '{project_name}' not found."
-                            return f"Pull failed (HTTP {e.code})."
-                        except (urllib.error.URLError, TimeoutError):
-                            return "Could not reach the hub. Check your connection."
-
-                    info = await asyncio.to_thread(get_download_info)
-                    if isinstance(info, str):
-                        pull_err: dict = {"type": "error", "message": info}
-                        if "login" in info.lower():
-                            pull_err["login_url"] = hub_url
-                        yield _sse(pull_err)
+                    _info_l = await asyncio.to_thread(
+                        _get_download_info,
+                        f"{backend}/bases/{base_id}/download",
+                    )
+                    if isinstance(_info_l, str):
+                        _pull_err: dict = {"type": "error", "message": _info_l}
+                        if "login" in _info_l.lower():
+                            _pull_err["login_url"] = hub_url
+                        yield _sse(_pull_err)
                         return
 
-                    download_url = info.get("downloadUrl")
-                    if not download_url:
+                    _dl_url_l = _info_l.get("downloadUrl")
+                    if not _dl_url_l:
                         yield _sse(
                             {"type": "error", "message": "No download URL received."}
                         )
                         return
-                    if not download_url.startswith(("https://", "http://")):
+                    if not _dl_url_l.startswith(("https://", "http://")):
                         yield _sse(
                             {
                                 "type": "error",
@@ -2138,76 +2295,24 @@ def create_app(project: SantaiProject) -> FastAPI:
                         )
                         return
 
-                    size = info.get("size", 0)
+                    _sz_l = format_size(_info_l.get("size", 0))
                     yield _sse(
                         {
                             "type": "status",
-                            "message": f"Downloading ({format_size(size)})...",
+                            "message": f"Downloading ({_sz_l})...",
                         }
                     )
-
-                    def download_and_extract() -> "str | None":
-                        import tempfile as _tmp
-
-                        with _tmp.NamedTemporaryFile(
-                            suffix=".zip", delete=False
-                        ) as tmp:
-                            tmp_path = Path(tmp.name)
-                        try:
-                            dl_req = urllib.request.Request(download_url)
-                            with (
-                                urllib.request.urlopen(dl_req, timeout=120) as resp,
-                                open(tmp_path, "wb") as f,
-                            ):
-                                shutil.copyfileobj(resp, f)
-
-                            with zipfile.ZipFile(tmp_path, "r") as zf:
-                                plan: list[tuple[zipfile.ZipInfo, Path]] = []
-                                for member in zf.infolist():
-                                    name = member.filename
-                                    if name == "manifest.json":
-                                        continue
-                                    if name.startswith("files/"):
-                                        name = name[len("files/") :]
-                                    if not name or name.endswith("/"):
-                                        continue
-                                    target = (dest_path / name).resolve()
-                                    try:
-                                        target.relative_to(dest_path)
-                                    except ValueError:
-                                        return (
-                                            f"Zip contains unsafe path"
-                                            f" '{member.filename}'."
-                                        )
-                                    if member.external_attr >> 28 == 0xA:
-                                        return (
-                                            f"Zip contains symlink '{member.filename}'."
-                                        )
-                                    plan.append((member, target))
-                                preserved = _clear_and_preserve()
-                                for member, target in plan:
-                                    target.parent.mkdir(parents=True, exist_ok=True)
-                                    raw = zf.read(member)
-                                    if target.suffix.lower() in _CLOUD_IMAGE_EXTS:
-                                        raw = _decode_data_url(raw)
-                                    target.write_bytes(raw)
-                                for p, data in preserved.items():
-                                    p.write_bytes(data)
-                            return None
-                        except zipfile.BadZipFile:
-                            return "Downloaded file is not a valid zip."
-                        except (urllib.error.URLError, TimeoutError):
-                            return "Download failed. URL may have expired — try again."
-                        finally:
-                            tmp_path.unlink(missing_ok=True)
-
                     yield _sse({"type": "status", "message": "Extracting..."})
-                    err = await asyncio.to_thread(download_and_extract)
-                    if err:
-                        yield _sse({"type": "error", "message": err})
+                    _zex_err_l, files_restored = await asyncio.to_thread(
+                        _do_zip_extract, _dl_url_l
+                    )
+                    if _zex_err_l:
+                        yield _sse({"type": "error", "message": _zex_err_l})
                         return
 
-                yield _sse({"type": "done", "pulled": True})
+                yield _sse(
+                    {"type": "done", "pulled": True, "filesRestored": files_restored}
+                )
             finally:
                 _cloud_pull_lock.release()
 

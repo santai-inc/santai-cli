@@ -3939,9 +3939,9 @@
                         </button>
                     </div>
                     <div class="cloud-inline-form" id="cloud-pull-confirm">
-                        <span class="cloud-confirm-msg">Replace local files with the latest cloud version?</span>
+                        <span class="cloud-confirm-msg" id="cloud-confirm-msg">Replace local files with the latest cloud version?</span>
                         <div class="cloud-form-row">
-                            <button class="btn btn-primary" onclick="cloudPullConfirm()">Replace</button>
+                            <button class="btn btn-primary" onclick="cloudPullConfirmStored()">Replace</button>
                             <button class="btn" id="cloud-pull-cancel-btn" onclick="cloudPullCancel()">Cancel</button>
                         </div>
                     </div>
@@ -9323,7 +9323,29 @@
             showCloudSavesModal();
         }
 
+        let _pendingManifestKey = null;
+
+        function cloudPullPrepare(title, version, filesCount, createdAt, manifestKey) {
+            _pendingManifestKey = manifestKey;
+            const vStr = version != null ? `v${version}` : '';
+            const fStr = filesCount != null ? `${filesCount} file${filesCount !== 1 ? 's' : ''}` : '';
+            const dStr = createdAt
+                ? new Date(createdAt).toLocaleString(undefined, {month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'})
+                : '';
+            const meta = [vStr, fStr, dStr].filter(Boolean).join(' · ');
+            const msg = meta
+                ? `Restore "${title}" (${meta})? This will replace your local files.`
+                : `Restore "${title}"? This will replace your local files.`;
+            document.getElementById('cloud-confirm-msg').textContent = msg;
+            document.getElementById('cloud-pull-confirm').classList.add('visible');
+        }
+
+        function cloudPullConfirmStored() {
+            cloudPullConfirm(_pendingManifestKey);
+        }
+
         function cloudPullCancel() {
+            _pendingManifestKey = null;
             document.getElementById('cloud-pull-confirm').classList.remove('visible');
             setCloudStatus('');
         }
@@ -9375,15 +9397,12 @@
                         } else if (data.type === 'done') {
                             if (data.pulled) {
                                 await Promise.all([refreshTree(), refreshFiles()]);
-                                setCloudStatus('Successfully pulled from cloud.', 'success');
+                                const _n = data.filesRestored;
+                                const _detail = _n != null
+                                    ? ` ${_n} file${_n !== 1 ? 's' : ''} restored.`
+                                    : '';
+                                setCloudStatus('Successfully pulled from cloud.' + _detail, 'success');
                             } else {
-                                if (data.title && data.version != null) {
-                                    try {
-                                        const stored = JSON.parse(localStorage.getItem('santai-push-titles') || '{}');
-                                        stored[String(data.version)] = data.title;
-                                        localStorage.setItem('santai-push-titles', JSON.stringify(stored));
-                                    } catch {}
-                                }
                                 setCloudStatus('Successfully saved to the cloud.', 'success');
                             }
                             setTimeout(() => setCloudStatus(''), 4000);
@@ -9426,8 +9445,6 @@
                     listEl.innerHTML = '<div class="cloud-saves-empty">No cloud saves found for this project.</div>';
                     return;
                 }
-                let _storedTitles = {};
-                try { _storedTitles = JSON.parse(localStorage.getItem('santai-push-titles') || '{}'); } catch {}
                 listEl.innerHTML = '';
                 saves.forEach((save, idx) => {
                     const item = document.createElement('div');
@@ -9442,9 +9459,8 @@
                     const _isCli = rawOrigin === 'cli' || /\bfrom\s+cli\b/i.test(rawTitle);
                     if (_isCli) {
                         originTag = 'CLI';
-                        // Use locally-stored diff title if available, else strip generic prefix
-                        const _stored = save.version != null ? _storedTitles[String(save.version)] : null;
-                        displayTitle = _stored || rawTitle.replace(/\bpush\s+from\s+cli\b[\s·\-]*/i, '').trim();
+                        // Prefer server-enriched localTitle (from .santai/push-titles.json)
+                        displayTitle = save.localTitle || rawTitle.replace(/\bpush\s+from\s+cli\b[\s·\-]*/i, '').trim();
                     } else {
                         originTag = 'Hub';
                         displayTitle = rawTitle.replace(/\b(push\s+)?from\s+(the\s+)?hub\b[\s·\-]*/i, '').replace(/\bsantai\s+hub\b[\s·\-]*/i, '').trim();
@@ -9475,7 +9491,7 @@
                         '<button class="btn btn-primary" style="flex-shrink:0;font-size:13px;padding:6px 14px;">Load</button>';
                     item.querySelector('button').addEventListener('click', () => {
                         closeCloudSavesModal();
-                        cloudPullConfirm(manifestKey);
+                        cloudPullPrepare(displayTitle, save.version, save.filesCount, save.createdAt, manifestKey);
                     });
                     listEl.appendChild(item);
                 });
