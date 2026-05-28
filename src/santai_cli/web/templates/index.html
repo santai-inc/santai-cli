@@ -256,7 +256,7 @@
         .sidebar-header {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 6px;
         }
 
         .sidebar-header img {
@@ -276,8 +276,8 @@
         }
 
         .auth-sign-in-btn {
-            font-size: 11px;
-            padding: 4px 10px;
+            font-size: 13px;
+            padding: 6px 14px;
             border-radius: 20px;
             background: var(--accent);
             color: white;
@@ -9203,6 +9203,7 @@
         let _cloudStreaming = false;
         let _cloudLoggedIn = false;
         let _cloudUsername = null;
+        let _cloudAvatarUrl = null;
         let _chatPullPendingConfirm = false;
         let _chatPostLoginPending = null; // 'push' | 'pull'
 
@@ -9213,6 +9214,7 @@
                 const data = await res.json();
                 _cloudLoggedIn = !!data.logged_in;
                 _cloudUsername = data.username || null;
+                _cloudAvatarUrl = data.avatar_url || null;
                 _renderAuthWidget();
                 if (data.logged_in && data.username) {
                     const pushBtn = document.getElementById('cloud-push-btn');
@@ -9229,8 +9231,11 @@
             } else {
                 const initial = (_cloudUsername || '?')[0].toUpperCase();
                 const name = _cloudUsername || 'you';
+                const avatarInner = _cloudAvatarUrl
+                    ? `<img src="${_cloudAvatarUrl}" alt="${name}" referrerpolicy="no-referrer" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" onerror="this.parentElement.textContent='${initial}'">`
+                    : initial;
                 el.innerHTML = `<div class="user-menu-wrapper" id="user-menu-wrapper">
-                    <button class="user-avatar" onclick="toggleUserMenu(event)" title="${name}">${initial}</button>
+                    <button class="user-avatar" onclick="toggleUserMenu(event)" title="${name}">${avatarInner}</button>
                     <div class="user-menu" id="user-menu">
                         <div class="user-menu-name">Signed in as <a href="https://hub.sant.ai/profile/${name}" target="_blank" rel="noopener">@${name}</a></div>
                         <div class="user-menu-item danger" onclick="cloudSignOut()">
@@ -9252,6 +9257,7 @@
             try { await fetch('/api/cloud/logout', { method: 'POST' }); } catch { /* ignore */ }
             _cloudLoggedIn = false;
             _cloudUsername = null;
+            _cloudAvatarUrl = null;
             _renderAuthWidget();
             const pushBtn = document.getElementById('cloud-push-btn');
             if (pushBtn) pushBtn.title = '';
