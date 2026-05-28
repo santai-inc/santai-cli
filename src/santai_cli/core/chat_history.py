@@ -26,8 +26,11 @@ File format (transcript first, metadata at the bottom):
     ---
 """
 
+import contextlib
 import json
+import os
 import re
+import tempfile
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -48,10 +51,25 @@ def get_chat_history_dir(project: SantaiProject) -> Path:
     return project.root / "history" / "chat-history"
 
 
+def _atomic_write_text(path: Path, content: str) -> None:
+    """Write content to path atomically via a temp file + os.replace."""
+    fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+    try:
+        os.write(fd, content.encode("utf-8"))
+        os.close(fd)
+        os.replace(tmp, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.close(fd)
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+        raise
+
+
 def _sanitize_title(title: str) -> str:
     """Strip characters not allowed in filenames and normalise whitespace."""
     cleaned = _INVALID_FILENAME_CHARS.sub("", title)
-    cleaned = _MULTI_SPACE.sub(" ", cleaned).strip(" -")
+    cleaned = _MULTI_SPACE.sub(" ", cleaned).strip(" -.")
     return cleaned[:60] or "Untitled chat"
 
 
@@ -76,13 +94,14 @@ def _session_filename(title: str, created_at: str, chat_dir: Path) -> str:
 def _load_index(chat_dir: Path) -> dict[str, str]:
     """Return the session_id → filename mapping from the index file."""
     try:
-        return json.loads((chat_dir / _INDEX_FILE).read_text(encoding="utf-8"))
+        data = json.loads((chat_dir / _INDEX_FILE).read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
     except (OSError, json.JSONDecodeError):
         return {}
 
 
 def _save_index(chat_dir: Path, index: dict[str, str]) -> None:
-    (chat_dir / _INDEX_FILE).write_text(json.dumps(index, indent=2), encoding="utf-8")
+    _atomic_write_text(chat_dir / _INDEX_FILE, json.dumps(index, indent=2))
 
 
 def _rebuild_index(chat_dir: Path) -> dict[str, str]:
@@ -352,7 +371,7 @@ def save_session(
         messages=messages,
     )
 
-    (chat_dir / filename).write_text(content, encoding="utf-8")
+    _atomic_write_text(chat_dir / filename, content)
 
     index = _load_index(chat_dir)
     index[session_id] = filename
@@ -419,18 +438,24 @@ def list_sessions(project: SantaiProject) -> list[ChatSessionMetadata]:
 def _load_hidden(chat_dir: Path) -> set[str]:
     """Return the set of session IDs hidden from the history panel."""
     try:
-        return set(json.loads((chat_dir / _HIDDEN_FILE).read_text(encoding="utf-8")))
+        data = json.loads((chat_dir / _HIDDEN_FILE).read_text(encoding="utf-8"))
+        return set(data) if isinstance(data, list) else set()
     except (OSError, json.JSONDecodeError):
         return set()
 
 
 def _save_hidden(chat_dir: Path, hidden: set[str]) -> None:
-    (chat_dir / _HIDDEN_FILE).write_text(json.dumps(sorted(hidden)), encoding="utf-8")
+    _atomic_write_text(chat_dir / _HIDDEN_FILE, json.dumps(sorted(hidden)))
 
 
 def hide_session(project: SantaiProject, session_id: str) -> None:
-    """Hide a session from the history panel without deleting the file."""
+    """Hide a session from the history panel without deleting the file.
+
+    Raises FileNotFoundError if the session does not exist on disk.
+    """
     chat_dir = get_chat_history_dir(project)
+    if _find_session_path(chat_dir, session_id) is None:
+        raise FileNotFoundError(f"Chat session '{session_id}' not found")
     hidden = _load_hidden(chat_dir)
     hidden.add(session_id)
     _save_hidden(chat_dir, hidden)
@@ -484,7 +509,7 @@ def rename_session(project: SantaiProject, session_id: str, new_title: str) -> N
         messages=messages,
     )
 
-    new_path.write_text(content, encoding="utf-8")
+    _atomic_write_text(new_path, content)
     if new_path != old_path:
         old_path.unlink()
 

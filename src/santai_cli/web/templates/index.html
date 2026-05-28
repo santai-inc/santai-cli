@@ -8206,17 +8206,21 @@
                         item.className = 'chat-history-item' + (s.id === _currentChatSessionId ? ' active' : '');
                         const msgStr = s.message_count === 1 ? '1 msg' : `${s.message_count} msgs`;
                         item.innerHTML = `
-                            <div class="chat-history-item-body" onclick="resumeChatSession('${s.id}')">
+                            <div class="chat-history-item-body">
                                 <div class="chat-history-item-title">${_escapeHtml(s.title)}</div>
                                 <div class="chat-history-item-meta">${msgStr}${s.agent ? ' · ' + _escapeHtml(s.agent) : ''}</div>
                             </div>
                             <div class="chat-history-item-actions">
-                                <button class="chat-history-edit-btn" onclick="startRenameSession(event,'${s.id}')" title="Rename">
+                                <button class="chat-history-edit-btn" title="Rename">
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" /></svg>
                                 </button>
-                                <button class="chat-history-delete-btn" onclick="hideChatSession('${s.id}',event)" title="Remove from history">✕</button>
+                                <button class="chat-history-delete-btn" title="Remove from history">✕</button>
                             </div>
                         `;
+                        // Attach handlers via addEventListener so session IDs never appear in HTML strings
+                        item.querySelector('.chat-history-item-body').addEventListener('click', () => resumeChatSession(s.id));
+                        item.querySelector('.chat-history-edit-btn').addEventListener('click', (e) => startRenameSession(e, s.id));
+                        item.querySelector('.chat-history-delete-btn').addEventListener('click', (e) => hideChatSession(s.id, e));
                         listEl.appendChild(item);
                     });
                 });
@@ -8414,14 +8418,17 @@
                         model,
                         agent: agent || null,
                         messages: chatMessages,
-                        tool_turns: [],
                     })
                 });
                 if (res.ok) {
                     const data = await res.json();
                     _currentChatSessionId = data.session_id;
+                } else {
+                    console.error('saveCurrentChatSession: server error', res.status);
                 }
-            } catch {}
+            } catch (e) {
+                console.error('saveCurrentChatSession error:', e);
+            }
         }
 
         async function startNewChat() {

@@ -84,6 +84,8 @@ def chat(
     REPL commands:
       /quit     Exit the chat
       /clear    Clear conversation history
+      /save     Save this chat (optional: /save <title>)
+      /history  List saved chats and optionally resume one
       /agent    List or switch agent profiles
       /model    Re-select the model
       /help     Show available commands
@@ -474,10 +476,7 @@ def _cmd_history(state: _ChatState) -> None:
 
     console.print("\n[bold]Saved chats:[/]\n")
     for i, meta in enumerate(sessions[:20], 1):
-        try:
-            dt = meta.updated_at[:10]
-        except Exception:
-            dt = "?"
+        dt = meta.updated_at[:10] if meta.updated_at else "?"
         msg_count = f"({meta.message_count} msgs)"
         console.print(f"  [cyan]{i:2}[/])  [{dt}] {meta.title}  [dim]{msg_count}[/]")
     console.print()

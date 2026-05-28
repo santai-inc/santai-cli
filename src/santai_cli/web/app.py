@@ -96,7 +96,6 @@ class SaveSessionRequest(BaseModel):
     model: str
     agent: str | None = None
     messages: list[dict[str, str]]
-    tool_turns: list[dict] = []
 
 
 class UpdateTitleRequest(BaseModel):
@@ -1446,7 +1445,7 @@ def create_app(project: SantaiProject) -> FastAPI:
         from santai_cli.core.chat import ChatMessage, ChatSession
         from santai_cli.core.chat_history import save_session
 
-        session = ChatSession(tool_turns=req.tool_turns)
+        session = ChatSession()
         for msg in req.messages:
             role = msg.get("role", "")
             content = msg.get("content", "")
@@ -1505,7 +1504,10 @@ def create_app(project: SantaiProject) -> FastAPI:
         """Hide a session from the history panel without deleting the file."""
         from santai_cli.core.chat_history import hide_session
 
-        hide_session(project, session_id)
+        try:
+            hide_session(project, session_id)
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="Session not found") from None
         return {"status": "hidden"}
 
     @app.post("/api/chat/history/{session_id}/unhide")

@@ -748,6 +748,8 @@ def get_file_graph(project: SantaiProject) -> FileGraph:
         ".csv",
     }
 
+    chat_history_dir = project.chat_history_path
+
     # Known santai subdirectories
     for dir_name in SANTAI_DIRS:
         dir_path = project.root / dir_name
@@ -756,6 +758,8 @@ def get_file_graph(project: SantaiProject) -> FileGraph:
 
         for file_path in dir_path.rglob("*"):
             if not file_path.is_file() or file_path.name.startswith("."):
+                continue
+            if file_path.is_relative_to(chat_history_dir):
                 continue
             _add_file_to_graph(
                 file_path,

@@ -8,6 +8,8 @@ from santai_cli.core.chat import ChatSession
 from santai_cli.core.chat_history import (
     _mask_code_blocks,
     _parse_markdown,
+    _sanitize_title,
+    _session_filename,
     auto_title,
     delete_session,
     generate_session_id,
@@ -507,3 +509,107 @@ def test_api_update_with_existing_session_id(web_client):
     assert len(list_resp.json()) == 1  # still only one session
     loaded = client.get(f"/api/chat/history/{sid}").json()
     assert loaded["message_count"] == 3
+
+
+# ---------------------------------------------------------------------------
+# _sanitize_title
+# ---------------------------------------------------------------------------
+
+
+def test_sanitize_title_empty_returns_untitled():
+    assert _sanitize_title("") == "Untitled chat"
+
+
+def test_sanitize_title_all_punct_returns_untitled():
+    assert _sanitize_title("---...") == "Untitled chat"
+
+
+def test_sanitize_title_strips_leading_dot():
+    assert not _sanitize_title(". hidden").startswith(".")
+
+
+def test_sanitize_title_truncates_at_60():
+    long = "a" * 80
+    assert len(_sanitize_title(long)) == 60
+
+
+def test_sanitize_title_collapses_spaces():
+    assert _sanitize_title("hello   world") == "hello world"
+
+
+# ---------------------------------------------------------------------------
+# _session_filename collision counter
+# ---------------------------------------------------------------------------
+
+
+def test_session_filename_collision_counter(tmp_path: Path):
+    chat_dir = tmp_path
+    created_at = "2026-01-15T12:00:00+00:00"
+    first = _session_filename("My Chat", created_at, chat_dir)
+    assert first == "01-15-2026 - My Chat.md"
+
+    # Simulate the first file existing
+    (chat_dir / first).touch()
+    second = _session_filename("My Chat", created_at, chat_dir)
+    assert second == "01-15-2026 - My Chat (2).md"
+
+    (chat_dir / second).touch()
+    third = _session_filename("My Chat", created_at, chat_dir)
+    assert third == "01-15-2026 - My Chat (3).md"
+
+
+# ---------------------------------------------------------------------------
+# Old-format round-trip (legacy --- block migrates to HTML comment on save)
+# ---------------------------------------------------------------------------
+
+
+def test_old_format_roundtrip(tmp_path: Path):
+    """Old --- metadata block loads and re-saves in HTML comment format."""
+    project = _make_project(tmp_path)
+    chat_dir = get_chat_history_dir(project)
+    chat_dir.mkdir(parents=True, exist_ok=True)
+
+    old_content = (
+        "**You:**\nHello\n\n"
+        "**Assistant:**\nHi there\n\n"
+        '---\nid: legacy-id-0001\ntitle: "Old format"\n'
+        "created_at: 2026-01-01T00:00:00+00:00\n"
+        "updated_at: 2026-01-01T00:00:00+00:00\n"
+        "provider: anthropic\nmodel: m\nagent: null\n"
+        "message_count: 2\n---\n"
+    )
+    (chat_dir / "01-01-2026 - Old format.md").write_text(old_content, encoding="utf-8")
+
+    # Load via the public API
+    loaded = load_session(project, "legacy-id-0001")
+    assert loaded.id == "legacy-id-0001"
+    assert loaded.title == "Old format"
+    assert len(loaded.messages) == 2
+
+    # Re-save — the new file should use HTML comment format
+    session = restore_chat_session(loaded)
+    save_session(
+        project,
+        session,
+        "legacy-id-0001",
+        loaded.title,
+        loaded.provider,
+        loaded.model,
+        loaded.agent,
+    )
+    files = list(chat_dir.glob("*.md"))
+    assert len(files) == 1
+    new_content = files[0].read_text(encoding="utf-8")
+    assert "<!-- santai" in new_content
+    assert "---\nid:" not in new_content
+
+
+# ---------------------------------------------------------------------------
+# hide_session validates existence
+# ---------------------------------------------------------------------------
+
+
+def test_hide_session_raises_for_missing_session(tmp_path: Path):
+    project = _make_project(tmp_path)
+    with pytest.raises(FileNotFoundError):
+        hide_session(project, "nonexistent-id")
