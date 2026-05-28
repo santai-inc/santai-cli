@@ -4396,6 +4396,15 @@
             <div class="cloud-saves-list" id="cloud-saves-list">
                 <div class="cloud-saves-loading">Loading saves...</div>
             </div>
+            <div id="cloud-save-confirm-pane" style="display:none; padding: 16px 0 4px; text-align: center;">
+                <p style="margin: 0 0 16px; font-size: 14px; color: var(--text-primary); opacity: 0.8;">
+                    This will overwrite your current local files.
+                </p>
+                <div style="display: flex; gap: 8px; justify-content: center;">
+                    <button class="btn" onclick="cloudSaveConfirmCancel()">Cancel</button>
+                    <button class="btn btn-primary" onclick="cloudSaveConfirmLoad()">Load</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -9325,23 +9334,25 @@
 
         let _pendingManifestKey = null;
 
-        function cloudPullPrepare(title, version, filesCount, createdAt, manifestKey) {
+        function cloudPullPrepare(manifestKey) {
             _pendingManifestKey = manifestKey;
-            const vStr = version != null ? `v${version}` : '';
-            const fStr = filesCount != null ? `${filesCount} file${filesCount !== 1 ? 's' : ''}` : '';
-            const dStr = createdAt
-                ? new Date(createdAt).toLocaleString(undefined, {month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'})
-                : '';
-            const meta = [vStr, fStr, dStr].filter(Boolean).join(' · ');
-            const msg = meta
-                ? `Restore "${title}" (${meta})? This will replace your local files.`
-                : `Restore "${title}"? This will replace your local files.`;
-            document.getElementById('cloud-confirm-msg').textContent = msg;
-            document.getElementById('cloud-pull-confirm').classList.add('visible');
+            document.getElementById('cloud-saves-list').style.display = 'none';
+            document.getElementById('cloud-save-confirm-pane').style.display = '';
         }
 
-        function cloudPullConfirmStored() {
-            cloudPullConfirm(_pendingManifestKey);
+        function cloudSaveConfirmCancel() {
+            _pendingManifestKey = null;
+            document.getElementById('cloud-save-confirm-pane').style.display = 'none';
+            document.getElementById('cloud-saves-list').style.display = '';
+        }
+
+        function cloudSaveConfirmLoad() {
+            const key = _pendingManifestKey;
+            _pendingManifestKey = null;
+            closeCloudSavesModal();
+            document.getElementById('cloud-save-confirm-pane').style.display = 'none';
+            document.getElementById('cloud-saves-list').style.display = '';
+            cloudPullConfirm(key);
         }
 
         function cloudPullCancel() {
@@ -9490,8 +9501,7 @@
                         '</div>' +
                         '<button class="btn btn-primary" style="flex-shrink:0;font-size:13px;padding:6px 14px;">Load</button>';
                     item.querySelector('button').addEventListener('click', () => {
-                        closeCloudSavesModal();
-                        cloudPullPrepare(displayTitle, save.version, save.filesCount, save.createdAt, manifestKey);
+                        cloudPullPrepare(manifestKey);
                     });
                     listEl.appendChild(item);
                 });
@@ -9502,6 +9512,9 @@
 
         function closeCloudSavesModal() {
             document.getElementById('cloud-saves-modal').classList.remove('show');
+            document.getElementById('cloud-save-confirm-pane').style.display = 'none';
+            document.getElementById('cloud-saves-list').style.display = '';
+            _pendingManifestKey = null;
         }
 
         // --- Chat-triggered cloud operations ---
