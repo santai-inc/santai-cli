@@ -15,6 +15,7 @@ from santai_cli.core.chat_history import (
     get_chat_history_dir,
     list_sessions,
     load_session,
+    rename_session,
     restore_chat_session,
     save_session,
 )
@@ -256,6 +257,46 @@ def test_index_entry_removed_on_delete(tmp_path: Path):
     chat_dir = get_chat_history_dir(project)
     index = json.loads((chat_dir / "_index.json").read_text())
     assert sid not in index
+
+
+def test_rename_session_renames_file(tmp_path: Path):
+    project = _make_project(tmp_path)
+    session = _make_session("original question")
+    sid = save_session(project, session, None, "Old Title", "anthropic", "model", None)
+
+    chat_dir = get_chat_history_dir(project)
+    old_files = list(chat_dir.glob("*.md"))
+    assert any("Old-Title" in f.name or "Old Title" in f.name for f in old_files)
+
+    rename_session(project, sid, "New Title")
+
+    new_files = list(chat_dir.glob("*.md"))
+    assert len(new_files) == 1
+    assert "New Title" in new_files[0].name
+    assert not any("Old Title" in f.name for f in new_files)
+
+    loaded = load_session(project, sid)
+    assert loaded.title == "New Title"
+
+
+def test_rename_session_same_sanitized_name_updates_in_place(tmp_path: Path):
+    project = _make_project(tmp_path)
+    session = _make_session()
+    sid = save_session(
+        project, session, None, "Hello World", "anthropic", "model", None
+    )
+
+    chat_dir = get_chat_history_dir(project)
+    original_files = list(chat_dir.glob("*.md"))
+    assert len(original_files) == 1
+    original_name = original_files[0].name
+
+    # Extra space sanitizes to same base name — should not create a duplicate
+    rename_session(project, sid, "Hello  World")
+
+    files = list(chat_dir.glob("*.md"))
+    assert len(files) == 1
+    assert files[0].name == original_name
 
 
 def test_rebuild_index_finds_existing_files(tmp_path: Path):

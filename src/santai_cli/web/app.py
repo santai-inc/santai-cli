@@ -1497,34 +1497,13 @@ def create_app(project: SantaiProject) -> FastAPI:
     async def chat_history_update_title(
         session_id: str, req: UpdateTitleRequest
     ) -> dict[str, str]:
-        """Update the title of a saved chat session."""
-        from santai_cli.core.chat_history import (
-            _build_markdown,
-            _find_session_path,
-            _parse_markdown,
-            get_chat_history_dir,
-        )
+        """Update the title of a saved chat session and rename the file to match."""
+        from santai_cli.core.chat_history import rename_session
 
-        path = _find_session_path(get_chat_history_dir(project), session_id)
-        if path is None:
-            raise HTTPException(status_code=404, detail="Session not found")
         try:
-            from datetime import UTC, datetime
-
-            meta, messages = _parse_markdown(path.read_text(encoding="utf-8"))
-            path.write_text(
-                _build_markdown(
-                    session_id=meta.get("id", session_id),
-                    title=req.title,
-                    created_at=meta.get("created_at", ""),
-                    updated_at=datetime.now(UTC).isoformat(),
-                    provider=meta.get("provider", ""),
-                    model=meta.get("model", ""),
-                    agent=meta.get("agent"),
-                    messages=messages,
-                ),
-                encoding="utf-8",
-            )
+            rename_session(project, session_id, req.title)
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="Session not found") from None
         except OSError as e:
             raise HTTPException(status_code=500, detail=str(e)) from e
         return {"status": "updated"}

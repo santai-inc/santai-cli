@@ -413,6 +413,55 @@ def list_sessions(project: SantaiProject) -> list[ChatSessionMetadata]:
     return entries
 
 
+def rename_session(project: SantaiProject, session_id: str, new_title: str) -> None:
+    """Update a session's title and rename the file to match."""
+    chat_dir = get_chat_history_dir(project)
+    old_path = _find_session_path(chat_dir, session_id)
+    if old_path is None:
+        raise FileNotFoundError(f"Chat session '{session_id}' not found")
+
+    meta, messages = _parse_markdown(old_path.read_text(encoding="utf-8"))
+    now = datetime.now(UTC).isoformat()
+    created_at = meta.get("created_at", now)
+
+    try:
+        date_str = datetime.fromisoformat(created_at).strftime("%m-%d-%Y")
+    except (ValueError, TypeError):
+        date_str = datetime.now(UTC).strftime("%m-%d-%Y")
+
+    base = f"{date_str} - {_sanitize_title(new_title)}"
+    candidate = f"{base}.md"
+
+    if candidate == old_path.name:
+        new_path = old_path
+    else:
+        new_path = chat_dir / candidate
+        if new_path.exists():
+            counter = 2
+            while (chat_dir / f"{base} ({counter}).md").exists():
+                counter += 1
+            new_path = chat_dir / f"{base} ({counter}).md"
+
+    content = _build_markdown(
+        session_id=meta.get("id", session_id),
+        title=new_title,
+        created_at=created_at,
+        updated_at=now,
+        provider=meta.get("provider", ""),
+        model=meta.get("model", ""),
+        agent=meta.get("agent"),
+        messages=messages,
+    )
+
+    new_path.write_text(content, encoding="utf-8")
+    if new_path != old_path:
+        old_path.unlink()
+
+    index = _load_index(chat_dir)
+    index[session_id] = new_path.name
+    _save_index(chat_dir, index)
+
+
 def delete_session(project: SantaiProject, session_id: str) -> None:
     """Delete a session file. Raises FileNotFoundError if missing."""
     chat_dir = get_chat_history_dir(project)
