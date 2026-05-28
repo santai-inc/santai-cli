@@ -1556,6 +1556,14 @@ def create_app(project: SantaiProject) -> FastAPI:
             "hub_url": hub_url,
         }
 
+    @app.post("/api/cloud/logout")
+    async def cloud_logout() -> dict[str, str]:
+        """Clear the user's saved credentials."""
+        from santai_cli.commands.auth import _clear_credentials
+
+        _clear_credentials()
+        return {"status": "logged_out"}
+
     @app.post("/api/cloud/push")
     async def cloud_push(req: CloudPushRequest) -> StreamingResponse:
         """Push the current project to the cloud, streaming SSE progress events."""
