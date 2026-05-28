@@ -21,6 +21,7 @@ from santai_cli.core.project import (
     IMAGE_EXTENSIONS,
     MARKDOWN_LINK_PATTERN,
     SANTAI_FOLDER_DESCRIPTIONS,
+    SENSITIVE_FILES,
     WIKILINK_PATTERN,
     SantaiProject,
     get_directory_stats,
@@ -1622,7 +1623,7 @@ def create_app(project: SantaiProject) -> FastAPI:
         ".venv",
         "node_modules",
     }
-    _CLOUD_SENSITIVE = {".env", "credentials.json"}
+    _CLOUD_SENSITIVE = SENSITIVE_FILES
     _CLOUD_MAX_BYTES = 50 * 1024 * 1024
     _CLOUD_IMAGE_EXTS = IMAGE_EXTENSIONS
 
