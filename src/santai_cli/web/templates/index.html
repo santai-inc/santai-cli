@@ -9412,7 +9412,7 @@
                                 await Promise.all([refreshTree(), refreshFiles()]);
                                 const _n = data.filesRestored;
                                 const _detail = _n != null
-                                    ? ` ${_n} file${_n !== 1 ? 's' : ''} restored.`
+                                    ? ` ${_n} file${_n !== 1 ? 's' : ''} loaded.`
                                     : '';
                                 setCloudStatus('Successfully pulled from cloud.' + _detail, 'success');
                             } else {
