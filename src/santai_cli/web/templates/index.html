@@ -7446,6 +7446,7 @@
         // --- Persistent session tracking ---
         let _currentChatSessionId = null;
         let _currentChatSessionTitle = null;
+        let _pendingWelcomeMessage = null; // flushed into chatMessages on first real send
 
         function saveChatHistory() {
             try {
@@ -7536,7 +7537,7 @@
             const titleEl = document.getElementById('chat-assistant-title');
             if (titleEl) titleEl.textContent = cfg.title;
             appendChatMessage('assistant', cfg.welcome);
-            chatMessages.push({ role: 'assistant', content: cfg.welcome });
+            _pendingWelcomeMessage = cfg.welcome;
             if (cfg.chips && cfg.chips.length) {
                 const messagesEl = document.getElementById('chat-messages');
                 const wrap = document.createElement('div');
@@ -8102,6 +8103,7 @@
             _chatEpoch++;             // invalidate any in-flight stream
             _currentChatSessionId = null;
             _currentChatSessionTitle = null;
+            _pendingWelcomeMessage = null;
             _titleGenEpoch++;
             chatMessages = [];
             chatStreaming = false;
@@ -8242,6 +8244,7 @@
 
                 _currentChatSessionId = session.id;
                 _currentChatSessionTitle = session.title;
+                _pendingWelcomeMessage = null;
 
                 // Restore model/provider if available
                 if (session.provider && session.model) {
@@ -8626,6 +8629,10 @@
             inputEl.value = '';
             chatInputResize(inputEl);
             appendChatMessage('user', userText);
+            if (_pendingWelcomeMessage) {
+                chatMessages.push({ role: 'assistant', content: _pendingWelcomeMessage });
+                _pendingWelcomeMessage = null;
+            }
             chatMessages.push({role: 'user', content: userText});
             saveChatHistory();
             chatHideEmptyState();
