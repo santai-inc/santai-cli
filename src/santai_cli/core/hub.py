@@ -115,19 +115,18 @@ def make_diff_title(
         if p in prev_text and p in curr_text and curr_text[p] != prev_text[p]
     )
 
-    def _fmt(verb: str, names: list) -> str:
-        if not names:
-            return ""
-        label = Path(names[0]).name
-        rest = len(names) - 1
-        return f"{verb} {label}" if not rest else f"{verb} {label} and {rest} more"
-
-    parts = [
-        s
-        for s in [_fmt("Add", added), _fmt("Update", modified), _fmt("Delete", deleted)]
-        if s
-    ]
-    return ", ".join(parts)
+    # Flatten all changes; headline is the first, the rest become "and N more".
+    all_changes = (
+        [("Add", p) for p in added]
+        + [("Update", p) for p in modified]
+        + [("Delete", p) for p in deleted]
+    )
+    if not all_changes:
+        return ""
+    verb, first = all_changes[0]
+    label = Path(first).name
+    rest = len(all_changes) - 1
+    return f"{verb} {label}" if not rest else f"{verb} {label} and {rest} more"
 
 
 def resolve_base_id(backend: str, token: str, name: str, username: str) -> str | None:
