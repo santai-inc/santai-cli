@@ -18,7 +18,7 @@ ANTHROPIC_API_KEY=sk-ant-...
 OPENAI_API_KEY=sk-...
 
 # Optional: override default models
-ANTHROPIC_MODEL=claude-sonnet-4-20250514
+ANTHROPIC_MODEL=claude-sonnet-4-6
 OPENAI_MODEL=gpt-4o
 
 # Optional: custom OpenAI-compatible proxy (e.g. LiteLLM, Azure).
@@ -34,11 +34,12 @@ OPENAI_API_BASE_URL=https://your-proxy-url.example.com/
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `ANTHROPIC_API_KEY` | At least one provider | — | Your Anthropic API key |
-| `ANTHROPIC_MODEL` | No | `claude-sonnet-4-20250514` | Default Anthropic model |
+| `ANTHROPIC_MODEL` | No | `claude-sonnet-4-6` | Default Anthropic model |
 | `OPENAI_API_KEY` | At least one provider | — | Your OpenAI (or OpenAI-compatible) API key |
 | `OPENAI_MODEL` | No | `gpt-4o` | Default OpenAI model |
 | `OPENAI_API_BASE_URL` | No | `https://api.openai.com/v1` | Custom OpenAI-compatible endpoint (e.g. LiteLLM, Azure). When set, `OPENAI_API_KEY` should match the proxy. |
 | `SANTAI_HUB_URL` | No | `https://hub.sant.ai` | Santai Hub URL for push/pull/auth |
+| `SANTAI_SERVER_TOKEN` | No | — | Bearer token for `santai server` API authentication |
 
 You need at least one provider key configured for AI chat. You can configure both to have access to models from both providers.
 
@@ -48,20 +49,18 @@ You need at least one provider key configured for AI chat. You can configure bot
 
 | Model | Notes |
 |-------|-------|
-| `claude-sonnet-4-20250514` | Default |
-| `claude-opus-4-20250514` | |
-| `claude-haiku-4-20250514` | |
+| `claude-sonnet-4-6` | Default |
+| `claude-opus-4-7` | |
+| `claude-haiku-4-5-20251001` | |
 
 ### OpenAI
 
 | Model | Notes |
 |-------|-------|
 | `gpt-4o` | Default |
-| `gpt-4o-mini` | |
-| `o3-mini` | |
 | `gpt-4.1` | |
 | `gpt-4.1-mini` | |
-| `gpt-4.1-nano` | |
+| `o3-mini` | |
 
 ## Overriding the Default Model
 
@@ -69,14 +68,14 @@ Set the `ANTHROPIC_MODEL` or `OPENAI_MODEL` environment variable to change which
 
 ```bash
 # .env
-ANTHROPIC_MODEL=claude-opus-4-20250514
+ANTHROPIC_MODEL=claude-opus-4-7
 OPENAI_MODEL=gpt-4.1
 ```
 
 You can also bypass the interactive picker entirely with the `--model` flag:
 
 ```bash
-santai chat --model gpt-4o-mini
+santai chat --model gpt-4.1-mini
 ```
 
 ## API Key Validation

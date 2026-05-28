@@ -9,7 +9,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, status
 
-from santai_cli.core.project import SANTAI_DIRS
+from santai_cli.core.project import IGNORED_DIRECTORIES, SANTAI_DIRS, SENSITIVE_FILES
 from santai_cli.server.models import (
     CherryPickRequest,
     CherryPickResponse,
@@ -22,21 +22,6 @@ from santai_cli.server.models import (
 )
 
 router = APIRouter(prefix="/api")
-
-# Directories to exclude when copying
-_IGNORED_DIRECTORIES = {
-    ".git",
-    ".ruff_cache",
-    ".rumdl_cache",
-    "__pycache__",
-    ".venv",
-}
-
-# Sensitive files excluded by default
-_SENSITIVE_FILES = {
-    ".env",
-    "credentials.json",
-}
 
 # Template content for new projects (matches commands/init.py)
 _AGENTS_MD_CONTENT = """\
@@ -104,7 +89,7 @@ def _run_command(cmd: list[str], cwd: Path) -> bool:
 
 def _ignore_fn(directory: str, files: list[str]) -> set[str]:
     """Ignore function for shutil.copytree."""
-    return {f for f in files if f in _IGNORED_DIRECTORIES or f in _SENSITIVE_FILES}
+    return {f for f in files if f in IGNORED_DIRECTORIES or f in SENSITIVE_FILES}
 
 
 def _merge_tree(source: Path, destination: Path) -> tuple[int, int]:
@@ -116,14 +101,14 @@ def _merge_tree(source: Path, destination: Path) -> tuple[int, int]:
     skipped = 0
 
     for dirpath, dirnames, filenames in os.walk(source):
-        dirnames[:] = [d for d in dirnames if d not in _IGNORED_DIRECTORIES]
+        dirnames[:] = [d for d in dirnames if d not in IGNORED_DIRECTORIES]
 
         rel_dir = Path(dirpath).relative_to(source)
         dest_dir = destination / rel_dir
         dest_dir.mkdir(parents=True, exist_ok=True)
 
         for filename in filenames:
-            if filename in _SENSITIVE_FILES:
+            if filename in SENSITIVE_FILES:
                 skipped += 1
                 continue
             dest_file = dest_dir / filename
@@ -255,7 +240,7 @@ def _collect_files(base: Path, target: Path) -> list[Path]:
 
     files: list[Path] = []
     for dirpath, dirnames, filenames in os.walk(target):
-        dirnames[:] = [d for d in dirnames if d not in _IGNORED_DIRECTORIES]
+        dirnames[:] = [d for d in dirnames if d not in IGNORED_DIRECTORIES]
         for fname in filenames:
             full = Path(dirpath) / fname
             files.append(full.relative_to(base))

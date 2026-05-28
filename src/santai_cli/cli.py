@@ -83,7 +83,7 @@ app.command(name="whoami")(auth.whoami)
 # Verbose help output
 # ---------------------------------------------------------------------------
 
-_VERSION = "0.1.0"
+_VERSION = "0.1.1"
 
 _COMMANDS: list[dict[str, str | list[str]]] = [
     {

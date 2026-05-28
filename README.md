@@ -104,7 +104,7 @@ Interactive AI chat session. Requires an API key in `.env` (see `.env.example`).
 ```bash
 santai chat
 santai chat --agent research
-santai chat --model claude-sonnet-4-20250514
+santai chat --model claude-sonnet-4-6
 ```
 
 ### `santai ui`
@@ -123,6 +123,15 @@ Launch the web dashboard in your browser.
 ```bash
 santai web
 santai web --port 3000
+```
+
+### `santai server`
+
+Launch a headless JSON API server for programmatic access.
+
+```bash
+santai server
+santai server --port 9000 --token my-secret-token
 ```
 
 ### `santai push` / `santai pull`
@@ -196,12 +205,18 @@ src/santai_cli/
 │   ├── auth.py          # santai login/logout/whoami
 │   ├── push.py          # santai push
 │   ├── pull.py          # santai pull
+│   ├── server.py        # santai server
 │   ├── ui.py            # santai ui
 │   └── web.py           # santai web
 ├── core/
 │   ├── project.py       # Project detection, data models, file graph
 │   ├── config.py        # Environment/config loading, API key validation
 │   └── chat.py          # Chat engine (streaming, provider abstraction)
+├── server/
+│   ├── app.py           # FastAPI headless API server
+│   ├── auth.py          # Bearer token authentication
+│   ├── models.py        # Pydantic request/response models
+│   └── routes.py        # API route definitions
 ├── tui/
 │   └── app.py           # Textual TUI application
 └── web/

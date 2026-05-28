@@ -145,7 +145,7 @@ santai chat
 You'll be prompted to select a model. Use `--model` to skip the selection:
 
 ```bash
-santai chat --model claude-sonnet-4-20250514
+santai chat --model claude-sonnet-4-6
 santai chat --model gpt-4o
 ```
 

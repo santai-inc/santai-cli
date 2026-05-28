@@ -13,6 +13,7 @@ Santai CLI provides commands for managing your project. Each command is describe
 | [`santai chat`](chat.md) | Start an interactive AI chat session |
 | [`santai ui`](ui.md) | Launch the TUI dashboard |
 | [`santai web`](web.md) | Launch the web dashboard |
+| [`santai server`](server.md) | Launch the headless API server |
 | [`santai push`](push.md) | Push project to Santai Hub |
 | [`santai pull`](pull.md) | Pull project from Santai Hub |
 | [`santai login`](auth.md) | Authenticate with Santai Hub |

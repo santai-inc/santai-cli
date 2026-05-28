@@ -10,23 +10,13 @@ from typing import Annotated
 import typer
 from rich.console import Console
 
+from santai_cli.core.project import (
+    IGNORED_DIRECTORIES,
+    SENSITIVE_FILES,
+    validate_santai_structure,
+)
+
 console = Console()
-
-# Directories to exclude when copying/merging
-IGNORED_DIRECTORIES = {
-    ".git",
-    ".ruff_cache",
-    ".rumdl_cache",
-    "__pycache__",
-    ".venv",
-}
-
-# Files excluded by default (secrets, credentials).
-# Users can opt-in to include .env via --include-env.
-SENSITIVE_FILES = {
-    ".env",
-    "credentials.json",
-}
 
 
 def _make_ignore_fn(
@@ -154,6 +144,22 @@ def merge(
     # Validate both sources
     source1_path = _validate_source(source1)
     source2_path = _validate_source(source2)
+
+    # Validate Santai project structure for both sources
+    for label, path_str, src_path in [
+        ("Primary", source1, source1_path),
+        ("Secondary", source2, source2_path),
+    ]:
+        missing = validate_santai_structure(src_path)
+        if missing:
+            missing_str = ", ".join(f"{d}/" for d in missing)
+            console.print(
+                f"[yellow]Warning: {label} source '{path_str}' does not look like "
+                f"a standard Santai project.[/yellow]"
+            )
+            console.print(f"[yellow]Missing directories: {missing_str}[/yellow]")
+            if not typer.confirm("Continue anyway?", default=False):
+                raise typer.Exit(0)
 
     # Resolve destination path
     dest_path = (Path.cwd() / destination).resolve()

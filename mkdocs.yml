@@ -60,6 +60,7 @@ nav:
       - chat: commands/chat.md
       - ui: commands/ui.md
       - web: commands/web.md
+      - server: commands/server.md
       - push: commands/push.md
       - pull: commands/pull.md
       - Authentication: commands/auth.md
