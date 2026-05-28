@@ -1744,10 +1744,8 @@
             padding: 2px 4px;
             border-radius: 4px;
             flex-shrink: 0;
-            opacity: 0;
-            transition: opacity 0.12s;
         }
-        .chat-history-item:hover .chat-history-delete-btn { opacity: 1; }
+        .chat-history-item:hover .chat-history-item-actions { opacity: 1; }
         .chat-history-delete-btn:hover { background: rgba(239,68,68,0.12); color: #ef4444; }
         .chat-history-item.active { background: rgba(34,197,94,0.1); }
         .chat-history-item.active .chat-history-item-title { color: #16a34a; }
@@ -1793,6 +1791,15 @@
             letter-spacing: 0.05em;
             padding: 8px 8px 3px;
         }
+        .chat-history-item-actions {
+            display: flex;
+            align-items: center;
+            gap: 1px;
+            flex-shrink: 0;
+            align-self: flex-start;
+            opacity: 0;
+            transition: opacity 0.12s;
+        }
         .chat-history-edit-btn {
             background: none;
             border: none;
@@ -1801,14 +1808,11 @@
             padding: 2px 4px;
             border-radius: 4px;
             flex-shrink: 0;
-            opacity: 0;
-            transition: opacity 0.12s;
             display: flex;
             align-items: center;
         }
         .chat-history-edit-btn svg { width: 12px; height: 12px; stroke-width: 1.5; }
-        .chat-history-item:hover .chat-history-edit-btn { opacity: 1; }
-        .chat-history-edit-btn:hover { background: rgba(99,102,241,0.12); color: #6366f1; }
+        .chat-history-edit-btn:hover { background: rgba(34,197,94,0.12); color: #16a34a; }
         .chat-history-rename-input {
             font-size: 12px;
             font-weight: 500;
@@ -7447,6 +7451,7 @@
         let _currentChatSessionId = null;
         let _currentChatSessionTitle = null;
         let _pendingWelcomeMessage = null; // flushed into chatMessages on first real send
+        let _sessionContext = null; // injected into system prompt on resumed sessions
 
         function saveChatHistory() {
             try {
@@ -8104,6 +8109,7 @@
             _currentChatSessionId = null;
             _currentChatSessionTitle = null;
             _pendingWelcomeMessage = null;
+            _sessionContext = null;
             _titleGenEpoch++;
             chatMessages = [];
             chatStreaming = false;
@@ -8204,10 +8210,12 @@
                                 <div class="chat-history-item-title">${_escapeHtml(s.title)}</div>
                                 <div class="chat-history-item-meta">${msgStr}${s.agent ? ' · ' + _escapeHtml(s.agent) : ''}</div>
                             </div>
-                            <button class="chat-history-edit-btn" onclick="startRenameSession(event,'${s.id}')" title="Rename">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" /></svg>
-                            </button>
-                            <button class="chat-history-delete-btn" onclick="hideChatSession('${s.id}',event)" title="Remove from history">✕</button>
+                            <div class="chat-history-item-actions">
+                                <button class="chat-history-edit-btn" onclick="startRenameSession(event,'${s.id}')" title="Rename">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" /></svg>
+                                </button>
+                                <button class="chat-history-delete-btn" onclick="hideChatSession('${s.id}',event)" title="Remove from history">✕</button>
+                            </div>
                         `;
                         listEl.appendChild(item);
                     });
@@ -8245,6 +8253,13 @@
                 _currentChatSessionId = session.id;
                 _currentChatSessionTitle = session.title;
                 _pendingWelcomeMessage = null;
+                if (session.updated_at) {
+                    const d = new Date(session.updated_at);
+                    const dateStr = d.toLocaleDateString('en-US', {month:'long', day:'numeric', year:'numeric'});
+                    _sessionContext = `This conversation was last active on ${dateStr}.`;
+                } else {
+                    _sessionContext = null;
+                }
 
                 // Restore model/provider if available
                 if (session.provider && session.model) {
@@ -8482,7 +8497,8 @@
                         messages: chatMessages,
                         provider: selected.provider,
                         model: selected.model,
-                        agent: agent
+                        agent: agent,
+                        session_context: _sessionContext || undefined
                     })
                 });
 

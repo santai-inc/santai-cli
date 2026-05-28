@@ -34,7 +34,9 @@ TEMPLATES_DIR = Path(__file__).parent / "templates"
 STATIC_DIR = Path(__file__).parent / "static"
 
 # Files hidden from all file-tree listings (in addition to dotfiles).
-_HIDDEN_FILES: set[str] = {"rumdl.toml", "_index.json", "_hidden.json"}
+from santai_cli.core.project import _UI_HIDDEN_NAMES  # noqa: E402
+
+_HIDDEN_FILES: set[str] = set(_UI_HIDDEN_NAMES)
 
 
 class RenameRequest(BaseModel):
@@ -66,6 +68,7 @@ class ChatRequest(BaseModel):
     provider: str
     model: str
     agent: str | None = None
+    session_context: str | None = None
 
 
 class SettingsRequest(BaseModel):
@@ -1368,6 +1371,10 @@ def create_app(project: SantaiProject) -> FastAPI:
         # Inject repository context
         repo_context = build_repo_context(project)
         system_prompt = inject_repo_context(system_prompt, repo_context)
+
+        if req.session_context:
+            note = f"\n\n[Session context: {req.session_context}]"
+            system_prompt = (system_prompt + note) if system_prompt else note.strip()
 
         session = ChatSession(system_prompt=system_prompt, project_root=project.root)
         for msg in req.messages:

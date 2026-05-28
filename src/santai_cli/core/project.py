@@ -156,7 +156,11 @@ def _get_all_files(path: Path) -> list[FileInfo]:
 
     files = []
     for f in path.rglob("*"):
-        if f.is_file():
+        if (
+            f.is_file()
+            and not f.name.startswith(".")
+            and f.name not in _UI_HIDDEN_NAMES
+        ):
             stat = f.stat()
             files.append(
                 FileInfo(
@@ -339,6 +343,11 @@ WIKILINK_PATTERN = re.compile(r"\[\[([^\]|]+)(?:\|([^\]]+))?\]\]")
 
 _SKIP_DIRS = frozenset({"__pycache__", "node_modules", ".venv", "venv", ".git"})
 
+# Internal files that should never appear in any UI listing (graph, recent files, etc.)
+_UI_HIDDEN_NAMES: frozenset[str] = frozenset(
+    {"rumdl.toml", "_index.json", "_hidden.json"}
+)
+
 # Project meta-files that should never appear as graph nodes
 _GRAPH_EXCLUDE_NAMES_LOWER = frozenset(
     {
@@ -346,8 +355,8 @@ _GRAPH_EXCLUDE_NAMES_LOWER = frozenset(
         "claude.md",
         "readme.md",
         "readme.rst",
-        "rumdl.toml",
     }
+    | {n.lower() for n in _UI_HIDDEN_NAMES}
 )
 
 
