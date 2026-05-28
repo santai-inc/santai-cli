@@ -1811,6 +1811,7 @@ def create_app(project: SantaiProject) -> FastAPI:
                     finally:
                         tmp_path.unlink(missing_ok=True)
 
+                assert base_id is not None
                 _prev_task = asyncio.to_thread(
                     fetch_prev_files,
                     backend,
