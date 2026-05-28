@@ -9439,15 +9439,14 @@
                         displayTitle = rawTitle.replace(/\b(push\s+)?from\s+(the\s+)?hub\b[\s·\-]*/i, '').replace(/\bsantai\s+hub\b[\s·\-]*/i, '').trim();
                     }
                     if (!displayTitle) {
-                        displayTitle = save.version ? 'Version ' + save.version : ('Save ' + (idx + 1));
+                        displayTitle = save.version ? 'v' + save.version : ('Save ' + (idx + 1));
                     }
 
                     const parts = [];
                     if (save.createdAt) parts.push(new Date(save.createdAt).toLocaleString());
                     if (save.size) parts.push(_fmtBytes(save.size));
                     if (save.filesCount) parts.push(save.filesCount + ' files');
-                    const manifestKey = save.manifestKey ?? save.manifest_key ?? save.key ?? save.id ?? null;
-                    console.log('[cloud-saves] save object:', save, '→ manifestKey:', manifestKey);
+                    const manifestKey = save.key ?? save.manifestKey ?? save.manifest_key ?? null;
 
                     const tagHtml = originTag
                         ? '<span class="cloud-save-tag">' + _escHtml(originTag) + '</span>'
