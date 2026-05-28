@@ -1793,26 +1793,20 @@
             letter-spacing: 0.05em;
             padding: 8px 8px 3px;
         }
-        .chat-history-item-title-row {
-            display: flex;
-            align-items: center;
-            gap: 3px;
-        }
         .chat-history-edit-btn {
             background: none;
             border: none;
             cursor: pointer;
             color: var(--text-secondary, #aaa);
-            padding: 1px 3px;
-            border-radius: 3px;
+            padding: 2px 4px;
+            border-radius: 4px;
             flex-shrink: 0;
             opacity: 0;
             transition: opacity 0.12s;
             display: flex;
             align-items: center;
-            line-height: 1;
-            font-size: 12px;
         }
+        .chat-history-edit-btn svg { width: 12px; height: 12px; stroke-width: 1.5; }
         .chat-history-item:hover .chat-history-edit-btn { opacity: 1; }
         .chat-history-edit-btn:hover { background: rgba(99,102,241,0.12); color: #6366f1; }
         .chat-history-rename-input {
@@ -8194,12 +8188,12 @@
                         const msgStr = s.message_count === 1 ? '1 msg' : `${s.message_count} msgs`;
                         item.innerHTML = `
                             <div class="chat-history-item-body" onclick="resumeChatSession('${s.id}')">
-                                <div class="chat-history-item-title-row">
-                                    <div class="chat-history-item-title">${_escapeHtml(s.title)}</div>
-                                    <button class="chat-history-edit-btn" onclick="startRenameSession(event,'${s.id}')" title="Rename">✎</button>
-                                </div>
+                                <div class="chat-history-item-title">${_escapeHtml(s.title)}</div>
                                 <div class="chat-history-item-meta">${msgStr}${s.agent ? ' · ' + _escapeHtml(s.agent) : ''}</div>
                             </div>
+                            <button class="chat-history-edit-btn" onclick="startRenameSession(event,'${s.id}')" title="Rename">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" /></svg>
+                            </button>
                             <button class="chat-history-delete-btn" onclick="deleteChatSession('${s.id}',event)" title="Delete chat">✕</button>
                         `;
                         listEl.appendChild(item);
@@ -8284,9 +8278,9 @@
 
         function startRenameSession(event, sessionId) {
             event.stopPropagation();
-            const row = event.currentTarget.closest('.chat-history-item-title-row');
-            if (!row) return;
-            const titleEl = row.querySelector('.chat-history-item-title');
+            const item = event.currentTarget.closest('.chat-history-item');
+            if (!item) return;
+            const titleEl = item.querySelector('.chat-history-item-title');
             if (!titleEl) return;
             const currentTitle = titleEl.textContent;
 
