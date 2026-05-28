@@ -1558,7 +1558,7 @@ def create_app(project: SantaiProject) -> FastAPI:
 
     @app.get("/api/cloud/avatar")
     async def cloud_avatar() -> dict[str, Any]:
-        """Return the user's avatar URL fetched from the hub (slow — call separately)."""
+        """Return the user's avatar URL from the hub (slow — call separately)."""
         import asyncio
         import json as _json
         import urllib.request
