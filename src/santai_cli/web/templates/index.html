@@ -4336,7 +4336,7 @@
                             <div class="chat-custom-select-list" id="chat-model-select-list"></div>
                             <select id="chat-model-select" style="display:none;"></select>
                         </div>
-                        <button class="chat-ctrl-btn" onclick="clearChat()">Clear</button>
+                        <button class="chat-ctrl-btn" onclick="clearChatBtn()">Clear</button>
                     </div>
                 </div>
                 <!-- Chat history overlay panel -->
@@ -8089,9 +8089,20 @@
             };
         }
 
+        async function clearChatBtn() {
+            _titleGenEpoch++;
+            if (chatMessages.length > 0) await saveCurrentChatSession();
+            _currentChatSessionId = null;
+            _currentChatSessionTitle = null;
+            clearChat();
+        }
+
         function clearChat() {
             if (_chatAbortController) { _chatAbortController.abort(); _chatAbortController = null; }
             _chatEpoch++;             // invalidate any in-flight stream
+            _currentChatSessionId = null;
+            _currentChatSessionTitle = null;
+            _titleGenEpoch++;
             chatMessages = [];
             chatStreaming = false;
             try { localStorage.removeItem(CHAT_STORAGE_KEY); localStorage.removeItem(CHAT_TOKEN_KEY); } catch {}
