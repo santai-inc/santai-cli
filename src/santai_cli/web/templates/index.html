@@ -351,7 +351,7 @@
         }
 
         .user-menu-item {
-            padding: 9px 14px;
+            padding: 5px 14px;
             font-size: 13px;
             color: var(--text-primary);
             cursor: pointer;
@@ -9229,7 +9229,7 @@
                     if (pushBtn) pushBtn.title = `Push to cloud (${data.username})`;
                     // Fetch avatar separately — don't block widget render
                     fetch('/api/cloud/avatar').then(r => r.ok ? r.json() : null).then(d => {
-                        if (d?.avatar_url) { _cloudAvatarUrl = d.avatar_url; _renderAuthWidget(); }
+                        if (_cloudLoggedIn && d?.avatar_url) { _cloudAvatarUrl = d.avatar_url; _renderAuthWidget(); }
                     }).catch(() => {});
                 }
             } catch { /* ignore — buttons always clickable, backend returns error if needed */ }
@@ -9253,7 +9253,7 @@
                 const name = _cloudUsername || 'you';
                 const safeAvatar = _cloudAvatarUrl ? _safeHttpUrl(_cloudAvatarUrl) : null;
                 const avatarInner = safeAvatar
-                    ? `<img src="${_esc(safeAvatar)}" alt="${_esc(name)}" referrerpolicy="no-referrer" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" onerror="this.parentElement.textContent=${JSON.stringify(initial)}">`
+                    ? `<img src="${_esc(safeAvatar)}" alt="${_esc(name)}" referrerpolicy="no-referrer" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`
                     : _esc(initial);
                 const safeHubBase = _hubBaseUrl ? _safeHttpUrl(_hubBaseUrl) : null;
                 const hubLink = safeHubBase ? `
@@ -9262,7 +9262,8 @@
                             View on Santai Hub
                         </div>
                         <div class="user-menu-divider"></div>` : '';
-                const profileUrl = _cloudHubUrl ? _esc(`${_cloudHubUrl}/profile/${name}`) : null;
+                const safeProfileBase = _cloudHubUrl ? _safeHttpUrl(_cloudHubUrl) : null;
+                const profileUrl = safeProfileBase ? _esc(`${safeProfileBase}/profile/${encodeURIComponent(name)}`) : null;
                 const nameHtml = profileUrl
                     ? `Signed in as <a href="${profileUrl}" target="_blank" rel="noopener">@${_esc(name)}</a>`
                     : `Signed in as @${_esc(name)}`;
@@ -9280,6 +9281,10 @@
                 if (safeHubBase) {
                     const linkEl = el.querySelector('#hub-link-item');
                     if (linkEl) linkEl.addEventListener('click', () => window.open(safeHubBase, '_blank', 'noopener'));
+                }
+                if (safeAvatar) {
+                    const img = el.querySelector('.user-avatar img');
+                    if (img) img.onerror = () => { img.parentElement.textContent = initial; };
                 }
             }
         }

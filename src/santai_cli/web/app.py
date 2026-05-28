@@ -1559,9 +1559,7 @@ def create_app(project: SantaiProject) -> FastAPI:
     @app.get("/api/cloud/avatar")
     async def cloud_avatar() -> dict[str, Any]:
         """Return the user's avatar URL from the hub (slow — call separately)."""
-        import asyncio
-        import json as _json
-        import urllib.request
+        import httpx
 
         from santai_cli.commands.auth import DEFAULT_HUB_URL, load_credentials
         from santai_cli.core.hub import USER_AGENT, get_backend_url
@@ -1571,32 +1569,29 @@ def create_app(project: SantaiProject) -> FastAPI:
             return {"avatar_url": None}
         hub_url = creds.get("hub_url", DEFAULT_HUB_URL)
 
-        def _fetch() -> str | None:
-            try:
-                backend = get_backend_url(hub_url)
-                req = urllib.request.Request(
+        try:
+            backend = get_backend_url(hub_url)
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                resp = await client.get(
                     f"{backend}/auth/get-session",
                     headers={
                         "Authorization": f"Bearer {creds['token']}",
                         "User-Agent": USER_AGENT,
                     },
                 )
-                with urllib.request.urlopen(req, timeout=3) as resp:
-                    data = _json.loads(resp.read())
-                    user = data.get("user", {})
-                    url = (
-                        user.get("image")
-                        or user.get("avatar_url")
-                        or user.get("avatar")
-                        or user.get("picture")
-                    )
-                    if url and not url.startswith("http"):
-                        url = hub_url.rstrip("/") + "/" + url.lstrip("/")
-                    return url
-            except Exception:
-                return None
-
-        return {"avatar_url": await asyncio.to_thread(_fetch)}
+                resp.raise_for_status()
+                user = resp.json().get("user", {})
+                url = (
+                    user.get("image")
+                    or user.get("avatar_url")
+                    or user.get("avatar")
+                    or user.get("picture")
+                )
+                if url and not url.startswith(("http://", "https://")):
+                    url = hub_url.rstrip("/") + "/" + url.lstrip("/")
+                return {"avatar_url": url}
+        except Exception:
+            return {"avatar_url": None}
 
     @app.post("/api/cloud/logout")
     async def cloud_logout() -> dict[str, str]:
