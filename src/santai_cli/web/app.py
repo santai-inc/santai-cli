@@ -34,7 +34,7 @@ TEMPLATES_DIR = Path(__file__).parent / "templates"
 STATIC_DIR = Path(__file__).parent / "static"
 
 # Files hidden from all file-tree listings (in addition to dotfiles).
-_HIDDEN_FILES: set[str] = {"rumdl.toml"}
+_HIDDEN_FILES: set[str] = {"rumdl.toml", "_index.json", "_hidden.json"}
 
 
 class RenameRequest(BaseModel):
