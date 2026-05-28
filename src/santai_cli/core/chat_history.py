@@ -39,6 +39,8 @@ from santai_cli.core.project import SantaiProject
 _INVALID_FILENAME_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 _MULTI_DASH = re.compile(r"-{2,}")
 _MULTI_SPACE = re.compile(r" {2,}")
+_FENCED_CODE_BLOCK = re.compile(r"```[^\n]*\n.*?```", re.DOTALL)
+_INDEX_FILE = "_index.json"
 
 
 def get_chat_history_dir(project: SantaiProject) -> Path:
@@ -70,17 +72,60 @@ def _session_filename(title: str, created_at: str, chat_dir: Path) -> str:
     return f"{base} ({counter}).md"
 
 
-def _find_session_path(chat_dir: Path, session_id: str) -> Path | None:
-    """Scan chat_dir for the file whose frontmatter id matches session_id."""
+def _load_index(chat_dir: Path) -> dict[str, str]:
+    """Return the session_id → filename mapping from the index file."""
+    try:
+        return json.loads((chat_dir / _INDEX_FILE).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _save_index(chat_dir: Path, index: dict[str, str]) -> None:
+    (chat_dir / _INDEX_FILE).write_text(json.dumps(index, indent=2), encoding="utf-8")
+
+
+def _rebuild_index(chat_dir: Path) -> dict[str, str]:
+    """Rebuild the index by scanning all .md files (O(n) fallback)."""
+    index: dict[str, str] = {}
+    id_inline_prefix = "\n---\nid: "
+    id_front_prefix = "---\nid: "
     for path in chat_dir.glob("*.md"):
         try:
             text = path.read_text(encoding="utf-8")
-            id_inline = f"\nid: {session_id}\n"
-            id_first = f"---\nid: {session_id}\n"
-            if id_inline in text or text.startswith(id_first):
-                return path
+            session_id = None
+            if id_inline_prefix in text:
+                start = text.find(id_inline_prefix) + len(id_inline_prefix)
+                end = text.find("\n", start)
+                if end != -1:
+                    session_id = text[start:end].strip()
+            elif text.startswith(id_front_prefix):
+                start = len(id_front_prefix)
+                end = text.find("\n", start)
+                if end != -1:
+                    session_id = text[start:end].strip()
+            if session_id:
+                index[session_id] = path.name
         except OSError:
             continue
+    _save_index(chat_dir, index)
+    return index
+
+
+def _find_session_path(chat_dir: Path, session_id: str) -> Path | None:
+    """Return the Path for a session_id using an index file for O(1) lookup."""
+    index = _load_index(chat_dir)
+    filename = index.get(session_id)
+    if filename:
+        path = chat_dir / filename
+        if path.exists():
+            return path
+    # Index miss or stale entry — rebuild once and retry.
+    index = _rebuild_index(chat_dir)
+    filename = index.get(session_id)
+    if filename:
+        path = chat_dir / filename
+        if path.exists():
+            return path
     return None
 
 
@@ -145,6 +190,25 @@ _MSG_PATTERN = re.compile(
     r"(?:^|\n\n)\*\*(You|Assistant):\*\*\n(.*?)(?=\n\n\*\*(?:You|Assistant):\*\*\n|$)",
     re.DOTALL,
 )
+
+
+def _mask_code_blocks(text: str) -> tuple[str, dict[str, str]]:
+    """Replace fenced code blocks with unique tokens so speaker labels inside
+    code blocks don't confuse the message parser."""
+    replacements: dict[str, str] = {}
+
+    def _sub(m: re.Match) -> str:
+        token = f"\x00CB{len(replacements)}\x00"
+        replacements[token] = m.group(0)
+        return token
+
+    return _FENCED_CODE_BLOCK.sub(_sub, text), replacements
+
+
+def _restore_code_blocks(text: str, replacements: dict[str, str]) -> str:
+    for token, original in replacements.items():
+        text = text.replace(token, original)
+    return text
 
 
 def _build_markdown(
@@ -220,9 +284,11 @@ def _parse_markdown(text: str) -> tuple[dict, list[dict[str, str]]]:
             meta = _parse_meta_block(text[sep_idx + 5 : close_idx])
             body = text[:sep_idx]
 
+    masked_body, code_block_map = _mask_code_blocks(body)
     messages: list[dict[str, str]] = []
-    for match in _MSG_PATTERN.finditer(body.strip()):
-        role_label, content = match.group(1), match.group(2).strip()
+    for match in _MSG_PATTERN.finditer(masked_body.strip()):
+        role_label = match.group(1)
+        content = _restore_code_blocks(match.group(2).strip(), code_block_map)
         if content:
             role = "user" if role_label == "You" else "assistant"
             messages.append({"role": role, "content": content})
@@ -288,6 +354,11 @@ def save_session(
     )
 
     (chat_dir / filename).write_text(content, encoding="utf-8")
+
+    index = _load_index(chat_dir)
+    index[session_id] = filename
+    _save_index(chat_dir, index)
+
     return session_id
 
 
@@ -344,10 +415,14 @@ def list_sessions(project: SantaiProject) -> list[ChatSessionMetadata]:
 
 def delete_session(project: SantaiProject, session_id: str) -> None:
     """Delete a session file. Raises FileNotFoundError if missing."""
-    path = _find_session_path(get_chat_history_dir(project), session_id)
+    chat_dir = get_chat_history_dir(project)
+    path = _find_session_path(chat_dir, session_id)
     if path is None:
         raise FileNotFoundError(f"Chat session '{session_id}' not found")
     path.unlink()
+    index = _load_index(chat_dir)
+    index.pop(session_id, None)
+    _save_index(chat_dir, index)
 
 
 def restore_chat_session(persisted: PersistedChatSession) -> ChatSession:

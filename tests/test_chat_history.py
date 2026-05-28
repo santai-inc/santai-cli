@@ -6,6 +6,9 @@ import pytest
 
 from santai_cli.core.chat import ChatSession
 from santai_cli.core.chat_history import (
+    _mask_code_blocks,
+    _parse_markdown,
+    _rebuild_index,
     auto_title,
     delete_session,
     generate_session_id,
@@ -205,6 +208,68 @@ def test_chat_history_path_on_project(tmp_path: Path):
 def test_get_chat_history_dir(tmp_path: Path):
     project = _make_project(tmp_path)
     assert get_chat_history_dir(project) == tmp_path / "history" / "chat-history"
+
+
+def test_code_block_masking_ignores_speaker_labels_inside_fences():
+    """Speaker labels inside fenced code blocks must not split the message."""
+    masked, replacements = _mask_code_blocks(
+        "```\n**You:** example\n**Assistant:** reply\n```"
+    )
+    assert "**You:**" not in masked
+    assert "**Assistant:**" not in masked
+    assert len(replacements) == 1
+
+
+def test_parse_markdown_code_block_not_split(tmp_path: Path):
+    """A message containing a fenced code block with speaker labels is parsed intact."""
+    content_with_block = (
+        "**You:**\nHow do I greet someone?\n\n"
+        "**Assistant:**\nHere is an example:\n\n```\n**You:** Hello!\n**Assistant:** Hi!\n```\n\n"
+        '---\nid: test-id-0001\ntitle: "test"\ncreated_at: 2026-01-01T00:00:00+00:00\n'
+        "updated_at: 2026-01-01T00:00:00+00:00\nprovider: anthropic\nmodel: m\nagent: null\n"
+        "message_count: 2\n---\n"
+    )
+    meta, messages = _parse_markdown(content_with_block)
+    assert len(messages) == 2
+    assert messages[1]["role"] == "assistant"
+    assert "```" in messages[1]["content"]
+    assert "**You:** Hello!" in messages[1]["content"]
+
+
+def test_index_file_created_on_save(tmp_path: Path):
+    project = _make_project(tmp_path)
+    session = _make_session()
+    save_session(project, session, None, None, "anthropic", "model", None)
+
+    chat_dir = get_chat_history_dir(project)
+    assert (chat_dir / "_index.json").exists()
+
+
+def test_index_entry_removed_on_delete(tmp_path: Path):
+    import json
+
+    project = _make_project(tmp_path)
+    session = _make_session()
+    sid = save_session(project, session, None, None, "anthropic", "model", None)
+    delete_session(project, sid)
+
+    chat_dir = get_chat_history_dir(project)
+    index = json.loads((chat_dir / "_index.json").read_text())
+    assert sid not in index
+
+
+def test_rebuild_index_finds_existing_files(tmp_path: Path):
+    project = _make_project(tmp_path)
+    session = _make_session()
+    sid = save_session(project, session, None, None, "anthropic", "model", None)
+
+    # Delete the index to simulate a missing/stale index
+    chat_dir = get_chat_history_dir(project)
+    (chat_dir / "_index.json").unlink()
+
+    # load_session should still work by rebuilding the index
+    loaded = load_session(project, sid)
+    assert loaded.id == sid
 
 
 # ---------------------------------------------------------------------------

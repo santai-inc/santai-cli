@@ -1768,6 +1768,66 @@
             color: var(--text-secondary, #888);
             margin-top: 2px;
         }
+        .chat-history-search-wrap {
+            padding: 6px 8px 0;
+            flex-shrink: 0;
+        }
+        .chat-history-search {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 5px 8px;
+            border: 1px solid rgba(0,0,0,0.12);
+            border-radius: 6px;
+            font-size: 12px;
+            font-family: inherit;
+            background: transparent;
+            color: var(--text-primary);
+            outline: none;
+        }
+        .chat-history-search:focus { border-color: rgba(99,102,241,0.5); }
+        .chat-history-group-label {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--text-secondary, #888);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 8px 8px 3px;
+        }
+        .chat-history-item-title-row {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+        }
+        .chat-history-edit-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text-secondary, #aaa);
+            padding: 1px 3px;
+            border-radius: 3px;
+            flex-shrink: 0;
+            opacity: 0;
+            transition: opacity 0.12s;
+            display: flex;
+            align-items: center;
+            line-height: 1;
+            font-size: 12px;
+        }
+        .chat-history-item:hover .chat-history-edit-btn { opacity: 1; }
+        .chat-history-edit-btn:hover { background: rgba(99,102,241,0.12); color: #6366f1; }
+        .chat-history-rename-input {
+            font-size: 12px;
+            font-weight: 500;
+            border: 1px solid rgba(99,102,241,0.5);
+            border-radius: 3px;
+            padding: 0 4px;
+            min-width: 0;
+            flex: 1;
+            background: var(--glass-bg, #fff);
+            color: var(--text-primary);
+            outline: none;
+            font-family: inherit;
+        }
 
         .chat-fullscreen-btn {
             background: transparent;
@@ -4296,6 +4356,9 @@
                             </button>
                             <button class="chat-history-close-btn" onclick="toggleChatHistoryPanel()" title="Close">✕</button>
                         </div>
+                    </div>
+                    <div class="chat-history-search-wrap">
+                        <input type="text" class="chat-history-search" id="chat-history-search" placeholder="Search chats…" oninput="_lastSessionsRenderKey=''; loadChatHistorySessions()">
                     </div>
                     <div class="chat-history-list" id="chat-history-list"></div>
                 </div>
@@ -8065,49 +8128,82 @@
                 clearInterval(_historyPollTimer);
                 _historyPollTimer = null;
                 _lastSessionsRenderKey = '';
+                const _searchEl = document.getElementById('chat-history-search');
+                if (_searchEl) _searchEl.value = '';
             } else {
                 panel.style.display = 'flex';
                 btn?.classList.add('active');
                 loadChatHistorySessions();
-                _historyPollTimer = setInterval(loadChatHistorySessions, 1000);
+                _historyPollTimer = setInterval(loadChatHistorySessions, 2500);
             }
         }
 
         let _lastSessionsRenderKey = '';
 
+        function _chatDateGroup(isoString) {
+            if (!isoString) return 3;
+            const now = new Date();
+            const d = new Date(isoString);
+            const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const yesterdayStart = new Date(+todayStart - 86400000);
+            const weekStart = new Date(+todayStart - 7 * 86400000);
+            if (d >= todayStart) return 0;
+            if (d >= yesterdayStart) return 1;
+            if (d >= weekStart) return 2;
+            return 3;
+        }
+
         async function loadChatHistorySessions() {
             const listEl = document.getElementById('chat-history-list');
             if (!listEl) return;
-            // Only show loading spinner on first open (list is empty)
             if (!listEl.children.length) listEl.innerHTML = '<div class="chat-history-empty">Loading…</div>';
             try {
                 const res = await fetch('/api/chat/history');
                 if (!res.ok) throw new Error('Failed to load');
                 const sessions = await res.json();
-                const hidden = _getHiddenSessions();
-                const visible = sessions.filter(s => !hidden.has(s.id));
-                // Skip re-render if nothing changed (prevents flashing on poll)
-                const renderKey = visible.map(s => `${s.id}|${s.updated_at}|${s.title}|${s.id === _currentChatSessionId}`).join(',');
+
+                const searchEl = document.getElementById('chat-history-search');
+                const query = searchEl ? searchEl.value.trim().toLowerCase() : '';
+                const filtered = query ? sessions.filter(s => s.title.toLowerCase().includes(query)) : sessions;
+
+                // Skip re-render if nothing changed
+                const renderKey = filtered.map(s => `${s.id}|${s.updated_at}|${s.title}|${s.id === _currentChatSessionId}`).join(',') + '|' + query;
                 if (renderKey === _lastSessionsRenderKey) return;
                 _lastSessionsRenderKey = renderKey;
-                if (visible.length === 0) {
-                    listEl.innerHTML = '<div class="chat-history-empty">No saved chats yet.</div>';
+
+                if (filtered.length === 0) {
+                    listEl.innerHTML = `<div class="chat-history-empty">${query ? 'No results.' : 'No saved chats yet.'}</div>`;
                     return;
                 }
+
                 listEl.innerHTML = '';
-                visible.forEach(s => {
-                    const item = document.createElement('div');
-                    item.className = 'chat-history-item' + (s.id === _currentChatSessionId ? ' active' : '');
-                    const dateStr = s.updated_at ? s.updated_at.slice(0, 10) : '';
-                    const msgStr = s.message_count === 1 ? '1 msg' : `${s.message_count} msgs`;
-                    item.innerHTML = `
-                        <div class="chat-history-item-body" onclick="resumeChatSession('${s.id}')">
-                            <div class="chat-history-item-title">${_escapeHtml(s.title)}</div>
-                            <div class="chat-history-item-meta">${dateStr} · ${msgStr}${s.agent ? ' · ' + _escapeHtml(s.agent) : ''}</div>
-                        </div>
-                        <button class="chat-history-delete-btn" onclick="hideChatSession('${s.id}', event)" title="Remove from history">✕</button>
-                    `;
-                    listEl.appendChild(item);
+                const groupLabels = ['Today', 'Yesterday', 'Last 7 days', 'Older'];
+                const groups = [[], [], [], []];
+                filtered.forEach(s => groups[_chatDateGroup(s.updated_at)].push(s));
+
+                groups.forEach((groupSessions, gi) => {
+                    if (groupSessions.length === 0) return;
+                    const headerEl = document.createElement('div');
+                    headerEl.className = 'chat-history-group-label';
+                    headerEl.textContent = groupLabels[gi];
+                    listEl.appendChild(headerEl);
+
+                    groupSessions.forEach(s => {
+                        const item = document.createElement('div');
+                        item.className = 'chat-history-item' + (s.id === _currentChatSessionId ? ' active' : '');
+                        const msgStr = s.message_count === 1 ? '1 msg' : `${s.message_count} msgs`;
+                        item.innerHTML = `
+                            <div class="chat-history-item-body" onclick="resumeChatSession('${s.id}')">
+                                <div class="chat-history-item-title-row">
+                                    <div class="chat-history-item-title">${_escapeHtml(s.title)}</div>
+                                    <button class="chat-history-edit-btn" onclick="startRenameSession(event,'${s.id}')" title="Rename">✎</button>
+                                </div>
+                                <div class="chat-history-item-meta">${msgStr}${s.agent ? ' · ' + _escapeHtml(s.agent) : ''}</div>
+                            </div>
+                            <button class="chat-history-delete-btn" onclick="deleteChatSession('${s.id}',event)" title="Delete chat">✕</button>
+                        `;
+                        listEl.appendChild(item);
+                    });
                 });
             } catch {
                 listEl.innerHTML = '<div class="chat-history-empty">Could not load history.</div>';
@@ -8168,23 +8264,69 @@
             }
         }
 
-        const _HIDDEN_SESSIONS_KEY = 'santai-hidden-sessions';
-
-        function _getHiddenSessions() {
-            try { return new Set(JSON.parse(localStorage.getItem(_HIDDEN_SESSIONS_KEY) || '[]')); }
-            catch { return new Set(); }
-        }
-
-        function hideChatSession(sessionId, event) {
+        async function deleteChatSession(sessionId, event) {
             if (event) event.stopPropagation();
-            const hidden = _getHiddenSessions();
-            hidden.add(sessionId);
-            localStorage.setItem(_HIDDEN_SESSIONS_KEY, JSON.stringify([...hidden]));
+            if (!confirm('Delete this chat? This cannot be undone.')) return;
+            try {
+                const res = await fetch(`/api/chat/history/${sessionId}`, { method: 'DELETE' });
+                if (!res.ok) throw new Error('Delete failed');
+            } catch (e) {
+                console.error('deleteChatSession error:', e);
+                return;
+            }
             if (_currentChatSessionId === sessionId) {
                 _currentChatSessionId = null;
                 _currentChatSessionTitle = null;
             }
+            _lastSessionsRenderKey = '';
             loadChatHistorySessions();
+        }
+
+        function startRenameSession(event, sessionId) {
+            event.stopPropagation();
+            const row = event.currentTarget.closest('.chat-history-item-title-row');
+            if (!row) return;
+            const titleEl = row.querySelector('.chat-history-item-title');
+            if (!titleEl) return;
+            const currentTitle = titleEl.textContent;
+
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'chat-history-rename-input';
+            input.value = currentTitle;
+            titleEl.replaceWith(input);
+            input.focus();
+            input.select();
+
+            let cancelled = false;
+
+            async function commitRename() {
+                if (cancelled) return;
+                const newTitle = input.value.trim();
+                if (!newTitle || newTitle === currentTitle) {
+                    input.replaceWith(titleEl);
+                    return;
+                }
+                try {
+                    const res = await fetch(`/api/chat/history/${sessionId}/title`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ title: newTitle }),
+                    });
+                    if (res.ok) {
+                        titleEl.textContent = newTitle;
+                        if (_currentChatSessionId === sessionId) _currentChatSessionTitle = newTitle;
+                        _lastSessionsRenderKey = '';
+                    }
+                } catch {}
+                input.replaceWith(titleEl);
+            }
+
+            input.addEventListener('blur', commitRename);
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+                if (e.key === 'Escape') { cancelled = true; input.replaceWith(titleEl); }
+            });
         }
 
         function resumeChatFromPreview() {
