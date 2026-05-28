@@ -1544,6 +1544,21 @@ def create_app(project: SantaiProject) -> FastAPI:
     @app.get("/api/cloud/status")
     async def cloud_status() -> dict[str, Any]:
         """Return whether the user is logged in to the Santai cloud."""
+        from santai_cli.commands.auth import DEFAULT_HUB_URL, load_credentials
+
+        creds = load_credentials()
+        hub_url = creds.get("hub_url", DEFAULT_HUB_URL) if creds else DEFAULT_HUB_URL
+        if not creds:
+            return {"logged_in": False, "username": None, "hub_url": hub_url}
+        return {
+            "logged_in": True,
+            "username": creds.get("username"),
+            "hub_url": hub_url,
+        }
+
+    @app.get("/api/cloud/avatar")
+    async def cloud_avatar() -> dict[str, Any]:
+        """Return the user's avatar URL fetched from the hub (slow — call separately)."""
         import asyncio
         import json as _json
         import urllib.request
@@ -1552,11 +1567,11 @@ def create_app(project: SantaiProject) -> FastAPI:
         from santai_cli.core.hub import USER_AGENT, get_backend_url
 
         creds = load_credentials()
-        hub_url = creds.get("hub_url", DEFAULT_HUB_URL) if creds else DEFAULT_HUB_URL
         if not creds:
-            return {"logged_in": False, "username": None, "hub_url": hub_url}
+            return {"avatar_url": None}
+        hub_url = creds.get("hub_url", DEFAULT_HUB_URL)
 
-        def _fetch_avatar() -> str | None:
+        def _fetch() -> str | None:
             try:
                 backend = get_backend_url(hub_url)
                 req = urllib.request.Request(
@@ -1581,47 +1596,7 @@ def create_app(project: SantaiProject) -> FastAPI:
             except Exception:
                 return None
 
-        avatar_url = await asyncio.to_thread(_fetch_avatar)
-
-        return {
-            "logged_in": True,
-            "username": creds.get("username"),
-            "hub_url": hub_url,
-            "avatar_url": avatar_url,
-        }
-
-    @app.get("/api/cloud/debug-session")
-    async def cloud_debug_session() -> dict[str, Any]:
-        """Return raw session data from the hub for debugging."""
-        import asyncio
-        import json as _json
-        import urllib.request
-
-        from santai_cli.commands.auth import DEFAULT_HUB_URL, load_credentials
-        from santai_cli.core.hub import USER_AGENT, get_backend_url
-
-        creds = load_credentials()
-        if not creds:
-            return {"error": "not logged in"}
-        hub_url = creds.get("hub_url", DEFAULT_HUB_URL)
-
-        def _fetch() -> dict:
-            try:
-                backend = get_backend_url(hub_url)
-                url = f"{backend}/auth/get-session"
-                req = urllib.request.Request(
-                    url,
-                    headers={
-                        "Authorization": f"Bearer {creds['token']}",
-                        "User-Agent": USER_AGENT,
-                    },
-                )
-                with urllib.request.urlopen(req, timeout=5) as resp:
-                    return {"url": url, "data": _json.loads(resp.read())}
-            except Exception as e:
-                return {"url": url, "error": str(e)}
-
-        return await asyncio.to_thread(_fetch)
+        return {"avatar_url": await asyncio.to_thread(_fetch)}
 
     @app.post("/api/cloud/logout")
     async def cloud_logout() -> dict[str, str]:

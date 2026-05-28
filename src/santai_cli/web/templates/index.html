@@ -9210,6 +9210,7 @@
         let _cloudLoggedIn = false;
         let _cloudUsername = null;
         let _cloudAvatarUrl = null;
+        let _cloudHubUrl = null;
         let _hubBaseUrl = localStorage.getItem('santai-hub-base-url') || null;
         let _chatPullPendingConfirm = false;
         let _chatPostLoginPending = null; // 'push' | 'pull'
@@ -9221,13 +9222,25 @@
                 const data = await res.json();
                 _cloudLoggedIn = !!data.logged_in;
                 _cloudUsername = data.username || null;
-                _cloudAvatarUrl = data.avatar_url || null;
+                _cloudHubUrl = data.hub_url || null;
                 _renderAuthWidget();
                 if (data.logged_in && data.username) {
                     const pushBtn = document.getElementById('cloud-push-btn');
                     if (pushBtn) pushBtn.title = `Push to cloud (${data.username})`;
+                    // Fetch avatar separately — don't block widget render
+                    fetch('/api/cloud/avatar').then(r => r.ok ? r.json() : null).then(d => {
+                        if (d?.avatar_url) { _cloudAvatarUrl = d.avatar_url; _renderAuthWidget(); }
+                    }).catch(() => {});
                 }
             } catch { /* ignore — buttons always clickable, backend returns error if needed */ }
+        }
+
+        function _esc(s) {
+            return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        }
+
+        function _safeHttpUrl(url) {
+            try { const u = new URL(url); return (u.protocol === 'https:' || u.protocol === 'http:') ? url : null; } catch { return null; }
         }
 
         function _renderAuthWidget() {
@@ -9238,19 +9251,25 @@
             } else {
                 const initial = (_cloudUsername || '?')[0].toUpperCase();
                 const name = _cloudUsername || 'you';
-                const avatarInner = _cloudAvatarUrl
-                    ? `<img src="${_cloudAvatarUrl}" alt="${name}" referrerpolicy="no-referrer" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" onerror="this.parentElement.textContent='${initial}'">`
-                    : initial;
-                const hubLink = _hubBaseUrl ? `
-                        <div class="user-menu-item" onclick="window.open('${_hubBaseUrl}','_blank','noopener')">
+                const safeAvatar = _cloudAvatarUrl ? _safeHttpUrl(_cloudAvatarUrl) : null;
+                const avatarInner = safeAvatar
+                    ? `<img src="${_esc(safeAvatar)}" alt="${_esc(name)}" referrerpolicy="no-referrer" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" onerror="this.parentElement.textContent=${JSON.stringify(initial)}">`
+                    : _esc(initial);
+                const safeHubBase = _hubBaseUrl ? _safeHttpUrl(_hubBaseUrl) : null;
+                const hubLink = safeHubBase ? `
+                        <div class="user-menu-item" id="hub-link-item">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:14px;height:14px;flex-shrink:0"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
                             View on Santai Hub
                         </div>
                         <div class="user-menu-divider"></div>` : '';
+                const profileUrl = _cloudHubUrl ? _esc(`${_cloudHubUrl}/profile/${name}`) : null;
+                const nameHtml = profileUrl
+                    ? `Signed in as <a href="${profileUrl}" target="_blank" rel="noopener">@${_esc(name)}</a>`
+                    : `Signed in as @${_esc(name)}`;
                 el.innerHTML = `<div class="user-menu-wrapper" id="user-menu-wrapper">
-                    <button class="user-avatar" onclick="toggleUserMenu(event)" title="${name}">${avatarInner}</button>
+                    <button class="user-avatar" onclick="toggleUserMenu(event)" title="${_esc(name)}">${avatarInner}</button>
                     <div class="user-menu" id="user-menu">
-                        <div class="user-menu-name">Signed in as <a href="https://hub.sant.ai/profile/${name}" target="_blank" rel="noopener">@${name}</a></div>
+                        <div class="user-menu-name">${nameHtml}</div>
                         ${hubLink}
                         <div class="user-menu-item danger" onclick="cloudSignOut()">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:14px;height:14px;flex-shrink:0"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
@@ -9258,6 +9277,10 @@
                         </div>
                     </div>
                 </div>`;
+                if (safeHubBase) {
+                    const linkEl = el.querySelector('#hub-link-item');
+                    if (linkEl) linkEl.addEventListener('click', () => window.open(safeHubBase, '_blank', 'noopener'));
+                }
             }
         }
 
@@ -9272,6 +9295,9 @@
             _cloudLoggedIn = false;
             _cloudUsername = null;
             _cloudAvatarUrl = null;
+            _cloudHubUrl = null;
+            _hubBaseUrl = null;
+            localStorage.removeItem('santai-hub-base-url');
             _renderAuthWidget();
             const pushBtn = document.getElementById('cloud-push-btn');
             if (pushBtn) pushBtn.title = '';
