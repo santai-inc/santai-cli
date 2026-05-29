@@ -93,9 +93,9 @@ async def discover_models(
 
     if provider_name == "anthropic":
         try:
-            client = anthropic.AsyncAnthropic(api_key=pc.api_key)
-            page = await client.models.list(limit=100)
-            return [m.id for m in page.data]
+            async with anthropic.AsyncAnthropic(api_key=pc.api_key) as client:
+                page = await client.models.list(limit=100)
+                return [m.id for m in page.data]
         except anthropic.AuthenticationError as e:
             raise ModelDiscoveryError("invalid_key") from e
         except Exception as e:
@@ -103,9 +103,9 @@ async def discover_models(
 
     if provider_name == "openai":
         try:
-            client = openai.AsyncOpenAI(api_key=pc.api_key)
-            page = await client.models.list()
-            return _filter_openai_chat_models([m.id for m in page.data])
+            async with openai.AsyncOpenAI(api_key=pc.api_key) as client:
+                page = await client.models.list()
+                return _filter_openai_chat_models([m.id for m in page.data])
         except openai.AuthenticationError as e:
             raise ModelDiscoveryError("invalid_key") from e
         except Exception as e:
@@ -213,7 +213,7 @@ def prettify_model_id(model_id: str) -> str:
 
     'anthropic-claude-bedrock4.5-haiku' -> 'Claude Haiku 4.5'
     'claude-3-5-haiku-20241022'         -> 'Claude Haiku 3.5'
-    'us.amazon.nova-pro-v1:0'           -> 'Nova Pro'
+    'gemini-2.5-pro'                    -> 'Gemini 2.5 Pro'
     """
     model_id = re.sub(r":\d+$", "", model_id)
     model_id = re.sub(r"-\d{8}$", "", model_id)
