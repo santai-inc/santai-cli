@@ -857,7 +857,7 @@ def create_app(project: SantaiProject) -> FastAPI:
                 ):
                     if item.name.startswith(".") or item.name in _HIDDEN_FILES:
                         continue
-                    node = {
+                    node: dict[str, Any] = {
                         "name": item.name,
                         "path": str(item.relative_to(root_dir)),
                         "is_dir": item.is_dir(),
