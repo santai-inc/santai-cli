@@ -1,9 +1,4 @@
-"""Live model discovery shared by the CLI, TUI, and web UI.
-
-Each provider has its own catalog and quirks for what counts as a chat-capable
-model. This module fetches the live list and filters down to IDs that can be
-used with `chat.completions.create(...)` (or the Anthropic equivalent).
-"""
+"""Live model discovery shared by the CLI, TUI, and web UI."""
 
 import asyncio
 import logging
@@ -17,33 +12,19 @@ from santai_cli.core.config import ChatConfig, ProviderConfig
 
 logger = logging.getLogger(__name__)
 
-# Exact OpenAI model IDs we've verified work with this CLI's full chat +
-# streaming + tool-use loop. Strict allowlist (not a prefix match) because
-# OpenAI's catalog includes many same-family variants that fail in subtle
-# ways: search-preview models reject `tools`, codex/instruct go through
-# /v1/completions, realtime/audio/transcribe/tts use different endpoints,
-# o1-pro is Responses-API only, gpt-3.5-turbo's 4096 output cap is below
-# our 8192 default. Easier to allowlist a known-good set than to keep
-# extending negative filters every time OpenAI ships a new variant.
-#
-# To add a new model: confirm it supports the /v1/chat/completions endpoint,
-# `tools`, and an 8192-token output cap (or add a smaller cap to
-# _MAX_TOKENS_BY_MODEL in core/chat.py), then list it here.
+# Strict allowlist: OpenAI's catalog ships many variants that fail in subtle
+# ways (search-preview/codex/instruct/realtime/audio/o1-pro, gpt-3.5-turbo's
+# 4096 output cap). Add a model only after verifying it works with chat
+# completions, tools, and an 8192-token output cap.
 _OPENAI_CHAT_ALLOWLIST: set[str] = {
-    # GPT-5 family.
-    # Excluded: gpt-5-pro (Responses API only, not /v1/chat/completions),
-    # gpt-5 (currently fails on this CLI's account — re-add when verified).
     "gpt-5-mini",
     "gpt-5-nano",
-    # GPT-4.1 family
     "gpt-4.1",
     "gpt-4.1-mini",
     "gpt-4.1-nano",
-    # GPT-4o family
     "gpt-4o",
     "gpt-4o-mini",
     "chatgpt-4o-latest",
-    # Reasoning models. Excluded: o1-pro (Responses API only).
     "o1",
     "o1-mini",
     "o3",
@@ -51,8 +32,7 @@ _OPENAI_CHAT_ALLOWLIST: set[str] = {
     "o4-mini",
 }
 
-# Models discovered via OpenAI-compatible proxies that misbehave with this
-# CLI's tool-use loop and should never appear in the picker.
+# Proxy models that misbehave with this CLI's tool-use loop.
 _PROXY_BLOCKED_MODELS: set[str] = {
     "deepseekr1-bedrock",  # fakes tool calls as plain text
     "llama3.3-bedrock",  # fakes tool calls as plain text
@@ -65,7 +45,6 @@ _PROXY_BLOCKED_MODELS: set[str] = {
 
 
 def _filter_openai_chat_models(model_ids: list[str]) -> list[str]:
-    """Keep only OpenAI catalog IDs we've verified work with this CLI."""
     return sorted(
         (mid for mid in model_ids if mid in _OPENAI_CHAT_ALLOWLIST),
         reverse=True,
@@ -73,11 +52,11 @@ def _filter_openai_chat_models(model_ids: list[str]) -> list[str]:
 
 
 class ModelDiscoveryError(Exception):
-    """Raised when live model discovery fails. Carries an error kind."""
+    """Raised on live model discovery failure; `kind` is invalid_key/unavailable."""
 
     def __init__(self, kind: str, message: str = "") -> None:
         super().__init__(message or kind)
-        self.kind = kind  # "invalid_key" | "unavailable"
+        self.kind = kind
 
 
 async def discover_models(
@@ -88,17 +67,9 @@ async def discover_models(
 ) -> list[str]:
     """Return the live, filtered model catalog for a provider.
 
-    Falls back to `pc.available_models` (the hardcoded list from config) if the
-    live API call fails. Raises ModelDiscoveryError when the failure should be
-    surfaced to the caller (e.g. invalid key in the web UI).
-
-    Args:
-        provider_name: 'anthropic' or 'openai'.
-        pc: Resolved ProviderConfig — base_url presence determines proxy mode.
-        timeout: HTTP timeout for proxy /v1/models requests.
+    Raises ModelDiscoveryError on failure. For proxy providers (base_url set)
+    the proxy's /v1/models endpoint is used.
     """
-    # Proxy mode: any provider with a base_url goes through the OpenAI-
-    # compatible /v1/models endpoint. The proxy decides what's available.
     if pc.base_url:
         try:
             base = pc.base_url.rstrip("/")
@@ -140,7 +111,6 @@ async def discover_models(
         except Exception as e:
             raise ModelDiscoveryError("unavailable") from e
 
-    # Unknown provider type — nothing to discover, fall back to config.
     return pc.available_models
 
 
@@ -150,36 +120,23 @@ async def discover_models_or_fallback(
     *,
     timeout: float = 5.0,
 ) -> tuple[list[str], str | None]:
-    """Same as discover_models but returns (models, error_kind) instead of raising.
+    """Like discover_models but returns (models, error_kind) instead of raising.
 
-    On success: (model_list, None).
-    On failure: (pc.available_models, "invalid_key" | "unavailable").
-
-    The CLI uses this to silently fall back to the hardcoded list if the live
-    fetch fails, preserving the previous behavior.
+    On failure, returns (pc.available_models, "invalid_key" | "unavailable").
     """
     try:
-        models = await discover_models(provider_name, pc, timeout=timeout)
-        return models, None
+        return await discover_models(provider_name, pc, timeout=timeout), None
     except ModelDiscoveryError as e:
-        logger.debug(
-            "Model discovery failed for %s (%s); using fallback list",
-            provider_name,
-            e.kind,
-        )
+        logger.debug("Model discovery failed for %s (%s)", provider_name, e.kind)
         return pc.available_models, e.kind
 
 
 async def populate_live_models(config: ChatConfig) -> None:
-    """Replace each provider's available_models with the live catalog.
+    """Replace each provider's available_models with its live catalog.
 
-    Runs all providers concurrently. Per-provider failures fall back to the
-    hardcoded AVAILABLE_MODELS values. Used by `santai chat` and `santai ui`
-    so both surfaces show the same set of models the web UI does.
-
-    The provider's configured default model is preserved at the front of the
-    list even if it isn't in the discovered catalog, so /model pickers always
-    have a sensible default to mark.
+    Runs providers concurrently; per-provider failures fall back silently.
+    The configured default model is kept at the front of the list so the
+    /model picker always has something to mark as default.
     """
     providers = list(config.providers.items())
     if not providers:
@@ -195,28 +152,18 @@ async def populate_live_models(config: ChatConfig) -> None:
 
 
 def display_label_for_model(model_id: str) -> str:
-    """Best-effort human-readable label for a model ID.
-
-    Used by both CLI and web UI to render model picker entries. The lookup
-    table covers the IDs we know about; everything else is run through the
-    prettifier so unknown proxy models still get a reasonable label.
-    """
-    if model_id in _MODEL_DISPLAY_NAMES:
-        return _MODEL_DISPLAY_NAMES[model_id]
-    return prettify_model_id(model_id)
+    """Human-readable label for a model ID; falls back to prettify_model_id."""
+    return _MODEL_DISPLAY_NAMES.get(model_id) or prettify_model_id(model_id)
 
 
 _MODEL_DISPLAY_NAMES: dict[str, str] = {
-    # Direct Anthropic
     "claude-opus-4-7": "Claude Opus 4.7",
     "claude-sonnet-4-6": "Claude Sonnet 4.6",
     "claude-haiku-4-5-20251001": "Claude Haiku 4.5",
     "claude-3-7-sonnet-20250219": "Claude Sonnet 3.7",
     "claude-3-5-sonnet-20241022": "Claude Sonnet 3.5",
     "claude-3-5-haiku-20241022": "Claude Haiku 3.5",
-    # Anthropic via direct API
     "anthropic-4.5": "Claude Sonnet 4.5",
-    # Anthropic via Bedrock (proxy IDs)
     "anthropic-claude-bedrock4.5": "Claude Sonnet 4.5",
     "anthropic-claude-bedrock4.6": "Claude Sonnet 4.6",
     "anthropic-claude-bedrock4.6opus": "Claude Opus 4.6",
@@ -225,17 +172,12 @@ _MODEL_DISPLAY_NAMES: dict[str, str] = {
     "anthropic-claude-opus-4.5-bedrock": "Claude Opus 4.5",
     "anthropic-claude-bedrock4.0": "Claude Sonnet 4.5",
     "anthropic-claude-bedrock3.7": "Claude Sonnet 4.5",
-    # Amazon
     "us.amazon.nova-pro-v1:0": "Nova Pro",
     "novapro-bedrock": "Nova Pro",
-    # xAI
     "grok3-xai": "Grok 3",
-    # Google
     "gemini-flash-2": "Gemini 2.0 Flash",
     "gemini-3": "Gemini 3 Pro Preview",
-    # Moonshot
     "Kimi-K2.5": "Kimi K2.5",
-    # OpenAI direct
     "gpt-4o": "GPT-4o",
     "gpt-4o-mini": "GPT-4o mini",
     "gpt-4.1": "GPT-4.1",
@@ -248,7 +190,6 @@ _MODEL_DISPLAY_NAMES: dict[str, str] = {
     "o3": "o3",
     "o3-mini": "o3-mini",
     "o4-mini": "o4-mini",
-    # OpenAI via proxy
     "gpt-5big-santai": "GPT-5",
     "gpt-5.4-santai": "GPT-5.4",
     "gpt-5mini-santai": "GPT-5 Mini",
@@ -263,13 +204,9 @@ _NOISE = {"anthropic", "bedrock", "amazon"}
 def prettify_model_id(model_id: str) -> str:
     """Convert a raw model ID to a human-readable label.
 
-    Examples:
-        'anthropic-claude-bedrock4.5-haiku'  -> 'Claude Haiku 4.5'
-        'claude-3-5-haiku-20241022'           -> 'Claude Haiku 3.5'
-        'claude-3-7-sonnet-20250219'          -> 'Claude Sonnet 3.7'
-        'gemini-2.5-pro'                      -> 'Gemini 2.5 Pro'
-        'llama3.1-70b'                        -> 'Llama 3.1 70b'
-        'us.amazon.nova-pro-v1:0'             -> 'Nova Pro'
+    'anthropic-claude-bedrock4.5-haiku' -> 'Claude Haiku 4.5'
+    'claude-3-5-haiku-20241022'         -> 'Claude Haiku 3.5'
+    'us.amazon.nova-pro-v1:0'           -> 'Nova Pro'
     """
     model_id = re.sub(r":\d+$", "", model_id)
     model_id = re.sub(r"-\d{8}$", "", model_id)
@@ -287,6 +224,8 @@ def prettify_model_id(model_id: str) -> str:
         else:
             raw_parts.append(seg)
 
+    # Collapse consecutive single-digit numerics into a dotted version:
+    # ['claude','3','5','haiku'] -> ['claude','3.5','haiku']
     collapsed: list[str] = []
     i = 0
     while i < len(raw_parts):
