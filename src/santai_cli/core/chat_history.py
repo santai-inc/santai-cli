@@ -1,0 +1,549 @@
+"""Persistence layer for chat sessions.
+
+Saves and loads chat sessions as Markdown files under
+<project_root>/history/chat-history/.
+
+Filenames use the pattern: MM-DD-YYYY - Title.md
+The session id in the metadata block is the stable lookup key.
+
+File format (transcript first, metadata at the bottom):
+
+    **You:**
+    First user message here.
+
+    **Assistant:**
+    Response here.
+
+    ---
+    id: 20260527-153042-a1b2
+    title: "What is recursion?"
+    created_at: 2026-05-27T15:30:42+00:00
+    updated_at: 2026-05-27T15:45:10+00:00
+    provider: anthropic
+    model: claude-sonnet-4-6
+    agent: null
+    message_count: 4
+    ---
+"""
+
+import contextlib
+import json
+import os
+import re
+import tempfile
+import uuid
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from pathlib import Path
+
+from santai_cli.core.chat import ChatMessage, ChatSession
+from santai_cli.core.project import SantaiProject
+
+_INVALID_FILENAME_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+_MULTI_DASH = re.compile(r"-{2,}")
+_MULTI_SPACE = re.compile(r" {2,}")
+_FENCED_CODE_BLOCK = re.compile(r"```[^\n]*\n.*?```", re.DOTALL)
+_INDEX_FILE = "_index.json"
+_HIDDEN_FILE = "_hidden.json"
+
+
+def get_chat_history_dir(project: SantaiProject) -> Path:
+    return project.root / "history" / "chat-history"
+
+
+def _atomic_write_text(path: Path, content: str) -> None:
+    """Write content to path atomically via a temp file + os.replace."""
+    fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+    try:
+        os.write(fd, content.encode("utf-8"))
+        os.close(fd)
+        os.replace(tmp, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.close(fd)
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+        raise
+
+
+def _sanitize_title(title: str) -> str:
+    """Strip characters not allowed in filenames and normalise whitespace."""
+    cleaned = _INVALID_FILENAME_CHARS.sub("", title)
+    cleaned = _MULTI_SPACE.sub(" ", cleaned).strip(" -.")
+    return cleaned[:60] or "Untitled chat"
+
+
+def _session_filename(title: str, created_at: str, chat_dir: Path) -> str:
+    """Return a unique filename stem for a new session."""
+    try:
+        date_str = datetime.fromisoformat(created_at).strftime("%m-%d-%Y")
+    except (ValueError, TypeError):
+        date_str = datetime.now(UTC).strftime("%m-%d-%Y")
+
+    base = f"{date_str} - {_sanitize_title(title)}"
+    candidate = f"{base}.md"
+    if not (chat_dir / candidate).exists():
+        return candidate
+
+    counter = 2
+    while (chat_dir / f"{base} ({counter}).md").exists():
+        counter += 1
+    return f"{base} ({counter}).md"
+
+
+def _load_index(chat_dir: Path) -> dict[str, str]:
+    """Return the session_id → filename mapping from the index file."""
+    try:
+        data = json.loads((chat_dir / _INDEX_FILE).read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _save_index(chat_dir: Path, index: dict[str, str]) -> None:
+    _atomic_write_text(chat_dir / _INDEX_FILE, json.dumps(index, indent=2))
+
+
+def _rebuild_index(chat_dir: Path) -> dict[str, str]:
+    """Rebuild the index by scanning all .md files (O(n) fallback)."""
+    index: dict[str, str] = {}
+    for path in chat_dir.glob("*.md"):
+        try:
+            meta, _ = _parse_markdown(path.read_text(encoding="utf-8"))
+            session_id = meta.get("id", "")
+            if session_id:
+                index[session_id] = path.name
+        except OSError:
+            continue
+    _save_index(chat_dir, index)
+    return index
+
+
+def _find_session_path(chat_dir: Path, session_id: str) -> Path | None:
+    """Return the Path for a session_id using an index file for O(1) lookup."""
+    index = _load_index(chat_dir)
+    filename = index.get(session_id)
+    if filename:
+        path = chat_dir / filename
+        if path.exists():
+            return path
+    # Index miss or stale entry — rebuild once and retry.
+    index = _rebuild_index(chat_dir)
+    filename = index.get(session_id)
+    if filename:
+        path = chat_dir / filename
+        if path.exists():
+            return path
+    return None
+
+
+def generate_session_id() -> str:
+    ts = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
+    suffix = uuid.uuid4().hex[:4]
+    return f"{ts}-{suffix}"
+
+
+def auto_title(messages: list[dict[str, str]]) -> str:
+    for msg in messages:
+        if msg.get("role") == "user":
+            text = msg.get("content", "").strip()
+            return text[:40] + ("…" if len(text) > 40 else "")
+    return "Untitled chat"
+
+
+@dataclass
+class ChatSessionMetadata:
+    id: str
+    title: str
+    created_at: str
+    updated_at: str
+    provider: str
+    model: str
+    agent: str | None
+    message_count: int
+
+
+@dataclass
+class PersistedChatSession:
+    id: str
+    title: str
+    created_at: str
+    updated_at: str
+    provider: str
+    model: str
+    agent: str | None
+    message_count: int
+    system_prompt: str | None  # not stored; rebuilt from context on resume
+    messages: list[dict[str, str]] = field(default_factory=list)
+    tool_turns: list[dict] = field(default_factory=list)  # not stored in Markdown
+
+    def to_metadata(self) -> ChatSessionMetadata:
+        return ChatSessionMetadata(
+            id=self.id,
+            title=self.title,
+            created_at=self.created_at,
+            updated_at=self.updated_at,
+            provider=self.provider,
+            model=self.model,
+            agent=self.agent,
+            message_count=self.message_count,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Markdown serialisation
+# ---------------------------------------------------------------------------
+
+_MSG_PATTERN = re.compile(
+    r"(?:^|\n\n)\*\*(You|Assistant):\*\*\n(.*?)(?=\n\n\*\*(?:You|Assistant):\*\*\n|$)",
+    re.DOTALL,
+)
+
+
+def _mask_code_blocks(text: str) -> tuple[str, dict[str, str]]:
+    """Replace fenced code blocks with unique tokens so speaker labels inside
+    code blocks don't confuse the message parser."""
+    replacements: dict[str, str] = {}
+
+    def _sub(m: re.Match) -> str:
+        token = f"\x00CB{len(replacements)}\x00"
+        replacements[token] = m.group(0)
+        return token
+
+    return _FENCED_CODE_BLOCK.sub(_sub, text), replacements
+
+
+def _restore_code_blocks(text: str, replacements: dict[str, str]) -> str:
+    for token, original in replacements.items():
+        text = text.replace(token, original)
+    return text
+
+
+def _build_markdown(
+    session_id: str,
+    title: str,
+    created_at: str,
+    updated_at: str,
+    provider: str,
+    model: str,
+    agent: str | None,
+    messages: list[dict[str, str]],
+) -> str:
+    agent_val = "null" if agent is None else agent
+    metadata_block = (
+        "<!-- santai\n"
+        f"id: {session_id}\n"
+        f"title: {json.dumps(title, ensure_ascii=False)}\n"
+        f"created_at: {created_at}\n"
+        f"updated_at: {updated_at}\n"
+        f"provider: {provider}\n"
+        f"model: {model}\n"
+        f"agent: {agent_val}\n"
+        f"message_count: {len(messages)}\n"
+        "-->"
+    )
+    body_parts = []
+    for msg in messages:
+        label = "You" if msg["role"] == "user" else "Assistant"
+        body_parts.append(f"**{label}:**\n{msg['content']}")
+    body = "\n\n".join(body_parts)
+    if body:
+        return f"{body}\n\n{metadata_block}\n"
+    return f"{metadata_block}\n"
+
+
+def _parse_meta_block(block: str) -> dict:
+    """Parse key: value lines from a raw metadata block string."""
+    meta: dict = {}
+    for line in block.splitlines():
+        if ": " in line:
+            key, _, raw = line.partition(": ")
+            raw = raw.strip()
+            if raw == "null":
+                meta[key.strip()] = None
+            elif raw.isdigit():
+                meta[key.strip()] = int(raw)
+            elif raw.startswith('"'):
+                try:
+                    meta[key.strip()] = json.loads(raw)
+                except (json.JSONDecodeError, ValueError):
+                    meta[key.strip()] = raw.strip('"')
+            else:
+                meta[key.strip()] = raw
+    return meta
+
+
+_META_OPEN = "<!-- santai\n"
+_META_CLOSE = "\n-->"
+
+
+def _parse_markdown(text: str) -> tuple[dict, list[dict[str, str]]]:
+    """Parse metadata and messages from a session Markdown file.
+
+    Supports three layouts (newest first):
+    - HTML comment: transcript, then ``<!-- santai\\n{meta}\\n-->``.
+    - Legacy dash block: transcript, then ``---\\n{meta}\\n---``.
+    - Old frontmatter: ``---\\n{meta}\\n---`` at the very top.
+    """
+    meta: dict = {}
+    body = text
+
+    if _META_OPEN in text:
+        sep_idx = text.find(_META_OPEN)
+        close_idx = text.find(_META_CLOSE, sep_idx)
+        if close_idx != -1:
+            meta = _parse_meta_block(text[sep_idx + len(_META_OPEN) : close_idx])
+            body = text[:sep_idx]
+    elif "\n---\nid: " in text:
+        # Legacy: dash-delimited block at the bottom.
+        sep_idx = text.find("\n---\nid: ")
+        close_idx = text.find("\n---", sep_idx + 5)
+        if close_idx != -1:
+            meta = _parse_meta_block(text[sep_idx + 5 : close_idx])
+            body = text[:sep_idx]
+
+    masked_body, code_block_map = _mask_code_blocks(body)
+    messages: list[dict[str, str]] = []
+    for match in _MSG_PATTERN.finditer(masked_body.strip()):
+        role_label = match.group(1)
+        content = _restore_code_blocks(match.group(2).strip(), code_block_map)
+        if content:
+            role = "user" if role_label == "You" else "assistant"
+            messages.append({"role": role, "content": content})
+
+    return meta, messages
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+
+def save_session(
+    project: SantaiProject,
+    session: ChatSession,
+    session_id: str | None,
+    title: str | None,
+    provider: str,
+    model: str,
+    agent: str | None,
+) -> str:
+    """Write a chat session to disk as Markdown. Returns the session_id."""
+    chat_dir = get_chat_history_dir(project)
+    chat_dir.mkdir(parents=True, exist_ok=True)
+
+    messages = [
+        {"role": m.role, "content": m.content}
+        for m in session.messages
+        if m.role in ("user", "assistant")
+    ]
+
+    now = datetime.now(UTC).isoformat()
+
+    computed_title = title or auto_title(messages)
+
+    if session_id is None:
+        session_id = generate_session_id()
+        created_at = now
+        filename = _session_filename(computed_title, now, chat_dir)
+    else:
+        existing_path = _find_session_path(chat_dir, session_id)
+        if existing_path is not None:
+            try:
+                raw = existing_path.read_text(encoding="utf-8")
+                existing_meta, _ = _parse_markdown(raw)
+                created_at = existing_meta.get("created_at", now)
+            except OSError:
+                created_at = now
+            filename = existing_path.name  # keep the original filename
+        else:
+            created_at = now
+            filename = _session_filename(computed_title, now, chat_dir)
+
+    content = _build_markdown(
+        session_id=session_id,
+        title=computed_title,
+        created_at=created_at,
+        updated_at=now,
+        provider=provider,
+        model=model,
+        agent=agent,
+        messages=messages,
+    )
+
+    _atomic_write_text(chat_dir / filename, content)
+
+    index = _load_index(chat_dir)
+    index[session_id] = filename
+    _save_index(chat_dir, index)
+
+    return session_id
+
+
+def load_session(project: SantaiProject, session_id: str) -> PersistedChatSession:
+    """Load a chat session from disk. Raises FileNotFoundError if missing."""
+    path = _find_session_path(get_chat_history_dir(project), session_id)
+    if path is None:
+        raise FileNotFoundError(f"Chat session '{session_id}' not found")
+
+    meta, messages = _parse_markdown(path.read_text(encoding="utf-8"))
+    return PersistedChatSession(
+        id=meta.get("id", session_id),
+        title=meta.get("title", "Untitled chat"),
+        created_at=meta.get("created_at", ""),
+        updated_at=meta.get("updated_at", ""),
+        provider=meta.get("provider", ""),
+        model=meta.get("model", ""),
+        agent=meta.get("agent"),
+        message_count=meta.get("message_count", len(messages)),
+        system_prompt=None,
+        messages=messages,
+        tool_turns=[],
+    )
+
+
+def list_sessions(project: SantaiProject) -> list[ChatSessionMetadata]:
+    """Return metadata for all saved sessions, newest first, excluding hidden ones."""
+    chat_dir = get_chat_history_dir(project)
+    if not chat_dir.is_dir():
+        return []
+
+    hidden = _load_hidden(chat_dir)
+    entries: list[ChatSessionMetadata] = []
+    for path in chat_dir.glob("*.md"):
+        try:
+            meta, messages = _parse_markdown(path.read_text(encoding="utf-8"))
+            sid = meta.get("id", path.stem)
+            if sid in hidden:
+                continue
+            entries.append(
+                ChatSessionMetadata(
+                    id=sid,
+                    title=meta.get("title", "Untitled chat"),
+                    created_at=meta.get("created_at", ""),
+                    updated_at=meta.get("updated_at", ""),
+                    provider=meta.get("provider", ""),
+                    model=meta.get("model", ""),
+                    agent=meta.get("agent"),
+                    message_count=meta.get("message_count", len(messages)),
+                )
+            )
+        except OSError:
+            continue
+
+    entries.sort(key=lambda e: e.updated_at, reverse=True)
+    return entries
+
+
+def _load_hidden(chat_dir: Path) -> set[str]:
+    """Return the set of session IDs hidden from the history panel."""
+    try:
+        data = json.loads((chat_dir / _HIDDEN_FILE).read_text(encoding="utf-8"))
+        return (
+            {s for s in data if isinstance(s, str)} if isinstance(data, list) else set()
+        )
+    except (OSError, json.JSONDecodeError):
+        return set()
+
+
+def _save_hidden(chat_dir: Path, hidden: set[str]) -> None:
+    _atomic_write_text(chat_dir / _HIDDEN_FILE, json.dumps(sorted(hidden)))
+
+
+def hide_session(project: SantaiProject, session_id: str) -> None:
+    """Hide a session from the history panel without deleting the file.
+
+    Raises FileNotFoundError if the session does not exist on disk.
+    """
+    chat_dir = get_chat_history_dir(project)
+    if _find_session_path(chat_dir, session_id) is None:
+        raise FileNotFoundError(f"Chat session '{session_id}' not found")
+    hidden = _load_hidden(chat_dir)
+    hidden.add(session_id)
+    _save_hidden(chat_dir, hidden)
+
+
+def unhide_session(project: SantaiProject, session_id: str) -> None:
+    """Make a previously hidden session visible again."""
+    chat_dir = get_chat_history_dir(project)
+    hidden = _load_hidden(chat_dir)
+    hidden.discard(session_id)
+    _save_hidden(chat_dir, hidden)
+
+
+def rename_session(project: SantaiProject, session_id: str, new_title: str) -> None:
+    """Update a session's title and rename the file to match."""
+    chat_dir = get_chat_history_dir(project)
+    old_path = _find_session_path(chat_dir, session_id)
+    if old_path is None:
+        raise FileNotFoundError(f"Chat session '{session_id}' not found")
+
+    meta, messages = _parse_markdown(old_path.read_text(encoding="utf-8"))
+    now = datetime.now(UTC).isoformat()
+    created_at = meta.get("created_at", now)
+
+    try:
+        date_str = datetime.fromisoformat(created_at).strftime("%m-%d-%Y")
+    except (ValueError, TypeError):
+        date_str = datetime.now(UTC).strftime("%m-%d-%Y")
+
+    base = f"{date_str} - {_sanitize_title(new_title)}"
+    candidate = f"{base}.md"
+
+    if candidate == old_path.name:
+        new_path = old_path
+    else:
+        new_path = chat_dir / candidate
+        if new_path.exists():
+            counter = 2
+            while (chat_dir / f"{base} ({counter}).md").exists():
+                counter += 1
+            new_path = chat_dir / f"{base} ({counter}).md"
+
+    content = _build_markdown(
+        session_id=meta.get("id", session_id),
+        title=new_title,
+        created_at=created_at,
+        updated_at=now,
+        provider=meta.get("provider", ""),
+        model=meta.get("model", ""),
+        agent=meta.get("agent"),
+        messages=messages,
+    )
+
+    _atomic_write_text(new_path, content)
+    if new_path != old_path:
+        old_path.unlink()
+
+    index = _load_index(chat_dir)
+    index[session_id] = new_path.name
+    _save_index(chat_dir, index)
+
+
+def delete_session(project: SantaiProject, session_id: str) -> None:
+    """Delete a session file. Raises FileNotFoundError if missing."""
+    chat_dir = get_chat_history_dir(project)
+    path = _find_session_path(chat_dir, session_id)
+    if path is None:
+        raise FileNotFoundError(f"Chat session '{session_id}' not found")
+    path.unlink()
+    index = _load_index(chat_dir)
+    index.pop(session_id, None)
+    _save_index(chat_dir, index)
+    hidden = _load_hidden(chat_dir)
+    if session_id in hidden:
+        hidden.discard(session_id)
+        _save_hidden(chat_dir, hidden)
+
+
+def restore_chat_session(persisted: PersistedChatSession) -> ChatSession:
+    """Reconstruct a ChatSession from a PersistedChatSession for resumption."""
+    session = ChatSession()
+    for msg in persisted.messages:
+        role = msg.get("role", "")
+        content = msg.get("content", "")
+        if role == "user":
+            session.messages.append(ChatMessage(role="user", content=content))
+        elif role == "assistant":
+            session.messages.append(ChatMessage(role="assistant", content=content))
+    return session

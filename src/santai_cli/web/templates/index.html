@@ -256,7 +256,7 @@
         .sidebar-header {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 6px;
         }
 
         .sidebar-header img {
@@ -268,6 +268,106 @@
             font-size: 18px;
             font-weight: 600;
             letter-spacing: 0.02em;
+        }
+
+        .auth-widget {
+            margin-left: auto;
+            flex-shrink: 0;
+        }
+
+        .auth-sign-in-btn {
+            font-size: 13px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            background: var(--accent);
+            color: white;
+            border: none;
+            cursor: pointer;
+            white-space: nowrap;
+            font-weight: 500;
+            transition: background 0.15s;
+        }
+
+        .auth-sign-in-btn:hover {
+            background: var(--accent-hover);
+        }
+
+        .user-avatar {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: var(--accent);
+            color: white;
+            font-size: 12px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border: none;
+            user-select: none;
+            flex-shrink: 0;
+        }
+
+        .user-avatar:hover { opacity: 0.85; }
+
+        .user-menu-wrapper { position: relative; }
+
+        .user-menu {
+            display: none;
+            position: absolute;
+            top: calc(100% + 6px);
+            right: 0;
+            background: var(--surface, #fff);
+            border: 1px solid rgba(0,0,0,0.1);
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+            min-width: 160px;
+            z-index: 1000;
+            overflow: hidden;
+        }
+
+        .user-menu.open { display: block; }
+
+        .user-menu-name {
+            padding: 10px 14px 8px;
+            font-size: 11px;
+            color: var(--text-secondary, rgba(0,0,0,0.55));
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            border-bottom: 1px solid rgba(0,0,0,0.07);
+        }
+
+        .user-menu-name a {
+            color: inherit;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.1s;
+        }
+
+        .user-menu-name a:hover {
+            color: rgba(0,0,0,0.85);
+        }
+
+        .user-menu-item {
+            padding: 5px 14px;
+            font-size: 13px;
+            color: var(--text-primary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .user-menu-item:hover { background: rgba(0,0,0,0.05); }
+
+        .user-menu-item.danger { color: #ef4444; }
+
+        .user-menu-divider {
+            height: 1px;
+            background: rgba(0,0,0,0.07);
+            margin: 2px 0;
         }
 
         .sidebar-section {
@@ -1256,6 +1356,7 @@
             flex: 1;
             overflow: hidden;
             min-height: 0;
+            position: relative;
         }
 
         /* Empty preview state */
@@ -1299,7 +1400,7 @@
             overflow: hidden;
             text-overflow: ellipsis;
             margin-bottom: 2px;
-            display: inline;
+            display: block;
         }
 
         .preview-title span {
@@ -1314,6 +1415,23 @@
             gap: 8px;
             flex-shrink: 0;
         }
+
+        .chat-history-resume-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 10px;
+            background: rgba(34,197,94,0.1);
+            border: 1px solid rgba(34,197,94,0.35);
+            border-radius: 6px;
+            font-size: 12px;
+            font-family: inherit;
+            font-weight: 500;
+            color: #16a34a;
+            cursor: pointer;
+            transition: background 0.12s;
+        }
+        .chat-history-resume-btn:hover { background: rgba(34,197,94,0.18); }
 
         .preview-open-new-window {
             background: none;
@@ -1607,6 +1725,208 @@
         }
 
         /* Chat fullscreen button (matches preview-fullscreen-btn style) */
+        .chat-history-icon-btn {
+            background: transparent;
+            border: none;
+            border-radius: 8px;
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: background 0.15s, color 0.15s;
+            color: var(--text-muted);
+        }
+
+        .chat-history-icon-btn:hover {
+            background: rgba(0, 0, 0, 0.06);
+            color: var(--text-primary);
+        }
+
+        .chat-history-icon-btn.active {
+            background: rgba(99, 102, 241, 0.12);
+            color: #6366f1;
+        }
+
+        .chat-history-icon-btn svg {
+            width: 14px;
+            height: 14px;
+            stroke: currentColor;
+            stroke-width: 2;
+        }
+
+        [data-theme="simple"] .chat-history-icon-btn:hover {
+            background: #f1f3f5;
+        }
+
+        [data-theme="simple"] .chat-history-icon-btn.active {
+            background: #e0e7ff;
+        }
+
+        .chat-history-panel {
+            position: absolute;
+            inset: 0;
+            z-index: 10;
+            background: var(--glass-bg, rgba(255,255,255,0.92));
+            backdrop-filter: blur(8px);
+            display: flex;
+            flex-direction: column;
+            border-radius: inherit;
+            overflow: hidden;
+        }
+        .chat-history-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 12px 8px;
+            border-bottom: 1px solid rgba(0,0,0,0.08);
+            font-weight: 600;
+            font-size: 13px;
+            flex-shrink: 0;
+        }
+        .chat-history-close-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text-secondary, #666);
+            font-size: 16px;
+            line-height: 1;
+            padding: 2px 6px;
+            border-radius: 5px;
+        }
+        .chat-history-close-btn:hover { background: rgba(0,0,0,0.07); }
+        .chat-history-new-btn {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 8px;
+            background: rgba(34,197,94,0.1);
+            border: 1px solid rgba(34,197,94,0.35);
+            border-radius: 5px;
+            font-size: 12px;
+            font-family: inherit;
+            color: #16a34a;
+            cursor: pointer;
+            transition: background 0.12s;
+            flex-shrink: 0;
+            font-weight: 500;
+        }
+        .chat-history-new-btn:hover { background: rgba(34,197,94,0.18); }
+        .chat-history-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 4px 8px 8px;
+        }
+        .chat-history-empty {
+            text-align: center;
+            color: var(--text-secondary, #888);
+            font-size: 12px;
+            padding: 24px 0;
+        }
+        .chat-history-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 6px;
+            padding: 7px 8px;
+            border-radius: 7px;
+            cursor: pointer;
+            transition: background 0.12s;
+        }
+        .chat-history-item:hover { background: rgba(0,0,0,0.05); }
+        .chat-history-delete-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text-secondary, #aaa);
+            font-size: 13px;
+            padding: 2px 4px;
+            border-radius: 4px;
+            flex-shrink: 0;
+        }
+        .chat-history-item:hover .chat-history-item-actions { opacity: 1; }
+        .chat-history-delete-btn:hover { background: rgba(239,68,68,0.12); color: #ef4444; }
+        .chat-history-item.active { background: rgba(34,197,94,0.1); }
+        .chat-history-item.active .chat-history-item-title { color: #16a34a; }
+        .chat-history-item.active:hover { background: rgba(34,197,94,0.15); }
+        .chat-history-item-body {
+            flex: 1;
+            min-width: 0;
+        }
+        .chat-history-item-title {
+            font-size: 12px;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .chat-history-item-meta {
+            font-size: 10px;
+            color: var(--text-secondary, #888);
+            margin-top: 2px;
+        }
+        .chat-history-search-wrap {
+            padding: 6px 8px 0;
+            flex-shrink: 0;
+        }
+        .chat-history-search {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 5px 8px;
+            border: 1px solid rgba(0,0,0,0.12);
+            border-radius: 6px;
+            font-size: 12px;
+            font-family: inherit;
+            background: transparent;
+            color: var(--text-primary);
+            outline: none;
+        }
+        .chat-history-search:focus { border-color: rgba(99,102,241,0.5); }
+        .chat-history-group-label {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--text-secondary, #888);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 8px 8px 3px;
+        }
+        .chat-history-item-actions {
+            display: flex;
+            align-items: center;
+            gap: 1px;
+            flex-shrink: 0;
+            align-self: flex-start;
+            opacity: 0;
+            transition: opacity 0.12s;
+        }
+        .chat-history-edit-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text-secondary, #aaa);
+            padding: 2px 4px;
+            border-radius: 4px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+        }
+        .chat-history-edit-btn svg { width: 12px; height: 12px; stroke-width: 1.5; }
+        .chat-history-edit-btn:hover { background: rgba(34,197,94,0.12); color: #16a34a; }
+        .chat-history-rename-input {
+            font-size: 12px;
+            font-weight: 500;
+            border: 1px solid rgba(99,102,241,0.5);
+            border-radius: 3px;
+            padding: 0 4px;
+            min-width: 0;
+            flex: 1;
+            background: var(--glass-bg, #fff);
+            color: var(--text-primary);
+            outline: none;
+            font-family: inherit;
+        }
+
         .chat-fullscreen-btn {
             background: transparent;
             backdrop-filter: none;
@@ -3797,6 +4117,7 @@
                 padding-right: 18px;
             }
         }
+
     </style>
 </head>
 <body>
@@ -3806,6 +4127,7 @@
             <div class="sidebar-header">
                 <img src="/static/logo.png" alt="Santai" onerror="this.style.display='none'" onclick="showDashboard()" style="cursor: pointer;">
                 <h1 onclick="showDashboard()" style="cursor: pointer;">Santai</h1>
+                <div class="auth-widget" id="auth-widget"></div>
             </div>
 
             <!-- Tree View -->
@@ -4018,6 +4340,10 @@
                         <span id="preview-size">0 KB</span>
                     </div>
                     <div class="preview-header-actions">
+                        <button class="chat-history-resume-btn" id="preview-resume-chat-btn" onclick="resumeChatFromPreview()" title="Resume this chat" style="display:none;">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+                            Resume Chat
+                        </button>
                         <button class="preview-open-new-window" id="preview-open-new-window-btn" onclick="openPreviewInNewTab()" title="Open in new window">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
@@ -4087,11 +4413,21 @@
                                 </svg>
                                 Settings
                             </button>
+                            <div style="display:flex;align-items:center;gap:2px;margin-left:4px;">
+                            <button class="chat-history-icon-btn" id="chat-history-icon-btn" onclick="toggleChatHistoryPanel()" title="Chat history">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="1 4 1 10 7 10" />
+                                    <path d="M3.51 15a9 9 0 102.13-9.36L1 10" />
+                                    <line x1="12" y1="7" x2="12" y2="12" />
+                                    <polyline points="12 12 15 14" />
+                                </svg>
+                            </button>
                             <button class="chat-fullscreen-btn" id="chat-fullscreen-btn" onclick="toggleChatFullscreen()" title="Toggle fullscreen">
                                 <svg id="chat-fullscreen-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
                                 </svg>
                             </button>
+                            </div>
                         </div>
                     </div>
                     <div class="chat-header-controls">
@@ -4105,8 +4441,25 @@
                             <div class="chat-custom-select-list" id="chat-model-select-list"></div>
                             <select id="chat-model-select" style="display:none;"></select>
                         </div>
-                        <button class="chat-ctrl-btn" onclick="clearChat()">Clear</button>
+                        <button class="chat-ctrl-btn" onclick="clearChatBtn()">Clear</button>
                     </div>
+                </div>
+                <!-- Chat history overlay panel -->
+                <div class="chat-history-panel" id="chat-history-panel" style="display:none;">
+                    <div class="chat-history-header">
+                        <span>Chat History</span>
+                        <div style="display:flex;align-items:center;gap:6px;">
+                            <button class="chat-history-new-btn" onclick="startNewChat(); toggleChatHistoryPanel();">
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                New Chat
+                            </button>
+                            <button class="chat-history-close-btn" onclick="toggleChatHistoryPanel()" title="Close">✕</button>
+                        </div>
+                    </div>
+                    <div class="chat-history-search-wrap">
+                        <input type="text" class="chat-history-search" id="chat-history-search" placeholder="Search chats…" oninput="_lastSessionsRenderKey=''; loadChatHistorySessions()">
+                    </div>
+                    <div class="chat-history-list" id="chat-history-list"></div>
                 </div>
                 <!-- Messages container (position:relative for scroll btn) -->
                 <div style="flex:1;min-height:0;position:relative;display:flex;flex-direction:column;">
@@ -4337,6 +4690,8 @@
         let previewPath = null;
         let previewHistory = []; // paths navigated via markdown links, for back-button
         let previewReturnClusterId = null; // set when a file is opened from a cluster list
+        let _previewPollTimer = null;
+        let _previewLastContent = null;
         function hasPreviewContent() {
             const header = document.getElementById('preview-file-header');
             return Boolean(header) && header.style.display !== 'none';
@@ -4388,6 +4743,9 @@
 
         // File Preview Functions
         async function openFilePreview(path, historyMode = 'clear') {
+            clearInterval(_previewPollTimer);
+            _previewPollTimer = null;
+            _previewLastContent = null;
             if (historyMode === 'push') {
                 if (previewPath) previewHistory.push(previewPath);
             } else if (historyMode === 'clear') {
@@ -4420,6 +4778,21 @@
 
                 document.getElementById('preview-filename').textContent = data.name;
                 document.getElementById('preview-size').textContent = data.size_formatted;
+
+                // Show Resume Chat button for chat-history .md files
+                const resumeBtn = document.getElementById('preview-resume-chat-btn');
+                const isChatHistory = path.includes('history/chat-history/') && path.endsWith('.md');
+                if (isChatHistory && data.content) {
+                    const idMatch = data.content.match(/\nid:\s*([^\n]+)/);
+                    if (idMatch) {
+                        resumeBtn._sessionId = idMatch[1].trim();
+                        resumeBtn.style.display = 'inline-flex';
+                    } else {
+                        resumeBtn.style.display = 'none';
+                    }
+                } else {
+                    resumeBtn.style.display = 'none';
+                }
 
                 if (!data.preview) {
                     content.innerHTML = `
@@ -4490,6 +4863,10 @@
                 } else if (data.type === 'image') {
                     content.innerHTML = `<img class="preview-image" src="${data.url}" alt="${data.name}">`;
                 }
+                _previewLastContent = data.content ?? null;
+                if (!_previewPollTimer) {
+                    _previewPollTimer = setInterval(_pollPreviewContent, 2000);
+                }
             } catch (err) {
                 content.innerHTML = `
                     <div class="preview-message">
@@ -4500,6 +4877,18 @@
                     </div>
                 `;
             }
+        }
+
+        async function _pollPreviewContent() {
+            if (!previewPath) return;
+            try {
+                const res = await fetch(`/api/files/content?path=${encodeURIComponent(previewPath)}`);
+                if (!res.ok) return;
+                const data = await res.json();
+                const newContent = data.content ?? null;
+                if (newContent === _previewLastContent) return;
+                openFilePreview(previewPath, 'replace');
+            } catch { /* ignore poll errors */ }
         }
 
         function resizeGraphIfFullscreen() {
@@ -4517,6 +4906,9 @@
         }
 
         function resetPreviewState() {
+            clearInterval(_previewPollTimer);
+            _previewPollTimer = null;
+            _previewLastContent = null;
             previewPath = null;
             previewHistory = [];
             updateTreePreviewState();
@@ -7156,6 +7548,12 @@
         const CHAT_STORAGE_KEY = 'santai-chat-messages';
         const CHAT_TOKEN_KEY = 'santai-chat-messages-token';
 
+        // --- Persistent session tracking ---
+        let _currentChatSessionId = null;
+        let _currentChatSessionTitle = null;
+        let _pendingWelcomeMessage = null; // flushed into chatMessages on first real send
+        let _sessionContext = null; // injected into system prompt on resumed sessions
+
         function saveChatHistory() {
             try {
                 const token = document.querySelector('meta[name="startup-token"]')?.content;
@@ -7245,7 +7643,7 @@
             const titleEl = document.getElementById('chat-assistant-title');
             if (titleEl) titleEl.textContent = cfg.title;
             appendChatMessage('assistant', cfg.welcome);
-            chatMessages.push({ role: 'assistant', content: cfg.welcome });
+            _pendingWelcomeMessage = cfg.welcome;
             if (cfg.chips && cfg.chips.length) {
                 const messagesEl = document.getElementById('chat-messages');
                 const wrap = document.createElement('div');
@@ -7798,9 +8196,22 @@
             };
         }
 
+        async function clearChatBtn() {
+            _titleGenEpoch++;
+            if (chatMessages.length > 0) await saveCurrentChatSession();
+            _currentChatSessionId = null;
+            _currentChatSessionTitle = null;
+            clearChat();
+        }
+
         function clearChat() {
             if (_chatAbortController) { _chatAbortController.abort(); _chatAbortController = null; }
             _chatEpoch++;             // invalidate any in-flight stream
+            _currentChatSessionId = null;
+            _currentChatSessionTitle = null;
+            _pendingWelcomeMessage = null;
+            _sessionContext = null;
+            _titleGenEpoch++;
             chatMessages = [];
             chatStreaming = false;
             try { localStorage.removeItem(CHAT_STORAGE_KEY); localStorage.removeItem(CHAT_TOKEN_KEY); } catch {}
@@ -7814,6 +8225,355 @@
             chatUpdateSendBtn();
             const agent = document.getElementById('chat-agent-select')?.value || '';
             showAgentWelcome(agent);
+        }
+
+        // --- Chat History Panel ---
+
+        let _historyPollTimer = null;
+
+        function toggleChatHistoryPanel() {
+            const panel = document.getElementById('chat-history-panel');
+            const btn = document.getElementById('chat-history-icon-btn');
+            if (!panel) return;
+            const isOpen = panel.style.display !== 'none';
+            if (isOpen) {
+                panel.style.display = 'none';
+                btn?.classList.remove('active');
+                clearInterval(_historyPollTimer);
+                _historyPollTimer = null;
+                _lastSessionsRenderKey = '';
+                const _searchEl = document.getElementById('chat-history-search');
+                if (_searchEl) _searchEl.value = '';
+            } else {
+                panel.style.display = 'flex';
+                btn?.classList.add('active');
+                loadChatHistorySessions();
+                _historyPollTimer = setInterval(loadChatHistorySessions, 2500);
+            }
+        }
+
+        let _lastSessionsRenderKey = '';
+
+        function _chatDateGroup(isoString) {
+            if (!isoString) return 3;
+            const now = new Date();
+            const d = new Date(isoString);
+            const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const yesterdayStart = new Date(+todayStart - 86400000);
+            const weekStart = new Date(+todayStart - 7 * 86400000);
+            if (d >= todayStart) return 0;
+            if (d >= yesterdayStart) return 1;
+            if (d >= weekStart) return 2;
+            return 3;
+        }
+
+        async function loadChatHistorySessions() {
+            const listEl = document.getElementById('chat-history-list');
+            if (!listEl) return;
+            if (!listEl.children.length) listEl.innerHTML = '<div class="chat-history-empty">Loading…</div>';
+            try {
+                const res = await fetch('/api/chat/history');
+                if (!res.ok) throw new Error('Failed to load');
+                const sessions = await res.json();
+
+                const searchEl = document.getElementById('chat-history-search');
+                const query = searchEl ? searchEl.value.trim().toLowerCase() : '';
+                const filtered = query ? sessions.filter(s => s.title.toLowerCase().includes(query)) : sessions;
+
+                // Skip re-render if nothing changed
+                const renderKey = filtered.map(s => `${s.id}|${s.updated_at}|${s.title}|${s.id === _currentChatSessionId}`).join(',') + '|' + query;
+                if (renderKey === _lastSessionsRenderKey) return;
+                _lastSessionsRenderKey = renderKey;
+
+                if (filtered.length === 0) {
+                    listEl.innerHTML = `<div class="chat-history-empty">${query ? 'No results.' : 'No saved chats yet.'}</div>`;
+                    return;
+                }
+
+                listEl.innerHTML = '';
+                const groupLabels = ['Today', 'Yesterday', 'Last 7 days', 'Older'];
+                const groups = [[], [], [], []];
+                filtered.forEach(s => groups[_chatDateGroup(s.updated_at)].push(s));
+
+                groups.forEach((groupSessions, gi) => {
+                    if (groupSessions.length === 0) return;
+                    const headerEl = document.createElement('div');
+                    headerEl.className = 'chat-history-group-label';
+                    headerEl.textContent = groupLabels[gi];
+                    listEl.appendChild(headerEl);
+
+                    groupSessions.forEach(s => {
+                        const item = document.createElement('div');
+                        item.className = 'chat-history-item' + (s.id === _currentChatSessionId ? ' active' : '');
+                        const msgStr = s.message_count === 1 ? '1 msg' : `${s.message_count} msgs`;
+                        item.innerHTML = `
+                            <div class="chat-history-item-body">
+                                <div class="chat-history-item-title">${_escapeHtml(s.title)}</div>
+                                <div class="chat-history-item-meta">${msgStr}${s.agent ? ' · ' + _escapeHtml(s.agent) : ''}</div>
+                            </div>
+                            <div class="chat-history-item-actions">
+                                <button class="chat-history-edit-btn" title="Rename">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" /></svg>
+                                </button>
+                                <button class="chat-history-delete-btn" title="Remove from history">✕</button>
+                            </div>
+                        `;
+                        // Attach handlers via addEventListener so session IDs never appear in HTML strings
+                        item.querySelector('.chat-history-item-body').addEventListener('click', () => resumeChatSession(s.id));
+                        item.querySelector('.chat-history-edit-btn').addEventListener('click', (e) => startRenameSession(e, s.id));
+                        item.querySelector('.chat-history-delete-btn').addEventListener('click', (e) => hideChatSession(s.id, e));
+                        listEl.appendChild(item);
+                    });
+                });
+            } catch {
+                listEl.innerHTML = '<div class="chat-history-empty">Could not load history.</div>';
+            }
+        }
+
+        async function resumeChatSession(sessionId) {
+            try {
+                const res = await fetch(`/api/chat/history/${sessionId}`);
+                if (!res.ok) throw new Error('Session not found');
+                const session = await res.json();
+
+                // Abort any in-flight stream
+                if (_chatAbortController) { _chatAbortController.abort(); _chatAbortController = null; }
+                _chatEpoch++;
+                chatStreaming = false;
+
+                // Clear current chat state
+                chatMessages = [];
+                const messagesEl = document.getElementById('chat-messages');
+                if (messagesEl) messagesEl.innerHTML = '';
+
+                // Restore messages
+                (session.messages || []).forEach(m => {
+                    if (m.role === 'user' || m.role === 'assistant') {
+                        chatMessages.push({role: m.role, content: m.content});
+                        appendChatMessage(m.role, m.content);
+                    }
+                });
+                saveChatHistory();
+
+                _currentChatSessionId = session.id;
+                _currentChatSessionTitle = session.title;
+                _pendingWelcomeMessage = null;
+
+                // Ensure the session is visible in the history panel (in case it was hidden)
+                fetch(`/api/chat/history/${sessionId}/unhide`, { method: 'POST' }).catch(() => {});
+                loadChatHistorySessions();
+                if (session.updated_at) {
+                    const d = new Date(session.updated_at);
+                    const dateStr = d.toLocaleDateString('en-US', {month:'long', day:'numeric', year:'numeric'});
+                    _sessionContext = `This conversation was last active on ${dateStr}.`;
+                } else {
+                    _sessionContext = null;
+                }
+
+                // Restore model/provider if available
+                if (session.provider && session.model) {
+                    _tryRestoreModel(session.provider, session.model);
+                }
+                if (session.agent) {
+                    _tryRestoreAgent(session.agent);
+                }
+
+                chatHideEmptyState();
+                // Close the history panel if it's open
+                const _histPanel = document.getElementById('chat-history-panel');
+                if (_histPanel && _histPanel.style.display !== 'none') toggleChatHistoryPanel();
+
+                const inputEl = document.getElementById('chat-input');
+                const sendBtn = document.getElementById('chat-send-btn');
+                if (inputEl) inputEl.disabled = false;
+                if (sendBtn) sendBtn.disabled = false;
+                chatUpdateSendBtn();
+
+                // Scroll to bottom
+                setTimeout(chatScrollToBottom, 50);
+            } catch (e) {
+                console.error('resumeChatSession error:', e);
+            }
+        }
+
+        async function hideChatSession(sessionId, event) {
+            if (event) event.stopPropagation();
+            try {
+                await fetch(`/api/chat/history/${sessionId}/hide`, { method: 'POST' });
+            } catch (e) {
+                console.error('hideChatSession error:', e);
+                return;
+            }
+            if (_currentChatSessionId === sessionId) {
+                _currentChatSessionId = null;
+                _currentChatSessionTitle = null;
+            }
+            _lastSessionsRenderKey = '';
+            loadChatHistorySessions();
+        }
+
+        function startRenameSession(event, sessionId) {
+            event.stopPropagation();
+            const item = event.currentTarget.closest('.chat-history-item');
+            if (!item) return;
+            const titleEl = item.querySelector('.chat-history-item-title');
+            if (!titleEl) return;
+            const currentTitle = titleEl.textContent;
+
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'chat-history-rename-input';
+            input.value = currentTitle;
+            titleEl.replaceWith(input);
+            input.focus();
+            input.select();
+
+            let cancelled = false;
+
+            async function commitRename() {
+                if (cancelled) return;
+                const newTitle = input.value.trim();
+                if (!newTitle || newTitle === currentTitle) {
+                    input.replaceWith(titleEl);
+                    return;
+                }
+                try {
+                    const res = await fetch(`/api/chat/history/${sessionId}/title`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ title: newTitle }),
+                    });
+                    if (res.ok) {
+                        titleEl.textContent = newTitle;
+                        if (_currentChatSessionId === sessionId) _currentChatSessionTitle = newTitle;
+                        _lastSessionsRenderKey = '';
+                    }
+                } catch {}
+                input.replaceWith(titleEl);
+            }
+
+            input.addEventListener('blur', commitRename);
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+                if (e.key === 'Escape') { cancelled = true; input.replaceWith(titleEl); }
+            });
+        }
+
+        function resumeChatFromPreview() {
+            const btn = document.getElementById('preview-resume-chat-btn');
+            if (btn && btn._sessionId) resumeChatSession(btn._sessionId);
+        }
+
+        let _titleGenEpoch = 0;
+
+        async function generateSmartTitle() {
+            const myEpoch = ++_titleGenEpoch;
+            if (chatMessages.length < 2) return;
+            const modelSelect = document.getElementById('chat-model-select');
+            const modelValue = modelSelect ? modelSelect.value : '';
+            let provider = '', model = '';
+            if (modelValue) {
+                try { const p = JSON.parse(modelValue); provider = p.provider || ''; model = p.model || ''; } catch {}
+            }
+            if (!provider || !model) return;
+            try {
+                const res = await fetch('/api/chat/generate-title', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ messages: chatMessages.filter(m => m.role === 'user' || m.role === 'assistant').slice(0, 2), provider, model }),
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    // Discard result if a new chat started while we were waiting
+                    if (data.title && myEpoch === _titleGenEpoch) _currentChatSessionTitle = data.title;
+                }
+            } catch {}
+        }
+
+        async function saveCurrentChatSession() {
+            if (chatMessages.length === 0) return;
+            const modelSelect = document.getElementById('chat-model-select');
+            const modelValue = modelSelect ? modelSelect.value : '';
+            let provider = '', model = '';
+            if (modelValue) {
+                try { const p = JSON.parse(modelValue); provider = p.provider || ''; model = p.model || ''; } catch {}
+            }
+            const agent = document.getElementById('chat-agent-select')?.value || null;
+            // Derive a fallback title client-side so the backend never falls back to "Untitled chat"
+            let titleToSave = _currentChatSessionTitle;
+            if (!titleToSave) {
+                const firstUser = chatMessages.find(m => m.role === 'user');
+                if (firstUser) {
+                    const t = firstUser.content.trim();
+                    titleToSave = t.slice(0, 40) + (t.length > 40 ? '…' : '');
+                }
+            }
+            try {
+                const res = await fetch('/api/chat/history', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        session_id: _currentChatSessionId,
+                        title: titleToSave || null,
+                        provider,
+                        model,
+                        agent: agent || null,
+                        messages: chatMessages,
+                    })
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    _currentChatSessionId = data.session_id;
+                } else {
+                    console.error('saveCurrentChatSession: server error', res.status);
+                }
+            } catch (e) {
+                console.error('saveCurrentChatSession error:', e);
+            }
+        }
+
+        async function startNewChat() {
+            _titleGenEpoch++; // invalidate any in-flight title generation
+            if (chatMessages.length > 0) {
+                await saveCurrentChatSession(); // wait for save to complete before resetting state
+            }
+            _currentChatSessionId = null;
+            _currentChatSessionTitle = null;
+            clearChat();
+        }
+
+        function _escapeHtml(str) {
+            return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+
+        function _tryRestoreModel(provider, model) {
+            const sel = document.getElementById('chat-model-select');
+            if (!sel) return;
+            for (const opt of sel.options) {
+                try {
+                    const p = JSON.parse(opt.value);
+                    if (p.provider === provider && p.model === model) {
+                        sel.value = opt.value;
+                        // Also update the visible button label
+                        const btn = document.getElementById('chat-model-select-btn');
+                        if (btn) btn.textContent = opt.textContent;
+                        return;
+                    }
+                } catch {}
+            }
+        }
+
+        function _tryRestoreAgent(agentName) {
+            const sel = document.getElementById('chat-agent-select');
+            if (!sel) return;
+            for (const opt of sel.options) {
+                if (opt.value === agentName) {
+                    sel.value = agentName;
+                    const btn = document.getElementById('chat-agent-select-btn');
+                    if (btn) btn.textContent = opt.textContent;
+                    return;
+                }
+            }
         }
 
         // Stream a response using the current chatMessages state and selected model/agent.
@@ -7849,7 +8609,8 @@
                         messages: chatMessages,
                         provider: selected.provider,
                         model: selected.model,
-                        agent: agent
+                        agent: agent,
+                        session_context: _sessionContext || undefined
                     })
                 });
 
@@ -7945,6 +8706,12 @@
                 if (fullResponse) {
                     chatMessages.push({role: 'assistant', content: fullResponse});
                     saveChatHistory();
+                    // Generate a smart title on the first exchange, then save
+                    if (!_currentChatSessionTitle && _currentChatSessionId === null) {
+                        generateSmartTitle().then(() => saveCurrentChatSession());
+                    } else {
+                        saveCurrentChatSession();
+                    }
                 }
 
             } catch (e) {
@@ -7990,6 +8757,10 @@
             inputEl.value = '';
             chatInputResize(inputEl);
             appendChatMessage('user', userText);
+            if (_pendingWelcomeMessage) {
+                chatMessages.push({ role: 'assistant', content: _pendingWelcomeMessage });
+                _pendingWelcomeMessage = null;
+            }
             chatMessages.push({role: 'user', content: userText});
             saveChatHistory();
             chatHideEmptyState();
@@ -9107,6 +9878,10 @@
 
         let _cloudStreaming = false;
         let _cloudLoggedIn = false;
+        let _cloudUsername = null;
+        let _cloudAvatarUrl = null;
+        let _cloudHubUrl = null;
+        let _hubBaseUrl = localStorage.getItem('santai-hub-base-url') || null;
         let _chatPullPendingConfirm = false;
         let _chatPostLoginPending = null; // 'push' | 'pull'
 
@@ -9116,11 +9891,93 @@
                 if (!res.ok) return;
                 const data = await res.json();
                 _cloudLoggedIn = !!data.logged_in;
-                if (data.logged_in) {
+                _cloudUsername = data.username || null;
+                _cloudHubUrl = data.hub_url || null;
+                _renderAuthWidget();
+                if (data.logged_in && data.username) {
                     const pushBtn = document.getElementById('cloud-push-btn');
-                    if (pushBtn && data.username) pushBtn.title = `Push to cloud (${data.username})`;
+                    if (pushBtn) pushBtn.title = `Push to cloud (${data.username})`;
+                    // Fetch avatar separately — don't block widget render
+                    fetch('/api/cloud/avatar').then(r => r.ok ? r.json() : null).then(d => {
+                        if (_cloudLoggedIn && d?.avatar_url) { _cloudAvatarUrl = d.avatar_url; _renderAuthWidget(); }
+                    }).catch(() => {});
                 }
             } catch { /* ignore — buttons always clickable, backend returns error if needed */ }
+        }
+
+        function _esc(s) {
+            return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        }
+
+        function _safeHttpUrl(url) {
+            try { const u = new URL(url); return (u.protocol === 'https:' || u.protocol === 'http:') ? url : null; } catch { return null; }
+        }
+
+        function _renderAuthWidget() {
+            const el = document.getElementById('auth-widget');
+            if (!el) return;
+            if (!_cloudLoggedIn) {
+                el.innerHTML = `<button class="auth-sign-in-btn" onclick="startCloudLogin(event,'push')">Sign In / Up</button>`;
+            } else {
+                const initial = (_cloudUsername || '?')[0].toUpperCase();
+                const name = _cloudUsername || 'you';
+                const safeAvatar = _cloudAvatarUrl ? _safeHttpUrl(_cloudAvatarUrl) : null;
+                const avatarInner = safeAvatar
+                    ? `<img src="${_esc(safeAvatar)}" alt="${_esc(name)}" referrerpolicy="no-referrer" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`
+                    : _esc(initial);
+                const safeHubBase = _hubBaseUrl ? _safeHttpUrl(_hubBaseUrl) : null;
+                const hubLink = safeHubBase ? `
+                        <div class="user-menu-item" id="hub-link-item">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:14px;height:14px;flex-shrink:0"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                            View on Santai Hub
+                        </div>
+                        <div class="user-menu-divider"></div>` : '';
+                const safeProfileBase = _cloudHubUrl ? _safeHttpUrl(_cloudHubUrl) : null;
+                const profileUrl = safeProfileBase ? _esc(`${safeProfileBase}/profile/${encodeURIComponent(name)}`) : null;
+                const nameHtml = profileUrl
+                    ? `Signed in as <a href="${profileUrl}" target="_blank" rel="noopener">@${_esc(name)}</a>`
+                    : `Signed in as @${_esc(name)}`;
+                el.innerHTML = `<div class="user-menu-wrapper" id="user-menu-wrapper">
+                    <button class="user-avatar" onclick="toggleUserMenu(event)" title="${_esc(name)}">${avatarInner}</button>
+                    <div class="user-menu" id="user-menu">
+                        <div class="user-menu-name">${nameHtml}</div>
+                        ${hubLink}
+                        <div class="user-menu-item danger" onclick="cloudSignOut()">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:14px;height:14px;flex-shrink:0"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                            Sign Out
+                        </div>
+                    </div>
+                </div>`;
+                if (safeHubBase) {
+                    const linkEl = el.querySelector('#hub-link-item');
+                    if (linkEl) linkEl.addEventListener('click', () => window.open(safeHubBase, '_blank', 'noopener'));
+                }
+                if (safeAvatar) {
+                    const img = el.querySelector('.user-avatar img');
+                    if (img) img.onerror = () => { img.parentElement.textContent = initial; };
+                }
+            }
+        }
+
+        function toggleUserMenu(e) {
+            if (e) e.stopPropagation();
+            const menu = document.getElementById('user-menu');
+            if (menu) menu.classList.toggle('open');
+        }
+
+        async function cloudSignOut() {
+            try { await fetch('/api/cloud/logout', { method: 'POST' }); } catch { /* ignore */ }
+            _cloudLoggedIn = false;
+            _cloudUsername = null;
+            _cloudAvatarUrl = null;
+            _cloudHubUrl = null;
+            _hubBaseUrl = null;
+            localStorage.removeItem('santai-hub-base-url');
+            _renderAuthWidget();
+            const pushBtn = document.getElementById('cloud-push-btn');
+            if (pushBtn) pushBtn.title = '';
+            setCloudStatus('Signed out.', 'success');
+            setTimeout(() => setCloudStatus(''), 3000);
         }
 
         let _cloudStatusTimer = null;
@@ -9247,6 +10104,11 @@
                                 await Promise.all([refreshTree(), refreshFiles()]);
                                 setCloudStatus('Successfully pulled from cloud.', 'success');
                             } else {
+                                if (data.base_id && data.hub_url) {
+                                    _hubBaseUrl = `${data.hub_url}/base/${data.base_id}?returnTo=%2Fexplore`;
+                                    localStorage.setItem('santai-hub-base-url', _hubBaseUrl);
+                                    _renderAuthWidget();
+                                }
                                 setCloudStatus('Successfully saved to the cloud.', 'success');
                             }
                             setTimeout(() => setCloudStatus(''), 4000);
@@ -9375,6 +10237,11 @@
                                 await Promise.all([refreshTree(), refreshFiles()]);
                                 finalMsg = 'Done! Your local files have been updated with the latest version from the cloud.';
                             } else {
+                                if (data.base_id && data.hub_url) {
+                                    _hubBaseUrl = `${data.hub_url}/base/${data.base_id}?returnTo=%2Fexplore`;
+                                    localStorage.setItem('santai-hub-base-url', _hubBaseUrl);
+                                    _renderAuthWidget();
+                                }
                                 finalMsg = 'Done! Your project has been saved to the cloud.';
                             }
                             msgDiv.textContent = finalMsg;
@@ -9444,6 +10311,14 @@
         }
 
         initCloudStatus();
+
+        document.addEventListener('click', function(e) {
+            const wrapper = document.getElementById('user-menu-wrapper');
+            if (wrapper && !wrapper.contains(e.target)) {
+                const menu = document.getElementById('user-menu');
+                if (menu) menu.classList.remove('open');
+            }
+        });
     </script>
     <div class="graph-tooltip" id="graph-tooltip"></div>
     <div class="graph-tooltip" id="folder-move-tooltip"></div>
