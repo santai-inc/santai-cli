@@ -1162,6 +1162,7 @@
             height: 80vh;
             display: flex;
             flex-direction: column;
+            padding-bottom: 16px;
         }
 
         .edit-modal-header {
@@ -4487,9 +4488,9 @@
                 </button>
             </div>
             <textarea class="edit-textarea" id="edit-textarea" placeholder="File content..."></textarea>
-            <div class="modal-actions">
-                <button class="btn" onclick="closeModals()">Cancel</button>
-                <button class="btn btn-primary" onclick="saveFileContent()">Save</button>
+            <div class="modal-actions" style="justify-content: flex-start;">
+                <button class="btn btn-primary" onclick="saveFileContent()" style="min-width: 72px; padding: 7px 16px; justify-content: center;">Save</button>
+                <button class="btn" onclick="closeModals()" style="min-width: 72px; padding: 7px 16px; justify-content: center;">Cancel</button>
             </div>
         </div>
     </div>
