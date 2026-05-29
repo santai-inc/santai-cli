@@ -454,7 +454,6 @@ async def _stream_anthropic_with_tools(
 
     Returns (text, tool_calls) tuple.
     """
-    client = anthropic.AsyncAnthropic(api_key=api_key)
     tool_calls: list[dict[str, Any]] = []
     full_text = ""
 
@@ -473,31 +472,33 @@ async def _stream_anthropic_with_tools(
 
     pending_tool: dict[str, Any] | None = None
 
-    async with client.messages.stream(**kwargs) as stream:
-        async for event in stream:
-            if event.type == "content_block_delta":
-                delta = getattr(event, "delta", None)
-                delta_type = getattr(delta, "type", None)
-                if delta_type == "text_delta":
-                    full_text += getattr(delta, "text", "")
-                elif delta_type == "input_json_delta" and pending_tool is not None:
-                    args_text = getattr(delta, "partial_json", "")
-                    pending_tool["arguments"] = (
-                        pending_tool.get("arguments", "") + args_text
-                    )
-            elif event.type == "content_block_start":
-                block = getattr(event, "content_block", None)
-                block_type = getattr(block, "type", None)
-                if block_type == "tool_use":
-                    pending_tool = {
-                        "id": getattr(block, "id", ""),
-                        "name": getattr(block, "name", ""),
-                        "arguments": "",
-                    }
-            elif event.type == "content_block_stop":
-                if pending_tool is not None:
-                    tool_calls.append(pending_tool)
-                    pending_tool = None
+    # Nested with: inner stream context depends on the outer client.
+    async with anthropic.AsyncAnthropic(api_key=api_key) as client:  # noqa: SIM117
+        async with client.messages.stream(**kwargs) as stream:
+            async for event in stream:
+                if event.type == "content_block_delta":
+                    delta = getattr(event, "delta", None)
+                    delta_type = getattr(delta, "type", None)
+                    if delta_type == "text_delta":
+                        full_text += getattr(delta, "text", "")
+                    elif delta_type == "input_json_delta" and pending_tool is not None:
+                        args_text = getattr(delta, "partial_json", "")
+                        pending_tool["arguments"] = (
+                            pending_tool.get("arguments", "") + args_text
+                        )
+                elif event.type == "content_block_start":
+                    block = getattr(event, "content_block", None)
+                    block_type = getattr(block, "type", None)
+                    if block_type == "tool_use":
+                        pending_tool = {
+                            "id": getattr(block, "id", ""),
+                            "name": getattr(block, "name", ""),
+                            "arguments": "",
+                        }
+                elif event.type == "content_block_stop":
+                    if pending_tool is not None:
+                        tool_calls.append(pending_tool)
+                        pending_tool = None
     return full_text, tool_calls
 
 
@@ -515,7 +516,6 @@ async def _stream_openai_with_tools(
     client_kwargs: dict = {"api_key": api_key}
     if base_url:
         client_kwargs["base_url"] = base_url
-    client = openai.AsyncOpenAI(**client_kwargs)
     pending_tools: dict[int, dict[str, Any]] = {}
     full_text = ""
 
@@ -556,36 +556,38 @@ async def _stream_openai_with_tools(
                 "type": "function",
                 "function": {"name": force_tool},
             }
-    try:
-        stream = await client.chat.completions.create(**create_kwargs)  # type: ignore[arg-type]
-    except Exception:
-        # Some providers reject forced tool_choice — retry without it.
-        dropped = create_kwargs.pop("tool_choice", None)
-        if dropped:
-            logger.warning(
-                "Provider rejected tool_choice=%r for model %s; "
-                "retrying without constraint",
-                dropped,
-                model,
-            )
-        stream = await client.chat.completions.create(**create_kwargs)  # type: ignore[arg-type]
 
-    async for chunk in stream:
-        if chunk.choices and chunk.choices[0].delta:
-            delta = chunk.choices[0].delta
-            if delta.content:
-                full_text += delta.content
-            if delta.tool_calls:
-                for tc in delta.tool_calls:
-                    idx = tc.index
-                    if idx not in pending_tools:
-                        pending_tools[idx] = {"id": "", "name": "", "arguments": ""}
-                    if tc.id:
-                        pending_tools[idx]["id"] = tc.id
-                    if tc.function and tc.function.name:
-                        pending_tools[idx]["name"] = tc.function.name
-                    if tc.function and tc.function.arguments:
-                        pending_tools[idx]["arguments"] += tc.function.arguments
+    async with openai.AsyncOpenAI(**client_kwargs) as client:
+        try:
+            stream = await client.chat.completions.create(**create_kwargs)  # type: ignore[arg-type]
+        except Exception:
+            # Some providers reject forced tool_choice — retry without it.
+            dropped = create_kwargs.pop("tool_choice", None)
+            if dropped:
+                logger.warning(
+                    "Provider rejected tool_choice=%r for model %s; "
+                    "retrying without constraint",
+                    dropped,
+                    model,
+                )
+            stream = await client.chat.completions.create(**create_kwargs)  # type: ignore[arg-type]
+
+        async for chunk in stream:
+            if chunk.choices and chunk.choices[0].delta:
+                delta = chunk.choices[0].delta
+                if delta.content:
+                    full_text += delta.content
+                if delta.tool_calls:
+                    for tc in delta.tool_calls:
+                        idx = tc.index
+                        if idx not in pending_tools:
+                            pending_tools[idx] = {"id": "", "name": "", "arguments": ""}
+                        if tc.id:
+                            pending_tools[idx]["id"] = tc.id
+                        if tc.function and tc.function.name:
+                            pending_tools[idx]["name"] = tc.function.name
+                        if tc.function and tc.function.arguments:
+                            pending_tools[idx]["arguments"] += tc.function.arguments
 
     return full_text, list(pending_tools.values())
 
