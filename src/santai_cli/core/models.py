@@ -134,9 +134,11 @@ async def discover_models_or_fallback(
 async def populate_live_models(config: ChatConfig) -> None:
     """Replace each provider's available_models with its live catalog.
 
-    Runs providers concurrently; per-provider failures fall back silently.
-    The configured default model is kept at the front of the list so the
-    /model picker always has something to mark as default.
+    Runs providers concurrently. On per-provider failure, falls back silently
+    to the hardcoded list. When live discovery succeeds but the configured
+    default model isn't in the catalog (common with proxies that don't serve
+    the env-var default), pc.model is re-pointed to the first discovered model
+    so the picker's auto-default lands on something usable.
     """
     providers = list(config.providers.items())
     if not providers:
@@ -144,11 +146,16 @@ async def populate_live_models(config: ChatConfig) -> None:
     results = await asyncio.gather(
         *(discover_models_or_fallback(name, pc) for name, pc in providers)
     )
-    for (_, pc), (models, _err) in zip(providers, results, strict=True):
-        if models:
-            if pc.model and pc.model not in models:
-                models = [pc.model, *models]
-            pc.available_models = models
+    for (_, pc), (models, err) in zip(providers, results, strict=True):
+        if not models:
+            continue
+        if err is None and pc.model not in models:
+            pc.model = models[0]
+        elif err is not None and pc.model and pc.model not in models:
+            # Discovery failed; preserve configured default at the front of
+            # the hardcoded fallback list so the picker still marks it.
+            models = [pc.model, *models]
+        pc.available_models = models
 
 
 def display_label_for_model(model_id: str) -> str:
