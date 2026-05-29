@@ -43,6 +43,16 @@ SENSITIVE_FILES: set[str] = {
     "credentials.json",
 }
 
+IMAGE_EXTENSIONS: set[str] = {
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".webp",
+    ".bmp",
+    ".ico",
+}
+
 
 def validate_santai_structure(path: Path) -> list[str]:
     """Return a list of missing SANTAI_DIRS in the given path.
