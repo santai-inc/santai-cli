@@ -30,6 +30,10 @@ _OPENAI_CHAT_PREFIXES = (
 
 # Substrings in OpenAI model IDs that indicate a non-chat-completions endpoint
 # even though the prefix matches. Anything matching these is filtered out.
+# - codex/instruct: completions-only family (need /v1/completions, not chat)
+# - realtime/audio/transcribe/tts: speech I/O endpoints
+# - search-preview: web-search models, not standalone chat
+# - image: image generation/editing variants
 _OPENAI_NON_CHAT_SUBSTRINGS = (
     "realtime",
     "audio",
@@ -37,6 +41,8 @@ _OPENAI_NON_CHAT_SUBSTRINGS = (
     "tts",
     "search-preview",
     "image",
+    "codex",
+    "instruct",
 )
 
 # Specific OpenAI model IDs that aren't usable via chat.completions.
