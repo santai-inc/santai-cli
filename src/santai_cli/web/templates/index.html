@@ -4235,6 +4235,18 @@
                             </svg>
                         </button>
                     </div>
+                    <div class="nav-arrows">
+                        <button class="nav-arrow" id="btn-undo" onclick="performUndo()" title="Undo (⌘Z)" disabled>
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                            </svg>
+                        </button>
+                        <button class="nav-arrow" id="btn-redo" onclick="performRedo()" title="Redo (⌘⇧Z)" disabled>
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 10H11a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6" />
+                            </svg>
+                        </button>
+                    </div>
                     <nav class="browser-breadcrumbs" id="browser-breadcrumbs">
                         <!-- Breadcrumbs populated by JavaScript -->
                     </nav>
@@ -4315,7 +4327,7 @@
                         </svg>
                         Download
                     </button>
-                    <button class="btn btn-danger" id="preview-delete" onclick="deletePreviewFile()">
+                    <button class="btn btn-danger" id="preview-delete" onclick="deletePreviewFile()" title="Delete (⌘Z to undo)">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
                         </svg>
@@ -4426,13 +4438,13 @@
             </svg>
             Download
         </button>
-        <button class="context-menu-item" onclick="showRenameModal()">
+        <button class="context-menu-item" onclick="showRenameModal()" title="Rename (⌘Z to undo)">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
             </svg>
             Rename
         </button>
-        <button class="context-menu-item danger" onclick="deleteSelected()">
+        <button class="context-menu-item danger" onclick="deleteSelected()" title="Delete (⌘Z to undo)">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
             </svg>
@@ -4630,30 +4642,41 @@
                 this._stack = [];
                 this._redoStack = [];
                 this._maxHistory = maxHistory;
+                this._onChange = null;
             }
+            _notify() { if (this._onChange) this._onChange(); }
             push(op) {
                 this._stack.push(op);
                 if (this._stack.length > this._maxHistory) this._stack.shift();
                 this._redoStack = []; // new user action clears redo history
+                this._notify();
             }
-            pop() { return this._stack.pop() || null; }
+            pop() { const op = this._stack.pop() || null; this._notify(); return op; }
             pushRedo(op) {
                 this._redoStack.push(op);
                 if (this._redoStack.length > this._maxHistory) this._redoStack.shift();
+                this._notify();
             }
-            popRedo() { return this._redoStack.pop() || null; }
+            popRedo() { const op = this._redoStack.pop() || null; this._notify(); return op; }
             pushFromRedo(op) {
-                // push back to undo after a redo without clearing the redo stack
                 this._stack.push(op);
                 if (this._stack.length > this._maxHistory) this._stack.shift();
+                this._notify();
             }
             canUndo() { return this._stack.length > 0; }
             canRedo() { return this._redoStack.length > 0; }
             peek() { return this._stack[this._stack.length - 1] || null; }
-            clear() { this._stack = []; this._redoStack = []; }
+            clear() { this._stack = []; this._redoStack = []; this._notify(); }
             get size() { return this._stack.length; }
         }
         const undoManager = new UndoManager();
+        function updateUndoRedoButtons() {
+            const undoBtn = document.getElementById('btn-undo');
+            const redoBtn = document.getElementById('btn-redo');
+            if (undoBtn) undoBtn.disabled = !undoManager.canUndo();
+            if (redoBtn) redoBtn.disabled = !undoManager.canRedo();
+        }
+        undoManager._onChange = updateUndoRedoButtons;
         function hasPreviewContent() {
             const header = document.getElementById('preview-file-header');
             return Boolean(header) && header.style.display !== 'none';
@@ -5345,12 +5368,12 @@
                         <div class="file-meta">${item.is_dir ? 'Folder' : item.size_formatted}</div>
                     </div>`;
                 html += `<div class="file-actions">
-                        <button class="file-action-btn edit-btn" onclick="event.stopPropagation(); editItem('${escAttr(item.path)}', '${escAttr(item.name)}')" title="Rename">
+                        <button class="file-action-btn edit-btn" onclick="event.stopPropagation(); editItem('${escAttr(item.path)}', '${escAttr(item.name)}')" title="Rename (⌘Z to undo)">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
                             </svg>
                         </button>
-                        <button class="file-action-btn delete-btn" onclick="event.stopPropagation(); deleteItem('${escAttr(item.path)}', '${escAttr(item.name)}', ${item.is_dir})" title="Delete">
+                        <button class="file-action-btn delete-btn" onclick="event.stopPropagation(); deleteItem('${escAttr(item.path)}', '${escAttr(item.name)}', ${item.is_dir})" title="Delete (⌘Z to undo)">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
                             </svg>
@@ -6565,7 +6588,7 @@
                     case 'DELETE':        await _undoDelete(op); break;
                 }
                 undoManager.pushRedo(op);
-                showToast(`Undid: ${op.label}`);
+                showToast(`Undid: ${op.label}`, false, false, true);
                 loadFiles(currentPath);
                 loadTree();
             } catch (err) {
@@ -6634,7 +6657,7 @@
                     case 'DELETE':        await _redoDelete(op); break;
                 }
                 undoManager.pushFromRedo(op);
-                showToast(`Redid: ${op.label}`);
+                showToast(`Redid: ${op.label}`, false, true);
                 loadFiles(currentPath);
                 loadTree();
             } catch (err) {
@@ -6695,12 +6718,14 @@
         }
 
         // Toast
-        function showToast(message, isError = false, undoable = false) {
+        function showToast(message, isError = false, undoable = false, redoable = false) {
             const toast = document.getElementById('toast');
             clearTimeout(toast._hideTimer);
             const safe = message.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             if (undoable && undoManager.canUndo()) {
                 toast.innerHTML = `${safe} <button class="toast-undo-btn" onclick="performUndo()">Undo</button>`;
+            } else if (redoable && undoManager.canRedo()) {
+                toast.innerHTML = `${safe} <button class="toast-undo-btn" onclick="performRedo()">Redo</button>`;
             } else {
                 toast.textContent = message;
             }
@@ -6878,12 +6903,12 @@
             // before the toggle so the chevron stays anchored at the far right.
             if (node.path) {
                 html += `<span class="tree-actions">
-                    <button class="tree-action-btn edit-btn" onclick="event.stopPropagation(); editItem('${escAttr(node.path)}', '${escAttr(node.name)}')" title="Rename">
+                    <button class="tree-action-btn edit-btn" onclick="event.stopPropagation(); editItem('${escAttr(node.path)}', '${escAttr(node.name)}')" title="Rename (⌘Z to undo)">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
                         </svg>
                     </button>
-                    <button class="tree-action-btn delete-btn" onclick="event.stopPropagation(); deleteItem('${escAttr(node.path)}', '${escAttr(node.name)}', ${node.is_dir})" title="Delete">
+                    <button class="tree-action-btn delete-btn" onclick="event.stopPropagation(); deleteItem('${escAttr(node.path)}', '${escAttr(node.name)}', ${node.is_dir})" title="Delete (⌘Z to undo)">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
                         </svg>
@@ -7079,6 +7104,7 @@
 
         function showDashboard() {
             currentView = 'dashboard';
+            undoManager.clear();
             resetPreviewState();
             hidePreviewPanel();
             document.getElementById('dashboard-view').style.display = 'flex';
