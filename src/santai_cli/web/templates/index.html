@@ -2157,18 +2157,28 @@
 
         .toast-undo-btn {
             background: none;
-            border: 1px solid currentColor;
+            border: 0px solid currentColor;
             border-radius: 6px;
             color: inherit;
             cursor: pointer;
             font-size: 12px;
             font-weight: 600;
             letter-spacing: 0.02em;
+            margin-left: 0;
+            max-width: 0;
+            opacity: 0;
+            overflow: hidden;
+            padding: 2px 0;
+            transition: opacity 0.2s, max-width 0.2s, margin-left 0.2s, padding 0.2s, border-width 0.2s;
+            vertical-align: middle;
+            white-space: nowrap;
+        }
+        .toast:hover .toast-undo-btn {
+            border-width: 1px;
             margin-left: 10px;
+            max-width: 80px;
             opacity: 0.8;
             padding: 2px 8px;
-            transition: opacity 0.15s, background 0.15s;
-            vertical-align: middle;
         }
         .toast-undo-btn:hover {
             background: rgba(0, 0, 0, 0.08);
