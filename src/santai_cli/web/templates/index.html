@@ -803,55 +803,6 @@
         .cloud-status.error { color: #ef4444; }
         .cloud-status.success { color: var(--accent); }
 
-        .cloud-inline-form {
-            display: none;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        .cloud-inline-form.visible { display: flex; }
-
-        .cloud-confirm-msg {
-            font-size: 12px;
-            color: var(--text-secondary, var(--text-muted));
-            line-height: 1.4;
-        }
-
-        .cloud-inline-form input[type="text"] {
-            background: rgba(255,255,255,0.6);
-            border: 1px solid rgba(0,0,0,0.12);
-            border-radius: 8px;
-            padding: 7px 10px;
-            font-size: 12px;
-            color: var(--text-primary);
-            width: 100%;
-            box-sizing: border-box;
-        }
-
-        .cloud-inline-form input[type="text"]:focus {
-            outline: none;
-            border-color: var(--accent);
-        }
-
-        .cloud-form-row {
-            display: flex;
-            gap: 6px;
-        }
-
-        .cloud-form-row .btn {
-            flex: 1;
-            justify-content: center;
-            font-size: 13px;
-            padding: 7px 6px;
-        }
-
-        #cloud-pull-cancel-btn {
-            background: rgba(0, 0, 0, 0.06);
-        }
-
-        #cloud-pull-cancel-btn:hover {
-            background: rgba(0, 0, 0, 0.1);
-        }
 
         .btn {
             background: rgba(255, 255, 255, 0.7);
@@ -1320,6 +1271,107 @@
             display: flex;
             gap: 8px;
             justify-content: flex-end;
+        }
+
+        /* Cloud saves picker modal */
+        .cloud-saves-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            max-height: 420px;
+            overflow-y: auto;
+            margin-bottom: 4px;
+            padding-right: 4px;
+            scrollbar-width: thin;
+            scrollbar-color: transparent transparent;
+            transition: scrollbar-color 0.25s ease;
+        }
+
+        .cloud-saves-list:hover {
+            scrollbar-color: rgba(0, 0, 0, 0.12) transparent;
+        }
+
+        .cloud-saves-list::-webkit-scrollbar {
+            width: 3px;
+        }
+
+        .cloud-saves-list::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .cloud-saves-list::-webkit-scrollbar-thumb {
+            background: transparent;
+            border-radius: 999px;
+        }
+
+        .cloud-saves-list:hover::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.12);
+        }
+
+        .cloud-save-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            border: 1px solid var(--glass-border);
+            border-radius: 10px;
+            transition: var(--transition-quick);
+            background: var(--fill-white);
+            user-select: none;
+        }
+
+        .cloud-save-item:hover {
+            background: var(--fill-active);
+        }
+
+        .cloud-save-meta {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .cloud-save-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .cloud-save-info {
+            font-size: 12px;
+            color: var(--text-primary);
+            opacity: 0.65;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .cloud-save-tag {
+            display: inline-flex;
+            align-items: center;
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            padding: 1px 6px;
+            border-radius: 4px;
+            background: var(--fill-active);
+            border: 1px solid var(--glass-border);
+            color: var(--text-primary);
+            opacity: 1;
+            flex-shrink: 0;
+        }
+
+        .cloud-saves-empty,
+        .cloud-saves-loading {
+            text-align: center;
+            color: var(--text-primary);
+            font-size: 14px;
+            padding: 24px 0;
+            opacity: 0.6;
         }
 
         .right-rail {
@@ -4159,13 +4211,7 @@
                             Pull from Cloud
                         </button>
                     </div>
-                    <div class="cloud-inline-form" id="cloud-pull-confirm">
-                        <span class="cloud-confirm-msg">Replace local files with the latest cloud version?</span>
-                        <div class="cloud-form-row">
-                            <button class="btn btn-primary" onclick="cloudPullConfirm()">Replace</button>
-                            <button class="btn" id="cloud-pull-cancel-btn" onclick="cloudPullCancel()">Cancel</button>
-                        </div>
-                    </div>
+
                     <span class="cloud-status" id="cloud-status"></span>
                 </div>
                 <ul class="tree-view" id="tree-view"></ul>
@@ -4622,6 +4668,40 @@
             <div class="modal-actions" style="margin-top: 20px; justify-content: flex-start;">
                 <button class="btn btn-primary" id="settings-save-btn" onclick="saveSettings()">Save</button>
                 <button class="btn" onclick="closeModals()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cloud Saves Modal -->
+    <div class="modal-overlay" id="cloud-saves-modal">
+        <div class="modal" style="min-width: 520px; max-width: 680px;">
+            <div class="edit-modal-header" style="margin-bottom: 6px;">
+                <h2 style="margin: 0; font-size: 17px; display: flex; align-items: center; gap: 8px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:20px;height:20px;flex-shrink:0;">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9V15.75m0 0l-3-3m3 3l3-3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
+                    </svg>
+                    Pull from Cloud
+                </h2>
+                <button class="preview-close" onclick="closeCloudSavesModal()">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <p id="cloud-saves-subtitle" style="font-size: 13px; color: var(--text-primary); opacity: 0.65; margin: 0 0 12px;">
+                Select a save to load. This will overwrite your current local files.
+            </p>
+            <div class="cloud-saves-list" id="cloud-saves-list">
+                <div class="cloud-saves-loading">Loading saves...</div>
+            </div>
+            <div id="cloud-save-confirm-pane" style="display:none; padding: 16px 0 4px; text-align: center;">
+                <p style="margin: 0 0 16px; font-size: 14px; color: var(--text-primary); opacity: 0.8;">
+                    This will overwrite your current local files. Load anyway?
+                </p>
+                <div style="display: flex; gap: 8px; justify-content: center;">
+                    <button class="btn btn-primary" style="width: 120px; justify-content: center;" onclick="cloudSaveConfirmLoad()">Load</button>
+                    <button class="btn" style="width: 120px; justify-content: center;" onclick="cloudSaveConfirmCancel()">Cancel</button>
+                </div>
             </div>
         </div>
     </div>
@@ -10051,24 +10131,49 @@
                 return;
             }
             setCloudStatus('');
-            document.getElementById('cloud-pull-confirm').classList.add('visible');
+            showCloudSavesModal();
         }
 
-        function cloudPullCancel() {
-            document.getElementById('cloud-pull-confirm').classList.remove('visible');
-            setCloudStatus('');
+        let _pendingManifestKey = null;
+
+        function cloudPullPrepare(manifestKey) {
+            _pendingManifestKey = manifestKey;
+            document.getElementById('cloud-saves-list').style.display = 'none';
+            document.getElementById('cloud-saves-subtitle').style.display = 'none';
+            document.getElementById('cloud-save-confirm-pane').style.display = '';
         }
 
-        async function cloudPullConfirm() {
+        function cloudSaveConfirmCancel() {
+            _pendingManifestKey = null;
+            document.getElementById('cloud-save-confirm-pane').style.display = 'none';
+            document.getElementById('cloud-saves-list').style.display = '';
+            document.getElementById('cloud-saves-subtitle').style.display = '';
+        }
+
+        function cloudSaveConfirmLoad() {
+            const key = _pendingManifestKey;
+            _pendingManifestKey = null;
+            closeCloudSavesModal();
+            document.getElementById('cloud-save-confirm-pane').style.display = 'none';
+            document.getElementById('cloud-saves-list').style.display = '';
+            cloudPullConfirm(key);
+        }
+
+
+        async function cloudPullConfirm(manifestKey) {
             if (_cloudStreaming) return;
-            document.getElementById('cloud-pull-confirm').classList.remove('visible');
+            if (!manifestKey) {
+                setCloudStatus('Could not identify save version — check browser console for save object fields.', 'error');
+                return;
+            }
             _cloudStreaming = true;
             setCloudStatus('Looking up project...');
             try {
+                const body = {manifest_key: manifestKey};
                 const response = await fetch('/api/cloud/pull', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({}),
+                    body: JSON.stringify(body),
                 });
                 if (!response.ok) {
                     const err = await response.json().catch(() => ({}));
@@ -10102,7 +10207,11 @@
                         } else if (data.type === 'done') {
                             if (data.pulled) {
                                 await Promise.all([refreshTree(), refreshFiles()]);
-                                setCloudStatus('Successfully pulled from cloud.', 'success');
+                                const _n = data.filesRestored;
+                                const _detail = _n != null
+                                    ? ` ${_n} file${_n !== 1 ? 's' : ''} loaded.`
+                                    : '';
+                                setCloudStatus('Successfully pulled from cloud.' + _detail, 'success');
                             } else {
                                 if (data.base_id && data.hub_url) {
                                     _hubBaseUrl = `${data.hub_url}/base/${data.base_id}?returnTo=%2Fexplore`;
@@ -10118,6 +10227,99 @@
                     } catch { /* ignore malformed SSE lines */ }
                 }
             }
+        }
+
+        // --- Cloud saves modal ---
+
+        function _fmtBytes(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+
+        function _escHtml(str) {
+            return String(str)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        async function showCloudSavesModal() {
+            const listEl = document.getElementById('cloud-saves-list');
+            if (listEl) listEl.innerHTML = '<div class="cloud-saves-loading">Loading saves…</div>';
+            document.getElementById('cloud-saves-modal').classList.add('show');
+            try {
+                const res = await fetch('/api/cloud/list-saves');
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+                if (data.error) {
+                    listEl.innerHTML = `<div class="cloud-saves-empty">${_escHtml(data.error)}</div>`;
+                    return;
+                }
+                const saves = data.saves || [];
+                if (!saves.length) {
+                    listEl.innerHTML = '<div class="cloud-saves-empty">No cloud saves found for this project.</div>';
+                    return;
+                }
+                listEl.innerHTML = '';
+                saves.forEach((save, idx) => {
+                    const item = document.createElement('div');
+                    item.className = 'cloud-save-item';
+
+                    // Detect origin and derive a meaningful display title
+                    const rawTitle = save.title || save.name || '';
+                    const rawOrigin = save.origin || save.source || '';
+                    let originTag = null;
+                    let displayTitle = rawTitle;
+
+                    const _isCli = rawOrigin === 'cli' || /\bfrom\s+cli\b/i.test(rawTitle);
+                    if (_isCli) {
+                        originTag = 'CLI';
+                        // Prefer server-enriched localTitle (from .santai/push-titles.json)
+                        displayTitle = save.localTitle || rawTitle.replace(/\bpush\s+from\s+cli\b[\s·\-]*/i, '').trim();
+                    } else {
+                        originTag = 'Hub';
+                        displayTitle = rawTitle.replace(/\b(push\s+)?from\s+(the\s+)?hub\b[\s·\-]*/i, '').replace(/\bsantai\s+hub\b[\s·\-]*/i, '').trim();
+                    }
+                    if (!displayTitle) {
+                        displayTitle = save.version ? 'v' + save.version : ('Save ' + (idx + 1));
+                    }
+
+                    const parts = [];
+                    if (save.createdAt) parts.push(new Date(save.createdAt).toLocaleString());
+                    if (save.size) parts.push(_fmtBytes(save.size));
+                    if (save.filesCount) parts.push(save.filesCount + ' files');
+                    const manifestKey = save.key ?? save.manifestKey ?? save.manifest_key ?? null;
+
+                    const tagHtml = originTag
+                        ? '<span class="cloud-save-tag">' + _escHtml(originTag) + '</span>'
+                        : '';
+                    const infoText = parts.length ? _escHtml(parts.join(' · ')) : '';
+                    const infoHtml = (infoText || tagHtml)
+                        ? '<div class="cloud-save-info">' + infoText + tagHtml + '</div>'
+                        : '';
+
+                    item.innerHTML =
+                        '<div class="cloud-save-meta">' +
+                        '<div class="cloud-save-title">' + _escHtml(displayTitle) + '</div>' +
+                        infoHtml +
+                        '</div>' +
+                        '<button class="btn btn-primary" style="flex-shrink:0;font-size:13px;padding:6px 14px;">Load</button>';
+                    item.querySelector('button').addEventListener('click', () => {
+                        cloudPullPrepare(manifestKey);
+                    });
+                    listEl.appendChild(item);
+                });
+            } catch {
+                listEl.innerHTML = '<div class="cloud-saves-empty">Failed to load saves. Check your connection.</div>';
+            }
+        }
+
+        function closeCloudSavesModal() {
+            document.getElementById('cloud-saves-modal').classList.remove('show');
+            document.getElementById('cloud-save-confirm-pane').style.display = 'none';
+            document.getElementById('cloud-saves-list').style.display = '';
+            document.getElementById('cloud-saves-subtitle').style.display = '';
+            _pendingManifestKey = null;
         }
 
         // --- Chat-triggered cloud operations ---
