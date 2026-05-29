@@ -4624,20 +4624,33 @@
         let _previewLastContent = null;
         let _editOriginalContent = null; // content before editing, used for undo
 
-        // Undo manager — stack-based, stores up to 50 reversible operations
+        // Undo/redo manager — stack-based, stores up to 50 reversible operations
         class UndoManager {
             constructor(maxHistory = 50) {
                 this._stack = [];
+                this._redoStack = [];
                 this._maxHistory = maxHistory;
             }
             push(op) {
                 this._stack.push(op);
                 if (this._stack.length > this._maxHistory) this._stack.shift();
+                this._redoStack = []; // new user action clears redo history
             }
             pop() { return this._stack.pop() || null; }
+            pushRedo(op) {
+                this._redoStack.push(op);
+                if (this._redoStack.length > this._maxHistory) this._redoStack.shift();
+            }
+            popRedo() { return this._redoStack.pop() || null; }
+            pushFromRedo(op) {
+                // push back to undo after a redo without clearing the redo stack
+                this._stack.push(op);
+                if (this._stack.length > this._maxHistory) this._stack.shift();
+            }
             canUndo() { return this._stack.length > 0; }
+            canRedo() { return this._redoStack.length > 0; }
             peek() { return this._stack[this._stack.length - 1] || null; }
-            clear() { this._stack = []; }
+            clear() { this._stack = []; this._redoStack = []; }
             get size() { return this._stack.length; }
         }
         const undoManager = new UndoManager();
@@ -4995,7 +5008,7 @@
 
                 if (previousContent !== null && previousContent !== content) {
                     const fname = previewPath.split('/').pop();
-                    undoManager.push({ type: 'SAVE', path: previewPath, previousContent, label: `Edit "${fname}"` });
+                    undoManager.push({ type: 'SAVE', path: previewPath, previousContent, newContent: content, label: `Edit "${fname}"` });
                 }
 
                 closeModals();
@@ -5014,6 +5027,7 @@
             if (!confirm(`Delete "${filename}"?`)) return;
 
             try {
+                const snapshot = await _snapshotForDelete(previewPath, false);
                 const res = await fetch(`/api/files?path=${encodeURIComponent(previewPath)}`, {
                     method: 'DELETE'
                 });
@@ -5023,8 +5037,9 @@
                     throw new Error(err.detail || 'Failed to delete');
                 }
 
+                if (snapshot) undoManager.push({ type: 'DELETE', path: previewPath, isDir: false, snapshot, label: `Delete "${filename}"` });
                 closePreview();
-                showToast('File deleted');
+                showToast('File deleted', false, !!snapshot);
                 loadFiles(currentPath);
                 loadTree();
             } catch (err) {
@@ -5447,6 +5462,7 @@
             if (!confirm(msg)) return;
 
             try {
+                const snapshot = await _snapshotForDelete(path, isDir);
                 const res = await fetch(`/api/files?path=${encodeURIComponent(path)}`, {
                     method: 'DELETE'
                 });
@@ -5456,8 +5472,9 @@
                     throw new Error(err.detail || 'Failed to delete');
                 }
 
+                if (snapshot) undoManager.push({ type: 'DELETE', path, isDir: !!isDir, snapshot, label: `Delete "${name}"` });
                 if (previewReferencesPath(path, isDir)) closePreview();
-                showToast('Deleted successfully');
+                showToast('Deleted successfully', false, !!snapshot);
                 loadFiles(currentPath);
                 loadTree();
             } catch (err) {
@@ -5813,6 +5830,7 @@
             if (!confirm(deleteMsg)) return;
 
             try {
+                const snapshot = await _snapshotForDelete(selectedItem.path, Boolean(selectedItem.is_dir));
                 const res = await fetch(`/api/files?path=${encodeURIComponent(selectedItem.path)}`, {
                     method: 'DELETE'
                 });
@@ -5822,8 +5840,9 @@
                     throw new Error(err.detail || 'Failed to delete');
                 }
 
+                if (snapshot) undoManager.push({ type: 'DELETE', path: selectedItem.path, isDir: Boolean(selectedItem.is_dir), snapshot, label: `Delete "${selectedItem.name}"` });
                 if (previewReferencesPath(selectedItem.path, Boolean(selectedItem.is_dir))) closePreview();
-                showToast('Deleted successfully');
+                showToast('Deleted successfully', false, !!snapshot);
                 loadFiles(currentPath);
                 loadTree();
             } catch (err) {
@@ -6454,6 +6473,82 @@
             if (previewPath && (previewPath === op.path || previewPath.startsWith(op.path + '/'))) closePreview();
         }
 
+        async function _snapshotFolder(folderPath) {
+            const res = await fetch(`/api/files?path=${encodeURIComponent(folderPath)}`);
+            if (!res.ok) return [];
+            const data = await res.json();
+            const entries = [];
+            for (const item of data.items) {
+                if (item.is_dir) {
+                    entries.push(...await _snapshotFolder(item.path));
+                } else {
+                    const fres = await fetch(`/api/files/content?path=${encodeURIComponent(item.path)}`);
+                    if (fres.ok) {
+                        const fdata = await fres.json();
+                        if (fdata.content !== undefined) entries.push({ path: item.path, content: fdata.content });
+                    }
+                }
+            }
+            return entries;
+        }
+
+        async function _snapshotForDelete(path, isDir) {
+            if (!isDir) {
+                const res = await fetch(`/api/files/content?path=${encodeURIComponent(path)}`);
+                if (!res.ok) return null;
+                const data = await res.json();
+                return data.content !== undefined ? [{ path, content: data.content }] : null;
+            }
+            return await _snapshotFolder(path);
+        }
+
+        async function _undoDelete(op) {
+            if (op.isDir) {
+                // Recreate all intermediate folders then restore each file
+                const folders = new Set([op.path]);
+                for (const e of op.snapshot) {
+                    const parts = e.path.split('/');
+                    for (let i = 1; i < parts.length; i++) folders.add(parts.slice(0, i).join('/'));
+                }
+                for (const f of [...folders].sort((a, b) => a.split('/').length - b.split('/').length)) {
+                    await fetch(`/api/files/mkdirp?path=${encodeURIComponent(f)}`, { method: 'POST' });
+                }
+                for (const e of op.snapshot) {
+                    const parts = e.path.split('/');
+                    const name = parts.pop();
+                    await fetch('/api/files/touch', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ path: parts.join('/'), name })
+                    });
+                    await fetch(`/api/files/save?path=${encodeURIComponent(e.path)}`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ content: e.content })
+                    });
+                }
+            } else {
+                if (!op.snapshot?.length) throw new Error('Cannot restore binary file');
+                const e = op.snapshot[0];
+                const parts = e.path.split('/');
+                const name = parts.pop();
+                const tr = await fetch('/api/files/touch', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: parts.join('/'), name })
+                });
+                if (!tr.ok) { const err = await tr.json(); throw new Error(err.detail || 'Failed to restore file'); }
+                const sr = await fetch(`/api/files/save?path=${encodeURIComponent(e.path)}`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content: e.content })
+                });
+                if (!sr.ok) { const err = await sr.json(); throw new Error(err.detail || 'Failed to restore file content'); }
+            }
+        }
+
+        async function _redoDelete(op) {
+            const res = await fetch(`/api/files?path=${encodeURIComponent(op.path)}`, { method: 'DELETE' });
+            if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'Failed to redo delete'); }
+            if (previewPath && (previewPath === op.path || previewPath.startsWith(op.path + '/'))) closePreview();
+        }
+
         async function performUndo() {
             if (!undoManager.canUndo()) {
                 showToast('Nothing to undo');
@@ -6467,12 +6562,84 @@
                     case 'RENAME':        await _undoRename(op); break;
                     case 'CREATE_FILE':
                     case 'CREATE_FOLDER': await _undoCreate(op); break;
+                    case 'DELETE':        await _undoDelete(op); break;
                 }
+                undoManager.pushRedo(op);
                 showToast(`Undid: ${op.label}`);
                 loadFiles(currentPath);
                 loadTree();
             } catch (err) {
+                undoManager.push(op); // restore on failure (push re-clears redo, but the op survives)
                 showToast(`Undo failed: ${err.message}`, true);
+            }
+        }
+
+        async function _redoSave(op) {
+            const res = await fetch(`/api/files/save?path=${encodeURIComponent(op.path)}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: op.newContent })
+            });
+            if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'Failed to redo save'); }
+            if (previewPath === op.path) openFilePreview(op.path);
+        }
+
+        async function _redoMove(op) {
+            for (const m of op.moves) {
+                const targetFolder = m.newPath.includes('/') ? m.newPath.split('/').slice(0, -1).join('/') : '';
+                const res = await fetch('/api/files/move', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ source_path: m.originalPath, target_folder: targetFolder })
+                });
+                if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'Failed to redo move'); }
+            }
+        }
+
+        async function _redoRename(op) {
+            const res = await fetch('/api/files/rename', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ old_path: op.originalPath, new_name: op.newName })
+            });
+            if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'Failed to redo rename'); }
+        }
+
+        async function _redoCreate(op) {
+            const parts = op.path.split('/');
+            const name = parts.pop();
+            const path = parts.join('/');
+            const endpoint = op.type === 'CREATE_FILE' ? '/api/files/touch' : '/api/files/mkdir';
+            const res = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path, name })
+            });
+            if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'Failed to redo create'); }
+        }
+
+        async function performRedo() {
+            if (!undoManager.canRedo()) {
+                showToast('Nothing to redo');
+                return;
+            }
+            const op = undoManager.popRedo();
+            try {
+                switch (op.type) {
+                    case 'SAVE':          await _redoSave(op);   break;
+                    case 'MOVE':          await _redoMove(op);   break;
+                    case 'RENAME':        await _redoRename(op); break;
+                    case 'CREATE_FILE':
+                    case 'CREATE_FOLDER': await _redoCreate(op); break;
+                    case 'DELETE':        await _redoDelete(op); break;
+                }
+                undoManager.pushFromRedo(op);
+                showToast(`Redid: ${op.label}`);
+                loadFiles(currentPath);
+                loadTree();
+            } catch (err) {
+                undoManager.pushRedo(op); // restore on failure
+                showToast(`Redo failed: ${err.message}`, true);
             }
         }
 
@@ -6550,6 +6717,13 @@
             if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey && !inInput) {
                 e.preventDefault();
                 performUndo();
+                return;
+            }
+
+            // Ctrl+Shift+Z / Cmd+Shift+Z — redo
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && e.shiftKey && !inInput) {
+                e.preventDefault();
+                performRedo();
                 return;
             }
 
