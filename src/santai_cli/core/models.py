@@ -5,6 +5,7 @@ model. This module fetches the live list and filters down to IDs that can be
 used with `chat.completions.create(...)` (or the Anthropic equivalent).
 """
 
+import asyncio
 import logging
 import re
 
@@ -12,7 +13,7 @@ import anthropic
 import httpx
 import openai
 
-from santai_cli.core.config import ProviderConfig
+from santai_cli.core.config import ChatConfig, ProviderConfig
 
 logger = logging.getLogger(__name__)
 
@@ -167,6 +168,30 @@ async def discover_models_or_fallback(
             e.kind,
         )
         return pc.available_models, e.kind
+
+
+async def populate_live_models(config: ChatConfig) -> None:
+    """Replace each provider's available_models with the live catalog.
+
+    Runs all providers concurrently. Per-provider failures fall back to the
+    hardcoded AVAILABLE_MODELS values. Used by `santai chat` and `santai ui`
+    so both surfaces show the same set of models the web UI does.
+
+    The provider's configured default model is preserved at the front of the
+    list even if it isn't in the discovered catalog, so /model pickers always
+    have a sensible default to mark.
+    """
+    providers = list(config.providers.items())
+    if not providers:
+        return
+    results = await asyncio.gather(
+        *(discover_models_or_fallback(name, pc) for name, pc in providers)
+    )
+    for (_, pc), (models, _err) in zip(providers, results, strict=True):
+        if models:
+            if pc.model and pc.model not in models:
+                models = [pc.model, *models]
+            pc.available_models = models
 
 
 def display_label_for_model(model_id: str) -> str:
