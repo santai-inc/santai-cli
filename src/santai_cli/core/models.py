@@ -16,38 +16,38 @@ from santai_cli.core.config import ProviderConfig
 
 logger = logging.getLogger(__name__)
 
-# Prefixes the OpenAI catalog uses for chat-completions-capable model families.
-# Excludes embeddings, TTS, Whisper, DALL-E, legacy completions, etc.
-_OPENAI_CHAT_PREFIXES = (
-    "gpt-4",
-    "gpt-3.5-turbo",
+# Exact OpenAI model IDs we've verified work with this CLI's full chat +
+# streaming + tool-use loop. Strict allowlist (not a prefix match) because
+# OpenAI's catalog includes many same-family variants that fail in subtle
+# ways: search-preview models reject `tools`, codex/instruct go through
+# /v1/completions, realtime/audio/transcribe/tts use different endpoints,
+# o1-pro is Responses-API only, gpt-3.5-turbo's 4096 output cap is below
+# our 8192 default. Easier to allowlist a known-good set than to keep
+# extending negative filters every time OpenAI ships a new variant.
+#
+# To add a new model: confirm it supports the /v1/chat/completions endpoint,
+# `tools`, and an 8192-token output cap (or add a smaller cap to
+# _MAX_TOKENS_BY_MODEL in core/chat.py), then list it here.
+_OPENAI_CHAT_ALLOWLIST: set[str] = {
+    # GPT-5 family.
+    # Excluded: gpt-5-pro (Responses API only, not /v1/chat/completions),
+    # gpt-5 (currently fails on this CLI's account — re-add when verified).
+    "gpt-5-mini",
+    "gpt-5-nano",
+    # GPT-4.1 family
+    "gpt-4.1",
+    "gpt-4.1-mini",
+    "gpt-4.1-nano",
+    # GPT-4o family
+    "gpt-4o",
+    "gpt-4o-mini",
+    "chatgpt-4o-latest",
+    # Reasoning models. Excluded: o1-pro (Responses API only).
     "o1",
+    "o1-mini",
     "o3",
-    "o4",
-    "chatgpt-4o",
-    "gpt-5",
-)
-
-# Substrings in OpenAI model IDs that indicate a non-chat-completions endpoint
-# even though the prefix matches. Anything matching these is filtered out.
-# - codex/instruct: completions-only family (need /v1/completions, not chat)
-# - realtime/audio/transcribe/tts: speech I/O endpoints
-# - search-preview: web-search models, not standalone chat
-# - image: image generation/editing variants
-_OPENAI_NON_CHAT_SUBSTRINGS = (
-    "realtime",
-    "audio",
-    "transcribe",
-    "tts",
-    "search-preview",
-    "image",
-    "codex",
-    "instruct",
-)
-
-# Specific OpenAI model IDs that aren't usable via chat.completions.
-_OPENAI_NON_CHAT_IDS: set[str] = {
-    "o1-pro",  # Responses API only
+    "o3-mini",
+    "o4-mini",
 }
 
 # Models discovered via OpenAI-compatible proxies that misbehave with this
@@ -62,20 +62,11 @@ _PROXY_BLOCKED_MODELS: set[str] = {
     "grok2-xai",  # deprecated
 }
 
-_DATED_SUFFIX_RE = re.compile(r"-\d{4}-\d{2}-\d{2}$")
-
 
 def _filter_openai_chat_models(model_ids: list[str]) -> list[str]:
-    """Keep only OpenAI catalog IDs that work with chat.completions."""
+    """Keep only OpenAI catalog IDs we've verified work with this CLI."""
     return sorted(
-        [
-            mid
-            for mid in model_ids
-            if mid.startswith(_OPENAI_CHAT_PREFIXES)
-            and mid not in _OPENAI_NON_CHAT_IDS
-            and not any(s in mid for s in _OPENAI_NON_CHAT_SUBSTRINGS)
-            and not _DATED_SUFFIX_RE.search(mid)
-        ],
+        (mid for mid in model_ids if mid in _OPENAI_CHAT_ALLOWLIST),
         reverse=True,
     )
 

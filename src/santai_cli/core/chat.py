@@ -49,13 +49,14 @@ def _max_tokens_for_model(model: str) -> int:
     return _MAX_TOKENS_BY_MODEL.get(model, _DEFAULT_MAX_TOKENS)
 
 
-# OpenAI reasoning models (o1, o3, o4, ...) reject `max_tokens` and require
-# `max_completion_tokens` instead. Match base IDs and any -mini/-pro variants.
-_OPENAI_REASONING_RE = re.compile(r"^o[1-9](?:-|$)")
+# OpenAI models that reject `max_tokens` and require `max_completion_tokens`:
+# - o-series reasoning models (o1, o3, o4, ...) and any -mini/-pro variants
+# - GPT-5 family (gpt-5, gpt-5-mini, gpt-5-nano, ...)
+_OPENAI_MAX_COMPLETION_TOKENS_RE = re.compile(r"^(o[1-9](?:-|$)|gpt-5(?:-|$))")
 
 
 def _is_openai_reasoning_model(model: str) -> bool:
-    return bool(_OPENAI_REASONING_RE.match(model))
+    return bool(_OPENAI_MAX_COMPLETION_TOKENS_RE.match(model))
 
 
 TOOLS = [
