@@ -1764,6 +1764,51 @@ def create_app(project: SantaiProject) -> FastAPI:
             "hub_url": hub_url,
         }
 
+    @app.get("/api/cloud/avatar")
+    async def cloud_avatar() -> dict[str, Any]:
+        """Return the user's avatar URL from the hub (slow — call separately)."""
+        import httpx
+
+        from santai_cli.commands.auth import DEFAULT_HUB_URL, load_credentials
+        from santai_cli.core.hub import USER_AGENT, get_backend_url
+
+        creds = load_credentials()
+        if not creds:
+            return {"avatar_url": None}
+        hub_url = creds.get("hub_url", DEFAULT_HUB_URL)
+
+        try:
+            backend = get_backend_url(hub_url)
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                resp = await client.get(
+                    f"{backend}/auth/get-session",
+                    headers={
+                        "Authorization": f"Bearer {creds['token']}",
+                        "User-Agent": USER_AGENT,
+                    },
+                )
+                resp.raise_for_status()
+                user = resp.json().get("user", {})
+                url = (
+                    user.get("image")
+                    or user.get("avatar_url")
+                    or user.get("avatar")
+                    or user.get("picture")
+                )
+                if url and not url.startswith(("http://", "https://")):
+                    url = hub_url.rstrip("/") + "/" + url.lstrip("/")
+                return {"avatar_url": url}
+        except Exception:
+            return {"avatar_url": None}
+
+    @app.post("/api/cloud/logout")
+    async def cloud_logout() -> dict[str, str]:
+        """Clear the user's saved credentials."""
+        from santai_cli.commands.auth import _clear_credentials
+
+        _clear_credentials()
+        return {"status": "logged_out"}
+
     @app.post("/api/cloud/push")
     async def cloud_push(req: CloudPushRequest) -> StreamingResponse:
         """Push the current project to the cloud, streaming SSE progress events."""
@@ -1991,7 +2036,12 @@ def create_app(project: SantaiProject) -> FastAPI:
                     return
 
                 yield _sse(
-                    {"type": "done", "version": upload_result.get("version", "?")}
+                    {
+                        "type": "done",
+                        "version": upload_result.get("version", "?"),
+                        "base_id": base_id,
+                        "hub_url": hub_url,
+                    }
                 )
             finally:
                 _cloud_push_lock.release()
