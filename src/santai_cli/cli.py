@@ -31,20 +31,27 @@ class _VerboseHelpGroup(typer.core.TyperGroup):
     to display an extended help page.
     """
 
-    def parse_args(self, ctx: click.Context, args: list[str]) -> list[str]:
+    # typer 0.26+ vendors click as typer._click, so TyperGroup's signature uses
+    # _click.Context rather than stock click.Context. The runtime types are
+    # identical; the mismatch is only visible to the type checker.
+    def parse_args(  # ty: ignore[invalid-method-override]
+        self, ctx: click.Context, args: list[str]
+    ) -> list[str]:
         ctx.ensure_object(dict)
         if "--verbose" in args or "-v" in args:
             ctx.obj["verbose"] = True
             args = [a for a in args if a not in ("--verbose", "-v")]
         else:
             ctx.obj["verbose"] = False
-        return super().parse_args(ctx, args)
+        return super().parse_args(ctx, args)  # ty: ignore[invalid-argument-type]
 
-    def format_help(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
+    def format_help(  # ty: ignore[invalid-method-override]
+        self, ctx: click.Context, formatter: click.HelpFormatter
+    ) -> None:
         if ctx.obj and ctx.obj.get("verbose"):
             _print_verbose_help()
         else:
-            super().format_help(ctx, formatter)
+            super().format_help(ctx, formatter)  # ty: ignore[invalid-argument-type]
 
 
 # ---------------------------------------------------------------------------
