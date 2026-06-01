@@ -6900,16 +6900,21 @@
                 return;
             }
 
-            // Cmd+A / Ctrl+A — select all items in file grid
-            if ((e.ctrlKey || e.metaKey) && e.key === 'a' && !inInput && currentView === 'browser') {
+            // Cmd+A / Ctrl+A — select all items in the file grid and tree
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a' && !inInput && currentView === 'browser') {
                 e.preventDefault();
-                const allItems = Array.from(document.querySelectorAll('.file-item'));
-                if (allItems.length > 0) {
-                    gridSelectedPaths.clear();
-                    allItems.forEach(i => { i.classList.add('selected'); gridSelectedPaths.add(i.dataset.path); });
-                    lastGridAnchorPath = allItems[0].dataset.path;
-                    selectedItem = { path: allItems[0].dataset.path, isDir: allItems[0].dataset.isDir === 'true', name: allItems[0].dataset.name };
+                // Grid
+                const allGridItems = Array.from(document.querySelectorAll('#file-grid-container .file-item'));
+                gridSelectedPaths.clear();
+                allGridItems.forEach(i => { i.classList.add('selected'); gridSelectedPaths.add(i.dataset.path); });
+                if (allGridItems.length > 0) {
+                    lastGridAnchorPath = allGridItems[0].dataset.path;
+                    selectedItem = { path: allGridItems[0].dataset.path, isDir: allGridItems[0].dataset.isDir === 'true', name: allGridItems[0].dataset.name };
                 }
+                // Tree
+                const allTreeItems = getFlatVisibleTreeItems();
+                selectedItems = new Set(allTreeItems.map(el => el.dataset.path));
+                updateTreeSelection();
                 return;
             }
 
