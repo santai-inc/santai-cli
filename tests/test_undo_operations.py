@@ -1,7 +1,9 @@
-"""Integration tests for file API operations used by the undo system.
+"""Integration tests for the inverse-roundtrip behaviour of the file API.
 
-Each test exercises a forward operation followed by its undo (reverse call),
-verifying that the filesystem returns to its original state.
+Each test exercises a forward operation followed by its manual reverse call,
+verifying that the filesystem returns to its original state. These tests cover
+the API primitives that the JS undo system relies on — they do not exercise the
+JS snapshot/restore logic or UndoManager state machine.
 """
 
 from pathlib import Path
@@ -43,7 +45,7 @@ def _write_file(project, rel_path: str, content: str) -> Path:
 # ---------------------------------------------------------------------------
 
 
-def test_undo_save_restores_previous_content(web_client):
+def test_inverse_roundtrip_save_restores_previous_content(web_client):
     client, project = web_client
 
     _write_file(project, "notes/hello.md", "original content")
@@ -65,7 +67,7 @@ def test_undo_save_restores_previous_content(web_client):
     assert (project.root / "notes/hello.md").read_text() == "original content"
 
 
-def test_undo_save_rejects_invalid_path(web_client):
+def test_inverse_roundtrip_save_rejects_invalid_path(web_client):
     client, _ = web_client
     resp = client.post(
         "/api/files/save?path=../../etc/passwd",
@@ -79,7 +81,7 @@ def test_undo_save_rejects_invalid_path(web_client):
 # ---------------------------------------------------------------------------
 
 
-def test_undo_rename_restores_original_name(web_client):
+def test_inverse_roundtrip_rename_restores_original_name(web_client):
     client, project = web_client
 
     _write_file(project, "docs/original.md", "content")
@@ -103,7 +105,7 @@ def test_undo_rename_restores_original_name(web_client):
     assert not (project.root / "docs/renamed.md").exists()
 
 
-def test_undo_rename_folder_restores_original_name(web_client):
+def test_inverse_roundtrip_rename_folder_restores_original_name(web_client):
     client, project = web_client
 
     (project.root / "old-folder").mkdir()
@@ -131,7 +133,7 @@ def test_undo_rename_folder_restores_original_name(web_client):
 # ---------------------------------------------------------------------------
 
 
-def test_undo_move_file_restores_original_location(web_client):
+def test_inverse_roundtrip_move_file_restores_original_location(web_client):
     client, project = web_client
 
     _write_file(project, "src/file.md", "hello")
@@ -156,7 +158,7 @@ def test_undo_move_file_restores_original_location(web_client):
     assert not (project.root / "dest/file.md").exists()
 
 
-def test_undo_move_folder_restores_original_location(web_client):
+def test_inverse_roundtrip_move_folder_restores_original_location(web_client):
     client, project = web_client
 
     (project.root / "source-dir").mkdir()
@@ -186,7 +188,7 @@ def test_undo_move_folder_restores_original_location(web_client):
 # ---------------------------------------------------------------------------
 
 
-def test_undo_create_file_deletes_it(web_client):
+def test_inverse_roundtrip_create_file_deletes_it(web_client):
     client, project = web_client
 
     # Forward: create new file
@@ -204,7 +206,7 @@ def test_undo_create_file_deletes_it(web_client):
     assert not (project.root / created_path).exists()
 
 
-def test_undo_create_file_in_subfolder(web_client):
+def test_inverse_roundtrip_create_file_in_subfolder(web_client):
     client, project = web_client
 
     (project.root / "notes").mkdir()
@@ -225,7 +227,7 @@ def test_undo_create_file_in_subfolder(web_client):
 # ---------------------------------------------------------------------------
 
 
-def test_undo_create_folder_deletes_it(web_client):
+def test_inverse_roundtrip_create_folder_deletes_it(web_client):
     client, project = web_client
 
     resp = client.post(
@@ -240,7 +242,7 @@ def test_undo_create_folder_deletes_it(web_client):
     assert not (project.root / "new-project").exists()
 
 
-def test_undo_create_nested_folder(web_client):
+def test_inverse_roundtrip_create_nested_folder(web_client):
     client, project = web_client
 
     (project.root / "parent").mkdir()

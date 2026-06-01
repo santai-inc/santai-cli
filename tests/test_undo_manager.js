@@ -35,6 +35,11 @@ class UndoManager {
         if (this._stack.length > this._maxHistory) this._stack.shift();
         this._notify();
     }
+    restoreToUndo(op) {
+        this._stack.push(op);
+        if (this._stack.length > this._maxHistory) this._stack.shift();
+        this._notify();
+    }
     canUndo() { return this._stack.length > 0; }
     canRedo() { return this._redoStack.length > 0; }
     peek() { return this._stack[this._stack.length - 1] || null; }
@@ -192,6 +197,14 @@ test('push() clears the redo stack', () => {
     assert(um.canRedo(), 'redo should be available before push');
     um.push({ type: 'DELETE', label: 'new action' });
     assert(!um.canRedo(), 'new user action should clear redo history');
+});
+
+test('restoreToUndo() adds to undo stack without clearing redo stack', () => {
+    const um = new UndoManager();
+    um.pushRedo({ type: 'MOVE', label: 'next redo' });
+    um.restoreToUndo({ type: 'SAVE', label: 'failed op put back' });
+    assert(um.canUndo(), 'undo stack should have the restored op');
+    assert(um.canRedo(), 'redo stack must be preserved — this is the key difference from push()');
 });
 
 test('pushFromRedo() adds to undo stack without clearing redo stack', () => {
