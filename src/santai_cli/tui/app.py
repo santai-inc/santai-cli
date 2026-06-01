@@ -1697,9 +1697,10 @@ class ChatScreen(ModalScreen):
                     id="chat-input",
                 )
 
-    def on_mount(self) -> None:
+    async def on_mount(self) -> None:
         """Initialize chat configuration."""
         from santai_cli.core.config import load_config
+        from santai_cli.core.models import populate_live_models
 
         log = self.query_one("#chat-log", RichLog)
         status = self.query_one("#chat-status", Label)
@@ -1716,6 +1717,11 @@ class ChatScreen(ModalScreen):
             )
             status.update("No providers configured")
             return
+
+        # Replace each provider's hardcoded fallback list with the live catalog
+        # so /model shows what the provider actually serves (matches `santai chat`
+        # and `santai web`). Failures fall back to the hardcoded list silently.
+        await populate_live_models(self._config)
 
         # Auto-select first available model
         choices = self._config.get_model_choices()

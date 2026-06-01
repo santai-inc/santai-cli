@@ -101,6 +101,13 @@ def chat(
         if config is None:
             raise typer.Exit(1)
 
+    # Replace the hardcoded fallback model lists with whatever each provider
+    # actually serves right now. Falls back silently if the live fetch fails
+    # (network issue, expired key, proxy down).
+    from santai_cli.core.models import populate_live_models
+
+    asyncio.run(populate_live_models(config))
+
     # Load agent system prompt if specified
     system_prompt = None
     active_agent = agent
