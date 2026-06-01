@@ -4235,18 +4235,6 @@
                             </svg>
                         </button>
                     </div>
-                    <div class="nav-arrows">
-                        <button class="nav-arrow" id="btn-undo" onclick="performUndo()" title="Undo (⌘Z)" disabled>
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                            </svg>
-                        </button>
-                        <button class="nav-arrow" id="btn-redo" onclick="performRedo()" title="Redo (⌘⇧Z)" disabled>
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 10H11a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6" />
-                            </svg>
-                        </button>
-                    </div>
                     <nav class="browser-breadcrumbs" id="browser-breadcrumbs">
                         <!-- Breadcrumbs populated by JavaScript -->
                     </nav>
@@ -4678,13 +4666,6 @@
             get size() { return this._stack.length; }
         }
         const undoManager = new UndoManager();
-        function updateUndoRedoButtons() {
-            const undoBtn = document.getElementById('btn-undo');
-            const redoBtn = document.getElementById('btn-redo');
-            if (undoBtn) undoBtn.disabled = !undoManager.canUndo();
-            if (redoBtn) redoBtn.disabled = !undoManager.canRedo();
-        }
-        undoManager._onChange = updateUndoRedoButtons;
         function hasPreviewContent() {
             const header = document.getElementById('preview-file-header');
             return Boolean(header) && header.style.display !== 'none';
