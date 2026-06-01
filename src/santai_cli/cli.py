@@ -9,9 +9,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-# typer vendors its own click; using the vendored types keeps method overrides
-# Liskov-compatible with TyperGroup.
-from typer import _click as click
+import click
 
 from santai_cli.commands import (
     auth,
