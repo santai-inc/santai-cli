@@ -4627,7 +4627,9 @@
         let currentPath = '';
         let selectedItem = null;
         let selectedItems = new Set(); // paths of multi-selected tree items
+        let gridSelectedPaths = new Set(); // paths of multi-selected file-grid items
         let lastClickedPath = null;    // anchor for shift-range selection
+        let lastGridAnchorPath = null; // anchor for shift-range selection in file grid
         let files = [];
         let previewPath = null;
         let previewHistory = []; // paths navigated via markdown links, for back-button
@@ -5219,6 +5221,8 @@
         async function loadFilesInternal(path = '') {
             currentPath = path;
             selectedItem = null;
+            gridSelectedPaths.clear();
+            lastGridAnchorPath = null;
             updateNavButtons();
 
             const container = document.getElementById('file-grid-container');
@@ -5256,6 +5260,8 @@
 
             currentPath = path;
             selectedItem = null;
+            gridSelectedPaths.clear();
+            lastGridAnchorPath = null;
             updateNavButtons();
 
             const container = document.getElementById('file-grid-container');
@@ -5368,12 +5374,12 @@
                         <div class="file-meta">${item.is_dir ? 'Folder' : item.size_formatted}</div>
                     </div>`;
                 html += `<div class="file-actions">
-                        <button class="file-action-btn edit-btn" onclick="event.stopPropagation(); editItem('${escAttr(item.path)}', '${escAttr(item.name)}')" title="Rename (⌘Z to undo)">
+                        <button class="file-action-btn edit-btn" onmousedown="event.stopPropagation()" onclick="event.stopPropagation(); editItem('${escAttr(item.path)}', '${escAttr(item.name)}')" title="Rename (⌘Z to undo)">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
                             </svg>
                         </button>
-                        <button class="file-action-btn delete-btn" onclick="event.stopPropagation(); deleteItem('${escAttr(item.path)}', '${escAttr(item.name)}', ${item.is_dir})" title="Delete (⌘Z to undo)">
+                        <button class="file-action-btn delete-btn" onmousedown="event.stopPropagation()" onclick="event.stopPropagation(); deleteItem('${escAttr(item.path)}', '${escAttr(item.name)}', ${item.is_dir})" title="Delete (⌘Z to undo)">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
                             </svg>
@@ -5388,13 +5394,53 @@
         // Select item
         function selectItem(el, event) {
             event.stopPropagation();
-            document.querySelectorAll('.file-item').forEach(i => i.classList.remove('selected'));
+            // Guard: action buttons (edit/delete) handle their own clicks — don't clear selection
+            if (event.target && event.target.closest && event.target.closest('.file-action-btn')) return;
+
+            const path = el.dataset.path;
+            const allItems = Array.from(document.querySelectorAll('.file-item'));
+
+            if (event.shiftKey && lastGridAnchorPath) {
+                // Shift+click: select range from anchor to current item
+                const anchorIdx = allItems.findIndex(i => i.dataset.path === lastGridAnchorPath);
+                const currIdx = allItems.findIndex(i => i.dataset.path === path);
+                if (anchorIdx !== -1 && currIdx !== -1) {
+                    const lo = Math.min(anchorIdx, currIdx);
+                    const hi = Math.max(anchorIdx, currIdx);
+                    gridSelectedPaths.clear();
+                    allItems.forEach(i => i.classList.remove('selected'));
+                    for (let i = lo; i <= hi; i++) {
+                        allItems[i].classList.add('selected');
+                        gridSelectedPaths.add(allItems[i].dataset.path);
+                    }
+                    selectedItem = { path, isDir: el.dataset.isDir === 'true', name: el.dataset.name };
+                    return; // No auto-navigate in multi-select mode
+                }
+            }
+
+            if (event.metaKey || event.ctrlKey) {
+                // Cmd/Ctrl+click: toggle this item in the multi-selection
+                if (gridSelectedPaths.has(path)) {
+                    gridSelectedPaths.delete(path);
+                    el.classList.remove('selected');
+                } else {
+                    gridSelectedPaths.add(path);
+                    el.classList.add('selected');
+                }
+                selectedItem = gridSelectedPaths.size > 0
+                    ? { path, isDir: el.dataset.isDir === 'true', name: el.dataset.name }
+                    : null;
+                lastGridAnchorPath = path;
+                return; // No auto-navigate in multi-select mode
+            }
+
+            // Regular click: set anchor, clear multi-select, select only this item
+            lastGridAnchorPath = path;
+            gridSelectedPaths.clear();
+            allItems.forEach(i => i.classList.remove('selected'));
             el.classList.add('selected');
-            selectedItem = {
-                path: el.dataset.path,
-                isDir: el.dataset.isDir === 'true',
-                name: el.dataset.name
-            };
+            gridSelectedPaths.add(path);
+            selectedItem = { path, isDir: el.dataset.isDir === 'true', name: el.dataset.name };
 
             // Auto-open: preview for files, navigate for folders
             if (selectedItem.isDir) {
@@ -5474,8 +5520,33 @@
         // is allowed (the layout is recommended, not enforced) but worth a nudge.
         const SANTAI_DIRS = ['media', 'history', 'notes'];
 
+        // Gather items currently multi-selected across tree or grid (returns [] if < 2)
+        function _getMultiSelectedItems(clickedPath) {
+            // Tree multi-select takes priority when ≥2 tree items are selected
+            if (selectedItems.size > 1 && (clickedPath == null || selectedItems.has(clickedPath))) {
+                return Array.from(document.querySelectorAll('#tree-view .tree-item.tree-selected')).map(el => ({
+                    path: el.dataset.path,
+                    name: el.dataset.path.split('/').pop(),
+                    isDir: el.dataset.isDir === 'true'
+                }));
+            }
+            // Grid multi-select
+            const gridEls = Array.from(document.querySelectorAll('.file-item.selected'));
+            if (gridEls.length > 1) {
+                return gridEls.map(el => ({
+                    path: el.dataset.path,
+                    name: el.dataset.name,
+                    isDir: el.dataset.isDir === 'true'
+                }));
+            }
+            return [];
+        }
+
         // Delete item directly (from button)
         async function deleteItem(path, name, isDir) {
+            const multi = _getMultiSelectedItems(path);
+            if (multi.length > 0) return deleteSelectedItems(multi);
+
             const isSantaiDir = isDir && SANTAI_DIRS.includes(path);
             const msg = isSantaiDir
                 ? `Delete folder "${name}" and all its contents?\n\n"${name}" is one of the recommended santai folders — you can recreate it later if needed.`
@@ -5503,6 +5574,46 @@
             } catch (err) {
                 showToast(err.message, true);
             }
+        }
+
+        async function deleteSelectedItems(items) {
+            if (!items || items.length === 0) return;
+
+            if (!confirm(`Delete ${items.length} items?`)) return;
+
+            const failed = [];
+            const succeeded = [];
+            for (const item of items) {
+                try {
+                    const snapshot = await _snapshotForDelete(item.path, item.isDir);
+                    const res = await fetch(`/api/files?path=${encodeURIComponent(item.path)}`, { method: 'DELETE' });
+                    if (!res.ok) {
+                        const err = await res.json();
+                        throw new Error(err.detail || 'Failed to delete');
+                    }
+                    if (snapshot) succeeded.push({ type: 'DELETE', path: item.path, isDir: item.isDir, snapshot, label: `Delete "${item.name}"` });
+                    if (previewReferencesPath(item.path, item.isDir)) closePreview();
+                } catch (err) {
+                    failed.push(item.name);
+                }
+            }
+
+            if (succeeded.length === 1) {
+                undoManager.push(succeeded[0]);
+            } else if (succeeded.length > 1) {
+                undoManager.push({ type: 'BULK_DELETE', ops: succeeded, label: `Delete ${succeeded.length} items` });
+            }
+
+            gridSelectedPaths.clear();
+            selectedItems.clear();
+            updateTreeSelection();
+            if (failed.length === 0) {
+                showToast(`Deleted ${items.length} items`, false, true);
+            } else {
+                showToast(`Failed to delete: ${failed.join(', ')}`, true);
+            }
+            loadFiles(currentPath);
+            loadTree();
         }
 
         // Move item (drag and drop)
@@ -5843,6 +5954,9 @@
 
         // Delete
         async function deleteSelected() {
+            const multi = _getMultiSelectedItems(null);
+            if (multi.length > 0) return deleteSelectedItems(multi);
+
             if (!selectedItem) return;
             const isSantaiDir = selectedItem.is_dir && SANTAI_DIRS.includes(selectedItem.path);
             const deleteMsg = isSantaiDir
@@ -6572,6 +6686,14 @@
             if (previewPath && (previewPath === op.path || previewPath.startsWith(op.path + '/'))) closePreview();
         }
 
+        async function _undoBulkDelete(op) {
+            for (const subOp of op.ops) await _undoDelete(subOp);
+        }
+
+        async function _redoBulkDelete(op) {
+            for (const subOp of op.ops) await _redoDelete(subOp);
+        }
+
         async function performUndo() {
             if (!undoManager.canUndo()) {
                 showToast('Nothing to undo');
@@ -6586,6 +6708,7 @@
                     case 'CREATE_FILE':
                     case 'CREATE_FOLDER': await _undoCreate(op); break;
                     case 'DELETE':        await _undoDelete(op); break;
+                    case 'BULK_DELETE':   await _undoBulkDelete(op); break;
                 }
                 undoManager.pushRedo(op);
                 showToast(`Undid: ${op.label}`, false, false, true);
@@ -6655,6 +6778,7 @@
                     case 'CREATE_FILE':
                     case 'CREATE_FOLDER': await _redoCreate(op); break;
                     case 'DELETE':        await _redoDelete(op); break;
+                    case 'BULK_DELETE':   await _redoBulkDelete(op); break;
                 }
                 undoManager.pushFromRedo(op);
                 showToast(`Redid: ${op.label}`, false, true);
