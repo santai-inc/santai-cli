@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
+import click
 import typer
 import typer.core
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
-
-import click
 
 from santai_cli.commands import (
     auth,
