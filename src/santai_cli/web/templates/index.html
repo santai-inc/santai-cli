@@ -4251,7 +4251,6 @@
                         <!-- Breadcrumbs populated by JavaScript -->
                     </nav>
                 </div>
-                <div id="grid-selection-bar" style="display:none;padding:4px 12px;font-size:12px;color:var(--text-secondary);background:var(--bg-secondary);border-bottom:1px solid var(--border);user-select:none;"></div>
                 <div class="file-grid-container" id="file-grid-container" onclick="if(event.target===this||event.target.classList.contains('file-grid')){clearGridSelection();selectedItem=null;}">
                     <div class="loading">
                         <div class="spinner"></div>
@@ -4632,23 +4631,10 @@
         let lastClickedPath = null;    // anchor for shift-range selection
         let lastGridAnchorPath = null; // anchor for shift-range selection in file grid
 
-        function updateGridSelectionBar() {
-            const bar = document.getElementById('grid-selection-bar');
-            if (!bar) return;
-            const n = gridSelectedPaths.size;
-            if (n > 1) {
-                bar.textContent = `${n} items selected`;
-                bar.style.display = 'block';
-            } else {
-                bar.style.display = 'none';
-            }
-        }
-
         function clearGridSelection() {
             gridSelectedPaths.clear();
             lastGridAnchorPath = null;
             document.querySelectorAll('.file-item.selected').forEach(i => i.classList.remove('selected'));
-            updateGridSelectionBar();
         }
         let files = [];
         let previewPath = null;
@@ -5432,7 +5418,6 @@
                         gridSelectedPaths.add(allItems[i].dataset.path);
                     }
                     selectedItem = { path, isDir: el.dataset.isDir === 'true', name: el.dataset.name };
-                    updateGridSelectionBar();
                     return; // No auto-navigate in multi-select mode
                 }
             }
@@ -5450,7 +5435,6 @@
                     ? { path, isDir: el.dataset.isDir === 'true', name: el.dataset.name }
                     : null;
                 lastGridAnchorPath = path;
-                updateGridSelectionBar();
                 return; // No auto-navigate in multi-select mode
             }
 
@@ -5461,7 +5445,6 @@
             el.classList.add('selected');
             gridSelectedPaths.add(path);
             selectedItem = { path, isDir: el.dataset.isDir === 'true', name: el.dataset.name };
-            updateGridSelectionBar();
 
             // Auto-open: preview for files, navigate for folders
             if (selectedItem.isDir) {
@@ -6945,7 +6928,6 @@
                     allItems.forEach(i => { i.classList.add('selected'); gridSelectedPaths.add(i.dataset.path); });
                     lastGridAnchorPath = allItems[0].dataset.path;
                     selectedItem = { path: allItems[0].dataset.path, isDir: allItems[0].dataset.isDir === 'true', name: allItems[0].dataset.name };
-                    updateGridSelectionBar();
                 }
                 return;
             }
