@@ -4251,7 +4251,8 @@
                         <!-- Breadcrumbs populated by JavaScript -->
                     </nav>
                 </div>
-                <div class="file-grid-container" id="file-grid-container">
+                <div id="grid-selection-bar" style="display:none;padding:4px 12px;font-size:12px;color:var(--text-secondary);background:var(--bg-secondary);border-bottom:1px solid var(--border);user-select:none;"></div>
+                <div class="file-grid-container" id="file-grid-container" onclick="if(event.target===this||event.target.classList.contains('file-grid')){clearGridSelection();selectedItem=null;}">
                     <div class="loading">
                         <div class="spinner"></div>
                     </div>
@@ -4630,6 +4631,25 @@
         let gridSelectedPaths = new Set(); // paths of multi-selected file-grid items
         let lastClickedPath = null;    // anchor for shift-range selection
         let lastGridAnchorPath = null; // anchor for shift-range selection in file grid
+
+        function updateGridSelectionBar() {
+            const bar = document.getElementById('grid-selection-bar');
+            if (!bar) return;
+            const n = gridSelectedPaths.size;
+            if (n > 1) {
+                bar.textContent = `${n} items selected`;
+                bar.style.display = 'block';
+            } else {
+                bar.style.display = 'none';
+            }
+        }
+
+        function clearGridSelection() {
+            gridSelectedPaths.clear();
+            lastGridAnchorPath = null;
+            document.querySelectorAll('.file-item.selected').forEach(i => i.classList.remove('selected'));
+            updateGridSelectionBar();
+        }
         let files = [];
         let previewPath = null;
         let previewHistory = []; // paths navigated via markdown links, for back-button
@@ -5221,8 +5241,7 @@
         async function loadFilesInternal(path = '') {
             currentPath = path;
             selectedItem = null;
-            gridSelectedPaths.clear();
-            lastGridAnchorPath = null;
+            clearGridSelection();
             updateNavButtons();
 
             const container = document.getElementById('file-grid-container');
@@ -5260,8 +5279,7 @@
 
             currentPath = path;
             selectedItem = null;
-            gridSelectedPaths.clear();
-            lastGridAnchorPath = null;
+            clearGridSelection();
             updateNavButtons();
 
             const container = document.getElementById('file-grid-container');
@@ -5414,6 +5432,7 @@
                         gridSelectedPaths.add(allItems[i].dataset.path);
                     }
                     selectedItem = { path, isDir: el.dataset.isDir === 'true', name: el.dataset.name };
+                    updateGridSelectionBar();
                     return; // No auto-navigate in multi-select mode
                 }
             }
@@ -5431,6 +5450,7 @@
                     ? { path, isDir: el.dataset.isDir === 'true', name: el.dataset.name }
                     : null;
                 lastGridAnchorPath = path;
+                updateGridSelectionBar();
                 return; // No auto-navigate in multi-select mode
             }
 
@@ -5441,6 +5461,7 @@
             el.classList.add('selected');
             gridSelectedPaths.add(path);
             selectedItem = { path, isDir: el.dataset.isDir === 'true', name: el.dataset.name };
+            updateGridSelectionBar();
 
             // Auto-open: preview for files, navigate for folders
             if (selectedItem.isDir) {
@@ -5604,7 +5625,7 @@
                 undoManager.push({ type: 'BULK_DELETE', ops: succeeded, label: `Delete ${succeeded.length} items` });
             }
 
-            gridSelectedPaths.clear();
+            clearGridSelection();
             selectedItems.clear();
             updateTreeSelection();
             if (failed.length === 0) {
@@ -5891,7 +5912,7 @@
                         return { originalPath: item.path, originalParent, itemName: item.name, newPath };
                     });
                     undoManager.push({
-                        type: 'MOVE',
+                        type: 'BULK_MOVE',
                         moves,
                         label: `Move ${succeeded} item${succeeded !== 1 ? 's' : ''} to ${dropFolder || 'root'}`
                     });
@@ -6686,12 +6707,49 @@
             if (previewPath && (previewPath === op.path || previewPath.startsWith(op.path + '/'))) closePreview();
         }
 
+        async function _undoBulkMove(op) {
+            const total = op.moves.length;
+            for (let i = 0; i < total; i++) {
+                if (total > 1) showToast(`Undoing move ${i + 1}/${total}…`);
+                const m = op.moves[i];
+                const res = await fetch('/api/files/move', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ source_path: m.newPath, target_folder: m.originalParent })
+                });
+                if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'Failed to undo move'); }
+            }
+        }
+
+        async function _redoBulkMove(op) {
+            const total = op.moves.length;
+            for (let i = 0; i < total; i++) {
+                if (total > 1) showToast(`Redoing move ${i + 1}/${total}…`);
+                const m = op.moves[i];
+                const targetFolder = m.newPath.includes('/') ? m.newPath.split('/').slice(0, -1).join('/') : '';
+                const res = await fetch('/api/files/move', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ source_path: m.originalPath, target_folder: targetFolder })
+                });
+                if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'Failed to redo move'); }
+            }
+        }
+
         async function _undoBulkDelete(op) {
-            for (const subOp of op.ops) await _undoDelete(subOp);
+            const total = op.ops.length;
+            for (let i = 0; i < total; i++) {
+                showToast(`Restoring ${i + 1}/${total}…`);
+                await _undoDelete(op.ops[i]);
+            }
         }
 
         async function _redoBulkDelete(op) {
-            for (const subOp of op.ops) await _redoDelete(subOp);
+            const total = op.ops.length;
+            for (let i = 0; i < total; i++) {
+                showToast(`Deleting ${i + 1}/${total}…`);
+                await _redoDelete(op.ops[i]);
+            }
         }
 
         async function performUndo() {
@@ -6702,12 +6760,13 @@
             const op = undoManager.pop();
             try {
                 switch (op.type) {
-                    case 'SAVE':          await _undoSave(op);   break;
-                    case 'MOVE':          await _undoMove(op);   break;
-                    case 'RENAME':        await _undoRename(op); break;
+                    case 'SAVE':          await _undoSave(op);      break;
+                    case 'MOVE':          await _undoMove(op);      break;
+                    case 'BULK_MOVE':     await _undoBulkMove(op);  break;
+                    case 'RENAME':        await _undoRename(op);    break;
                     case 'CREATE_FILE':
-                    case 'CREATE_FOLDER': await _undoCreate(op); break;
-                    case 'DELETE':        await _undoDelete(op); break;
+                    case 'CREATE_FOLDER': await _undoCreate(op);    break;
+                    case 'DELETE':        await _undoDelete(op);    break;
                     case 'BULK_DELETE':   await _undoBulkDelete(op); break;
                 }
                 undoManager.pushRedo(op);
@@ -6772,12 +6831,13 @@
             const op = undoManager.popRedo();
             try {
                 switch (op.type) {
-                    case 'SAVE':          await _redoSave(op);   break;
-                    case 'MOVE':          await _redoMove(op);   break;
-                    case 'RENAME':        await _redoRename(op); break;
+                    case 'SAVE':          await _redoSave(op);      break;
+                    case 'MOVE':          await _redoMove(op);      break;
+                    case 'BULK_MOVE':     await _redoBulkMove(op);  break;
+                    case 'RENAME':        await _redoRename(op);    break;
                     case 'CREATE_FILE':
-                    case 'CREATE_FOLDER': await _redoCreate(op); break;
-                    case 'DELETE':        await _redoDelete(op); break;
+                    case 'CREATE_FOLDER': await _redoCreate(op);    break;
+                    case 'DELETE':        await _redoDelete(op);    break;
                     case 'BULK_DELETE':   await _redoBulkDelete(op); break;
                 }
                 undoManager.pushFromRedo(op);
@@ -6873,6 +6933,27 @@
             if ((e.ctrlKey || e.metaKey) && e.key === 'z' && e.shiftKey && !inInput) {
                 e.preventDefault();
                 performRedo();
+                return;
+            }
+
+            // Cmd+A / Ctrl+A — select all items in file grid
+            if ((e.ctrlKey || e.metaKey) && e.key === 'a' && !inInput && currentView === 'browser') {
+                e.preventDefault();
+                const allItems = Array.from(document.querySelectorAll('.file-item'));
+                if (allItems.length > 0) {
+                    gridSelectedPaths.clear();
+                    allItems.forEach(i => { i.classList.add('selected'); gridSelectedPaths.add(i.dataset.path); });
+                    lastGridAnchorPath = allItems[0].dataset.path;
+                    selectedItem = { path: allItems[0].dataset.path, isDir: allItems[0].dataset.isDir === 'true', name: allItems[0].dataset.name };
+                    updateGridSelectionBar();
+                }
+                return;
+            }
+
+            // Escape — clear grid selection (without navigating away)
+            if (e.key === 'Escape' && !document.querySelector('.modal-overlay.show') && gridSelectedPaths.size > 1) {
+                clearGridSelection();
+                selectedItem = null;
                 return;
             }
 
