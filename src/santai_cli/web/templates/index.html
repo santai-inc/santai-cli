@@ -6903,17 +6903,28 @@
             // Cmd+A / Ctrl+A — select all items in the file grid and tree
             if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a' && !inInput && currentView === 'browser') {
                 e.preventDefault();
+                // If a file is being previewed, scope selection to that file's parent folder
+                const scopeFolder = previewPath
+                    ? previewPath.includes('/') ? previewPath.split('/').slice(0, -1).join('/') : ''
+                    : null;
+                const inScope = (itemPath) => scopeFolder === null
+                    ? true
+                    : scopeFolder === ''
+                        ? !itemPath.includes('/')
+                        : itemPath.startsWith(scopeFolder + '/') && !itemPath.slice(scopeFolder.length + 1).includes('/');
                 // Grid
                 const allGridItems = Array.from(document.querySelectorAll('#file-grid-container .file-item'));
+                const scopedGridItems = scopeFolder === null ? allGridItems : allGridItems.filter(i => inScope(i.dataset.path));
                 gridSelectedPaths.clear();
-                allGridItems.forEach(i => { i.classList.add('selected'); gridSelectedPaths.add(i.dataset.path); });
-                if (allGridItems.length > 0) {
-                    lastGridAnchorPath = allGridItems[0].dataset.path;
-                    selectedItem = { path: allGridItems[0].dataset.path, isDir: allGridItems[0].dataset.isDir === 'true', name: allGridItems[0].dataset.name };
+                allGridItems.forEach(i => i.classList.remove('selected'));
+                scopedGridItems.forEach(i => { i.classList.add('selected'); gridSelectedPaths.add(i.dataset.path); });
+                if (scopedGridItems.length > 0) {
+                    lastGridAnchorPath = scopedGridItems[0].dataset.path;
+                    selectedItem = { path: scopedGridItems[0].dataset.path, isDir: scopedGridItems[0].dataset.isDir === 'true', name: scopedGridItems[0].dataset.name };
                 }
                 // Tree
                 const allTreeItems = getFlatVisibleTreeItems();
-                selectedItems = new Set(allTreeItems.map(el => el.dataset.path));
+                selectedItems = new Set(allTreeItems.filter(el => inScope(el.dataset.path)).map(el => el.dataset.path));
                 updateTreeSelection();
                 return;
             }
@@ -10222,6 +10233,16 @@
             if (previewPanel && previewPanel.classList.contains('fullscreen')) {
                 e.preventDefault();
                 togglePreviewFullscreen();
+                return;
+            }
+
+            // Deselect multi-selected files before closing anything
+            if (gridSelectedPaths.size > 1 || selectedItems.size > 1) {
+                e.preventDefault();
+                clearGridSelection();
+                selectedItem = null;
+                selectedItems.clear();
+                updateTreeSelection();
                 return;
             }
 
