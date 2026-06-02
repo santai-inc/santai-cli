@@ -1213,6 +1213,7 @@
             height: 80vh;
             display: flex;
             flex-direction: column;
+            padding-bottom: 16px;
         }
 
         .edit-modal-header {
@@ -2305,6 +2306,36 @@
         .toast.error {
             border-color: #ef4444;
             background: rgba(254, 242, 242, 0.95);
+        }
+
+        .toast-undo-btn {
+            background: none;
+            border: 0px solid currentColor;
+            border-radius: 6px;
+            color: inherit;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            margin-left: 0;
+            max-width: 0;
+            opacity: 0;
+            overflow: hidden;
+            padding: 2px 0;
+            transition: opacity 0.2s, max-width 0.2s, margin-left 0.2s, padding 0.2s, border-width 0.2s;
+            vertical-align: middle;
+            white-space: nowrap;
+        }
+        .toast:hover .toast-undo-btn {
+            border-width: 1px;
+            margin-left: 10px;
+            max-width: 80px;
+            opacity: 0.8;
+            padding: 2px 8px;
+        }
+        .toast-undo-btn:hover {
+            background: rgba(0, 0, 0, 0.08);
+            opacity: 1;
         }
 
         /* Hidden file input */
@@ -4355,7 +4386,7 @@
                         <!-- Breadcrumbs populated by JavaScript -->
                     </nav>
                 </div>
-                <div class="file-grid-container" id="file-grid-container">
+                <div class="file-grid-container" id="file-grid-container" onclick="if(event.target===this||event.target.classList.contains('file-grid')){clearGridSelection();selectedItem=null;}">
                     <div class="loading">
                         <div class="spinner"></div>
                     </div>
@@ -4431,7 +4462,7 @@
                         </svg>
                         Download
                     </button>
-                    <button class="btn btn-danger" id="preview-delete" onclick="deletePreviewFile()">
+                    <button class="btn btn-danger" id="preview-delete" onclick="deletePreviewFile()" title="Delete (⌘Z to undo)">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
                         </svg>
@@ -4542,13 +4573,13 @@
             </svg>
             Download
         </button>
-        <button class="context-menu-item" onclick="showRenameModal()">
+        <button class="context-menu-item" onclick="showRenameModal()" title="Rename (⌘Z to undo)">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
             </svg>
             Rename
         </button>
-        <button class="context-menu-item danger" onclick="deleteSelected()">
+        <button class="context-menu-item danger" onclick="deleteSelected()" title="Delete (⌘Z to undo)">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
             </svg>
@@ -4604,9 +4635,9 @@
                 </button>
             </div>
             <textarea class="edit-textarea" id="edit-textarea" placeholder="File content..."></textarea>
-            <div class="modal-actions">
-                <button class="btn" onclick="closeModals()">Cancel</button>
-                <button class="btn btn-primary" onclick="saveFileContent()">Save</button>
+            <div class="modal-actions" style="justify-content: flex-start;">
+                <button class="btn btn-primary" onclick="saveFileContent()" style="min-width: 72px; padding: 7px 16px; justify-content: center;">Save</button>
+                <button class="btn" onclick="closeModals()" style="min-width: 72px; padding: 7px 16px; justify-content: center;">Cancel</button>
             </div>
         </div>
     </div>
@@ -4765,13 +4796,63 @@
         let currentPath = '';
         let selectedItem = null;
         let selectedItems = new Set(); // paths of multi-selected tree items
+        let gridSelectedPaths = new Set(); // paths of multi-selected file-grid items
         let lastClickedPath = null;    // anchor for shift-range selection
+        let lastGridAnchorPath = null; // anchor for shift-range selection in file grid
+
+        function clearGridSelection() {
+            gridSelectedPaths.clear();
+            lastGridAnchorPath = null;
+            document.querySelectorAll('.file-item.selected').forEach(i => i.classList.remove('selected'));
+        }
         let files = [];
         let previewPath = null;
         let previewHistory = []; // paths navigated via markdown links, for back-button
         let previewReturnClusterId = null; // set when a file is opened from a cluster list
         let _previewPollTimer = null;
         let _previewLastContent = null;
+        let _editOriginalContent = null; // content before editing, used for undo
+
+        // Undo/redo manager — stack-based, stores up to 50 reversible operations
+        class UndoManager {
+            constructor(maxHistory = 50) {
+                this._stack = [];
+                this._redoStack = [];
+                this._maxHistory = maxHistory;
+                this._onChange = null;
+            }
+            _notify() { if (this._onChange) this._onChange(); }
+            push(op) {
+                this._stack.push(op);
+                if (this._stack.length > this._maxHistory) this._stack.shift();
+                this._redoStack = []; // new user action clears redo history
+                this._notify();
+            }
+            pop() { const op = this._stack.pop() || null; this._notify(); return op; }
+            pushRedo(op) {
+                this._redoStack.push(op);
+                if (this._redoStack.length > this._maxHistory) this._redoStack.shift();
+                this._notify();
+            }
+            popRedo() { const op = this._redoStack.pop() || null; this._notify(); return op; }
+            pushFromRedo(op) {
+                this._stack.push(op);
+                if (this._stack.length > this._maxHistory) this._stack.shift();
+                this._notify();
+            }
+            restoreToUndo(op) {
+                this._stack.push(op);
+                if (this._stack.length > this._maxHistory) this._stack.shift();
+                this._notify();
+            }
+            canUndo() { return this._stack.length > 0; }
+            canRedo() { return this._redoStack.length > 0; }
+            peek() { return this._stack[this._stack.length - 1] || null; }
+            clear() { this._stack = []; this._redoStack = []; this._notify(); }
+            get size() { return this._stack.length; }
+        }
+        const undoManager = new UndoManager();
+        let _undoRedoBusy = false;
         function hasPreviewContent() {
             const header = document.getElementById('preview-file-header');
             return Boolean(header) && header.style.display !== 'none';
@@ -5096,6 +5177,7 @@
                     return;
                 }
 
+                _editOriginalContent = data.content; // capture for undo
                 document.getElementById('edit-modal-title').textContent = `Edit: ${data.name}`;
                 document.getElementById('edit-textarea').value = data.content;
                 document.getElementById('edit-modal').classList.add('show');
@@ -5109,6 +5191,7 @@
             if (!previewPath) return;
 
             const content = document.getElementById('edit-textarea').value;
+            const previousContent = _editOriginalContent;
 
             try {
                 const res = await fetch(`/api/files/save?path=${encodeURIComponent(previewPath)}`, {
@@ -5122,8 +5205,13 @@
                     throw new Error(err.detail || 'Failed to save file');
                 }
 
+                if (previousContent !== null && previousContent !== content) {
+                    const fname = previewPath.split('/').pop();
+                    undoManager.push({ type: 'SAVE', path: previewPath, previousContent, newContent: content, label: `Edit "${fname}"` });
+                }
+
                 closeModals();
-                showToast('File saved successfully');
+                showToast('File saved successfully', false, true);
                 openFilePreview(previewPath); // Refresh preview
             } catch (err) {
                 showToast(err.message, true);
@@ -5138,6 +5226,8 @@
             if (!confirm(`Delete "${filename}"?`)) return;
 
             try {
+                const snapshot = await _snapshotForDelete(previewPath, false);
+                if (!snapshot && !confirm(`"${filename}" is a binary or large file and cannot be undone — delete anyway?`)) return;
                 const res = await fetch(`/api/files?path=${encodeURIComponent(previewPath)}`, {
                     method: 'DELETE'
                 });
@@ -5147,8 +5237,9 @@
                     throw new Error(err.detail || 'Failed to delete');
                 }
 
+                if (snapshot) undoManager.push({ type: 'DELETE', path: previewPath, isDir: false, snapshot, label: `Delete "${filename}"` });
                 closePreview();
-                showToast('File deleted');
+                showToast('File deleted', false, !!snapshot);
                 loadFiles(currentPath);
                 loadTree();
             } catch (err) {
@@ -5305,6 +5396,7 @@
         async function loadFilesInternal(path = '') {
             currentPath = path;
             selectedItem = null;
+            clearGridSelection();
             updateNavButtons();
 
             const container = document.getElementById('file-grid-container');
@@ -5342,6 +5434,7 @@
 
             currentPath = path;
             selectedItem = null;
+            clearGridSelection();
             updateNavButtons();
 
             const container = document.getElementById('file-grid-container');
@@ -5454,12 +5547,12 @@
                         <div class="file-meta">${item.is_dir ? 'Folder' : item.size_formatted}</div>
                     </div>`;
                 html += `<div class="file-actions">
-                        <button class="file-action-btn edit-btn" onclick="event.stopPropagation(); editItem('${escAttr(item.path)}', '${escAttr(item.name)}')" title="Rename">
+                        <button class="file-action-btn edit-btn" onmousedown="event.stopPropagation()" onclick="event.stopPropagation(); editItem('${escAttr(item.path)}', '${escAttr(item.name)}')" title="Rename (⌘Z to undo)">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
                             </svg>
                         </button>
-                        <button class="file-action-btn delete-btn" onclick="event.stopPropagation(); deleteItem('${escAttr(item.path)}', '${escAttr(item.name)}', ${item.is_dir})" title="Delete">
+                        <button class="file-action-btn delete-btn" onmousedown="event.stopPropagation()" onclick="event.stopPropagation(); deleteItem('${escAttr(item.path)}', '${escAttr(item.name)}', ${item.is_dir})" title="Delete (⌘Z to undo)">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
                             </svg>
@@ -5474,13 +5567,53 @@
         // Select item
         function selectItem(el, event) {
             event.stopPropagation();
-            document.querySelectorAll('.file-item').forEach(i => i.classList.remove('selected'));
+            // Guard: action buttons (edit/delete) handle their own clicks — don't clear selection
+            if (event.target && event.target.closest && event.target.closest('.file-action-btn')) return;
+
+            const path = el.dataset.path;
+            const allItems = Array.from(document.querySelectorAll('.file-item'));
+
+            if (event.shiftKey && lastGridAnchorPath) {
+                // Shift+click: select range from anchor to current item
+                const anchorIdx = allItems.findIndex(i => i.dataset.path === lastGridAnchorPath);
+                const currIdx = allItems.findIndex(i => i.dataset.path === path);
+                if (anchorIdx !== -1 && currIdx !== -1) {
+                    const lo = Math.min(anchorIdx, currIdx);
+                    const hi = Math.max(anchorIdx, currIdx);
+                    gridSelectedPaths.clear();
+                    allItems.forEach(i => i.classList.remove('selected'));
+                    for (let i = lo; i <= hi; i++) {
+                        allItems[i].classList.add('selected');
+                        gridSelectedPaths.add(allItems[i].dataset.path);
+                    }
+                    selectedItem = { path, isDir: el.dataset.isDir === 'true', name: el.dataset.name };
+                    return; // No auto-navigate in multi-select mode
+                }
+            }
+
+            if (event.metaKey || event.ctrlKey) {
+                // Cmd/Ctrl+click: toggle this item in the multi-selection
+                if (gridSelectedPaths.has(path)) {
+                    gridSelectedPaths.delete(path);
+                    el.classList.remove('selected');
+                } else {
+                    gridSelectedPaths.add(path);
+                    el.classList.add('selected');
+                }
+                selectedItem = gridSelectedPaths.size > 0
+                    ? { path, isDir: el.dataset.isDir === 'true', name: el.dataset.name }
+                    : null;
+                lastGridAnchorPath = path;
+                return; // No auto-navigate in multi-select mode
+            }
+
+            // Regular click: set anchor, clear multi-select, select only this item
+            lastGridAnchorPath = path;
+            gridSelectedPaths.clear();
+            allItems.forEach(i => i.classList.remove('selected'));
             el.classList.add('selected');
-            selectedItem = {
-                path: el.dataset.path,
-                isDir: el.dataset.isDir === 'true',
-                name: el.dataset.name
-            };
+            gridSelectedPaths.add(path);
+            selectedItem = { path, isDir: el.dataset.isDir === 'true', name: el.dataset.name };
 
             // Auto-open: preview for files, navigate for folders
             if (selectedItem.isDir) {
@@ -5560,8 +5693,33 @@
         // is allowed (the layout is recommended, not enforced) but worth a nudge.
         const SANTAI_DIRS = ['media', 'history', 'notes'];
 
+        // Gather items currently multi-selected across tree or grid (returns [] if < 2)
+        function _getMultiSelectedItems(clickedPath) {
+            // Tree multi-select takes priority when ≥2 tree items are selected
+            if (selectedItems.size > 1 && (clickedPath == null || selectedItems.has(clickedPath))) {
+                return Array.from(document.querySelectorAll('#tree-view .tree-item.tree-selected')).map(el => ({
+                    path: el.dataset.path,
+                    name: el.dataset.path.split('/').pop(),
+                    isDir: el.dataset.isDir === 'true'
+                }));
+            }
+            // Grid multi-select
+            const gridEls = Array.from(document.querySelectorAll('.file-item.selected'));
+            if (gridEls.length > 1) {
+                return gridEls.map(el => ({
+                    path: el.dataset.path,
+                    name: el.dataset.name,
+                    isDir: el.dataset.isDir === 'true'
+                }));
+            }
+            return [];
+        }
+
         // Delete item directly (from button)
         async function deleteItem(path, name, isDir) {
+            const multi = _getMultiSelectedItems(path);
+            if (multi.length > 0) return deleteSelectedItems(multi);
+
             const isSantaiDir = isDir && SANTAI_DIRS.includes(path);
             const msg = isSantaiDir
                 ? `Delete folder "${name}" and all its contents?\n\n"${name}" is one of the recommended santai folders — you can recreate it later if needed.`
@@ -5571,6 +5729,7 @@
             if (!confirm(msg)) return;
 
             try {
+                const snapshot = await _snapshotForDelete(path, isDir);
                 const res = await fetch(`/api/files?path=${encodeURIComponent(path)}`, {
                     method: 'DELETE'
                 });
@@ -5580,13 +5739,62 @@
                     throw new Error(err.detail || 'Failed to delete');
                 }
 
+                if (snapshot) undoManager.push({ type: 'DELETE', path, isDir: !!isDir, snapshot, label: `Delete "${name}"` });
                 if (previewReferencesPath(path, isDir)) closePreview();
-                showToast('Deleted successfully');
+                showToast('Deleted successfully', false, !!snapshot);
                 loadFiles(currentPath);
                 loadTree();
             } catch (err) {
                 showToast(err.message, true);
             }
+        }
+
+        async function deleteSelectedItems(items) {
+            if (!items || items.length === 0) return;
+
+            if (!confirm(`Delete ${items.length} items?`)) return;
+
+            const failed = [];
+            const succeeded = [];
+            const noSnapshot = [];
+            for (const item of items) {
+                try {
+                    const snapshot = await _snapshotForDelete(item.path, item.isDir);
+                    const res = await fetch(`/api/files?path=${encodeURIComponent(item.path)}`, { method: 'DELETE' });
+                    if (!res.ok) {
+                        const err = await res.json();
+                        throw new Error(err.detail || 'Failed to delete');
+                    }
+                    if (snapshot) {
+                        succeeded.push({ type: 'DELETE', path: item.path, isDir: item.isDir, snapshot, label: `Delete "${item.name}"` });
+                    } else {
+                        noSnapshot.push(item.name);
+                    }
+                    if (previewReferencesPath(item.path, item.isDir)) closePreview();
+                } catch (err) {
+                    failed.push(item.name);
+                }
+            }
+
+            if (succeeded.length === 1) {
+                undoManager.push(succeeded[0]);
+            } else if (succeeded.length > 1) {
+                undoManager.push({ type: 'BULK_DELETE', ops: succeeded, label: `Delete ${succeeded.length} items` });
+            }
+
+            clearGridSelection();
+            selectedItems.clear();
+            updateTreeSelection();
+            if (failed.length === 0) {
+                showToast(`Deleted ${items.length} items`, false, true);
+            } else {
+                showToast(`Failed to delete: ${failed.join(', ')}`, true);
+            }
+            if (noSnapshot.length > 0) {
+                showToast(`${noSnapshot.length} item(s) deleted without undo (binary or large file): ${noSnapshot.join(', ')}`, true);
+            }
+            loadFiles(currentPath);
+            loadTree();
         }
 
         // Move item (drag and drop)
@@ -5828,7 +6036,14 @@
                         const err = await res.json();
                         throw new Error(err.detail || 'Failed to move');
                     }
-                    showToast(`Moved "${item.name}" to ${dropFolder || 'root'}`);
+                    const originalParent = item.path.split('/').slice(0, -1).join('/');
+                    const newPath = dropFolder ? `${dropFolder}/${item.name}` : item.name;
+                    undoManager.push({
+                        type: 'MOVE',
+                        moves: [{ originalPath: item.path, originalParent, itemName: item.name, newPath }],
+                        label: `Move "${item.name}" to ${dropFolder || 'root'}`
+                    });
+                    showToast(`Moved "${item.name}" to ${dropFolder || 'root'}`, false, true);
                 } catch (err) {
                     showToast(err.message, true);
                     return;
@@ -5850,7 +6065,18 @@
                 const succeeded = results.filter(r => r.status === 'fulfilled').length;
                 const failed = results.filter(r => r.status === 'rejected');
                 if (succeeded > 0) {
-                    showToast(`Moved ${succeeded} item${succeeded !== 1 ? 's' : ''} to ${dropFolder || 'root'}`);
+                    const movedItems = moveable.filter((_, i) => results[i].status === 'fulfilled');
+                    const moves = movedItems.map(item => {
+                        const originalParent = item.path.split('/').slice(0, -1).join('/');
+                        const newPath = dropFolder ? `${dropFolder}/${item.name}` : item.name;
+                        return { originalPath: item.path, originalParent, itemName: item.name, newPath };
+                    });
+                    undoManager.push({
+                        type: 'BULK_MOVE',
+                        moves,
+                        label: `Move ${succeeded} item${succeeded !== 1 ? 's' : ''} to ${dropFolder || 'root'}`
+                    });
+                    showToast(`Moved ${succeeded} item${succeeded !== 1 ? 's' : ''} to ${dropFolder || 'root'}`, false, true);
                 }
                 if (failed.length > 0) {
                     showToast(failed[0].reason?.message || 'Some items failed to move', true);
@@ -5871,11 +6097,15 @@
                 if (!confirm(`"${selectedItem.name}" is one of the recommended santai folders — rename anyway?`)) return;
             }
 
+            const originalPath = selectedItem.path;
+            const originalName = selectedItem.name;
+            const parentFolder = originalPath.split('/').slice(0, -1).join('/');
+
             try {
                 const res = await fetch('/api/files/rename', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ old_path: selectedItem.path, new_name: newName })
+                    body: JSON.stringify({ old_path: originalPath, new_name: newName })
                 });
 
                 if (!res.ok) {
@@ -5883,8 +6113,19 @@
                     throw new Error(err.detail || 'Failed to rename');
                 }
 
+                const newPath = parentFolder ? `${parentFolder}/${newName}` : newName;
+                undoManager.push({
+                    type: 'RENAME',
+                    originalPath,
+                    originalName,
+                    newName,
+                    newPath,
+                    parentFolder,
+                    label: `Rename "${originalName}" to "${newName}"`
+                });
+
                 closeModals();
-                showToast('Renamed successfully');
+                showToast('Renamed successfully', false, true);
                 loadFiles(currentPath);
                 loadTree();
             } catch (err) {
@@ -5894,6 +6135,9 @@
 
         // Delete
         async function deleteSelected() {
+            const multi = _getMultiSelectedItems(null);
+            if (multi.length > 0) return deleteSelectedItems(multi);
+
             if (!selectedItem) return;
             const isSantaiDir = selectedItem.is_dir && SANTAI_DIRS.includes(selectedItem.path);
             const deleteMsg = isSantaiDir
@@ -5904,6 +6148,8 @@
             if (!confirm(deleteMsg)) return;
 
             try {
+                const snapshot = await _snapshotForDelete(selectedItem.path, Boolean(selectedItem.is_dir));
+                if (!snapshot && !confirm(`"${selectedItem.name}" is a binary or large file and cannot be undone — delete anyway?`)) return;
                 const res = await fetch(`/api/files?path=${encodeURIComponent(selectedItem.path)}`, {
                     method: 'DELETE'
                 });
@@ -5913,8 +6159,9 @@
                     throw new Error(err.detail || 'Failed to delete');
                 }
 
+                if (snapshot) undoManager.push({ type: 'DELETE', path: selectedItem.path, isDir: Boolean(selectedItem.is_dir), snapshot, label: `Delete "${selectedItem.name}"` });
                 if (previewReferencesPath(selectedItem.path, Boolean(selectedItem.is_dir))) closePreview();
-                showToast('Deleted successfully');
+                showToast('Deleted successfully', false, !!snapshot);
                 loadFiles(currentPath);
                 loadTree();
             } catch (err) {
@@ -5945,8 +6192,11 @@
                     throw new Error(err.detail || 'Failed to create folder');
                 }
 
+                const createdPath = currentPath ? `${currentPath}/${name}` : name;
+                undoManager.push({ type: 'CREATE_FOLDER', path: createdPath, label: `New folder "${name}"` });
+
                 closeModals();
-                showToast('Folder created');
+                showToast('Folder created', false, true);
                 loadFiles(currentPath);
                 loadTree();
             } catch (err) {
@@ -5977,8 +6227,10 @@
                 }
 
                 const data = await res.json();
+                undoManager.push({ type: 'CREATE_FILE', path: data.path, label: `New file "${name}"` });
+
                 closeModals();
-                showToast('File created');
+                showToast('File created', false, true);
                 loadFiles(currentPath);
                 loadTree();
                 openFilePreview(data.path);
@@ -6502,6 +6754,309 @@
             }
         }
 
+        // Undo helpers
+
+        async function _undoSave(op) {
+            const res = await fetch(`/api/files/save?path=${encodeURIComponent(op.path)}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: op.previousContent })
+            });
+            if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'Failed to restore file'); }
+            if (previewPath === op.path) openFilePreview(op.path);
+        }
+
+        async function _undoMove(op) {
+            for (const m of op.moves) {
+                const res = await fetch('/api/files/move', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ source_path: m.newPath, target_folder: m.originalParent })
+                });
+                if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'Failed to undo move'); }
+            }
+        }
+
+        async function _undoRename(op) {
+            const res = await fetch('/api/files/rename', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ old_path: op.newPath, new_name: op.originalName })
+            });
+            if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'Failed to undo rename'); }
+        }
+
+        async function _undoCreate(op) {
+            const res = await fetch(`/api/files?path=${encodeURIComponent(op.path)}`, { method: 'DELETE' });
+            if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'Failed to undo create'); }
+            if (previewPath && (previewPath === op.path || previewPath.startsWith(op.path + '/'))) closePreview();
+        }
+
+        async function _snapshotFolder(folderPath) {
+            const res = await fetch(`/api/files?path=${encodeURIComponent(folderPath)}`);
+            if (!res.ok) return [];
+            const data = await res.json();
+            const entries = [];
+            for (const item of data.items) {
+                if (item.is_dir) {
+                    entries.push(...await _snapshotFolder(item.path));
+                } else {
+                    const fres = await fetch(`/api/files/content?path=${encodeURIComponent(item.path)}`);
+                    if (fres.ok) {
+                        const fdata = await fres.json();
+                        if (fdata.content !== undefined) entries.push({ path: item.path, content: fdata.content });
+                    }
+                }
+            }
+            return entries;
+        }
+
+        async function _snapshotForDelete(path, isDir) {
+            if (!isDir) {
+                const res = await fetch(`/api/files/content?path=${encodeURIComponent(path)}`);
+                if (!res.ok) return null;
+                const data = await res.json();
+                return data.content !== undefined ? [{ path, content: data.content }] : null;
+            }
+            return await _snapshotFolder(path);
+        }
+
+        async function _undoDelete(op) {
+            if (op.isDir) {
+                // Recreate all intermediate folders then restore each file
+                const folders = new Set([op.path]);
+                for (const e of op.snapshot) {
+                    const parts = e.path.split('/');
+                    for (let i = 1; i < parts.length; i++) folders.add(parts.slice(0, i).join('/'));
+                }
+                for (const f of [...folders].sort((a, b) => a.split('/').length - b.split('/').length)) {
+                    await fetch(`/api/files/mkdirp?path=${encodeURIComponent(f)}`, { method: 'POST' });
+                }
+                for (const e of op.snapshot) {
+                    const parts = e.path.split('/');
+                    const name = parts.pop();
+                    await fetch('/api/files/touch', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ path: parts.join('/'), name })
+                    });
+                    await fetch(`/api/files/save?path=${encodeURIComponent(e.path)}`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ content: e.content })
+                    });
+                }
+            } else {
+                if (!op.snapshot?.length) throw new Error('Cannot restore binary file');
+                const e = op.snapshot[0];
+                const parts = e.path.split('/');
+                const name = parts.pop();
+                const tr = await fetch('/api/files/touch', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: parts.join('/'), name })
+                });
+                if (!tr.ok) { const err = await tr.json(); throw new Error(err.detail || 'Failed to restore file'); }
+                const sr = await fetch(`/api/files/save?path=${encodeURIComponent(e.path)}`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content: e.content })
+                });
+                if (!sr.ok) { const err = await sr.json(); throw new Error(err.detail || 'Failed to restore file content'); }
+            }
+        }
+
+        async function _redoDelete(op) {
+            const res = await fetch(`/api/files?path=${encodeURIComponent(op.path)}`, { method: 'DELETE' });
+            if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'Failed to redo delete'); }
+            if (previewPath && (previewPath === op.path || previewPath.startsWith(op.path + '/'))) closePreview();
+        }
+
+        async function _undoBulkMove(op) {
+            const total = op.moves.length;
+            const remaining = [];
+            for (let i = 0; i < total; i++) {
+                if (total > 1) showToast(`Undoing move ${i + 1}/${total}…`);
+                const m = op.moves[i];
+                try {
+                    const res = await fetch('/api/files/move', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ source_path: m.newPath, target_folder: m.originalParent })
+                    });
+                    if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'Failed to undo move'); }
+                } catch (_) {
+                    remaining.push(m);
+                }
+            }
+            if (remaining.length > 0) {
+                const err = new Error(`Failed to undo ${remaining.length} move(s)`);
+                err.partialOp = { ...op, moves: remaining };
+                throw err;
+            }
+        }
+
+        async function _redoBulkMove(op) {
+            const total = op.moves.length;
+            const remaining = [];
+            for (let i = 0; i < total; i++) {
+                if (total > 1) showToast(`Redoing move ${i + 1}/${total}…`);
+                const m = op.moves[i];
+                const targetFolder = m.newPath.includes('/') ? m.newPath.split('/').slice(0, -1).join('/') : '';
+                try {
+                    const res = await fetch('/api/files/move', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ source_path: m.originalPath, target_folder: targetFolder })
+                    });
+                    if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'Failed to redo move'); }
+                } catch (_) {
+                    remaining.push(m);
+                }
+            }
+            if (remaining.length > 0) {
+                const err = new Error(`Failed to redo ${remaining.length} move(s)`);
+                err.partialOp = { ...op, moves: remaining };
+                throw err;
+            }
+        }
+
+        async function _undoBulkDelete(op) {
+            const total = op.ops.length;
+            const remaining = [];
+            for (let i = 0; i < total; i++) {
+                showToast(`Restoring ${i + 1}/${total}…`);
+                try {
+                    await _undoDelete(op.ops[i]);
+                } catch (_) {
+                    remaining.push(op.ops[i]);
+                }
+            }
+            if (remaining.length > 0) {
+                const err = new Error(`Failed to restore ${remaining.length} item(s)`);
+                err.partialOp = { ...op, ops: remaining };
+                throw err;
+            }
+        }
+
+        async function _redoBulkDelete(op) {
+            const total = op.ops.length;
+            const remaining = [];
+            for (let i = 0; i < total; i++) {
+                showToast(`Deleting ${i + 1}/${total}…`);
+                try {
+                    await _redoDelete(op.ops[i]);
+                } catch (_) {
+                    remaining.push(op.ops[i]);
+                }
+            }
+            if (remaining.length > 0) {
+                const err = new Error(`Failed to redo ${remaining.length} deletion(s)`);
+                err.partialOp = { ...op, ops: remaining };
+                throw err;
+            }
+        }
+
+        async function performUndo() {
+            if (_undoRedoBusy || !undoManager.canUndo()) {
+                if (!_undoRedoBusy) showToast('Nothing to undo');
+                return;
+            }
+            _undoRedoBusy = true;
+            const op = undoManager.pop();
+            try {
+                switch (op.type) {
+                    case 'SAVE':          await _undoSave(op);      break;
+                    case 'MOVE':          await _undoMove(op);      break;
+                    case 'BULK_MOVE':     await _undoBulkMove(op);  break;
+                    case 'RENAME':        await _undoRename(op);    break;
+                    case 'CREATE_FILE':
+                    case 'CREATE_FOLDER': await _undoCreate(op);    break;
+                    case 'DELETE':        await _undoDelete(op);    break;
+                    case 'BULK_DELETE':   await _undoBulkDelete(op); break;
+                }
+                undoManager.pushRedo(op);
+                showToast(`Undid: ${op.label}`, false, false, true);
+                loadFiles(currentPath);
+                loadTree();
+            } catch (err) {
+                undoManager.restoreToUndo(err.partialOp || op);
+                showToast(`Undo failed: ${err.message}`, true);
+            } finally {
+                _undoRedoBusy = false;
+            }
+        }
+
+        async function _redoSave(op) {
+            const res = await fetch(`/api/files/save?path=${encodeURIComponent(op.path)}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: op.newContent })
+            });
+            if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'Failed to redo save'); }
+            if (previewPath === op.path) openFilePreview(op.path);
+        }
+
+        async function _redoMove(op) {
+            for (const m of op.moves) {
+                const targetFolder = m.newPath.includes('/') ? m.newPath.split('/').slice(0, -1).join('/') : '';
+                const res = await fetch('/api/files/move', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ source_path: m.originalPath, target_folder: targetFolder })
+                });
+                if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'Failed to redo move'); }
+            }
+        }
+
+        async function _redoRename(op) {
+            const res = await fetch('/api/files/rename', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ old_path: op.originalPath, new_name: op.newName })
+            });
+            if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'Failed to redo rename'); }
+        }
+
+        async function _redoCreate(op) {
+            const parts = op.path.split('/');
+            const name = parts.pop();
+            const path = parts.join('/');
+            const endpoint = op.type === 'CREATE_FILE' ? '/api/files/touch' : '/api/files/mkdir';
+            const res = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path, name })
+            });
+            if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'Failed to redo create'); }
+        }
+
+        async function performRedo() {
+            if (_undoRedoBusy || !undoManager.canRedo()) {
+                if (!_undoRedoBusy) showToast('Nothing to redo');
+                return;
+            }
+            _undoRedoBusy = true;
+            const op = undoManager.popRedo();
+            try {
+                switch (op.type) {
+                    case 'SAVE':          await _redoSave(op);      break;
+                    case 'MOVE':          await _redoMove(op);      break;
+                    case 'BULK_MOVE':     await _redoBulkMove(op);  break;
+                    case 'RENAME':        await _redoRename(op);    break;
+                    case 'CREATE_FILE':
+                    case 'CREATE_FOLDER': await _redoCreate(op);    break;
+                    case 'DELETE':        await _redoDelete(op);    break;
+                    case 'BULK_DELETE':   await _redoBulkDelete(op); break;
+                }
+                undoManager.pushFromRedo(op);
+                showToast(`Redid: ${op.label}`, false, true);
+                loadFiles(currentPath);
+                loadTree();
+            } catch (err) {
+                undoManager.pushRedo(err.partialOp || op);
+                showToast(`Redo failed: ${err.message}`, true);
+            } finally {
+                _undoRedoBusy = false;
+            }
+        }
+
         document.querySelectorAll('.modal-overlay').forEach(m => {
             m.addEventListener('click', (e) => {
                 if (e.target === m) closeModals();
@@ -6554,15 +7109,74 @@
         }
 
         // Toast
-        function showToast(message, isError = false) {
+        function showToast(message, isError = false, undoable = false, redoable = false) {
             const toast = document.getElementById('toast');
-            toast.textContent = message;
+            clearTimeout(toast._hideTimer);
+            const safe = message.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            if (undoable && undoManager.canUndo()) {
+                toast.innerHTML = `${safe} <button class="toast-undo-btn" onclick="performUndo()">Undo</button>`;
+            } else if (redoable && undoManager.canRedo()) {
+                toast.innerHTML = `${safe} <button class="toast-undo-btn" onclick="performRedo()">Redo</button>`;
+            } else {
+                toast.textContent = message;
+            }
             toast.className = 'toast show' + (isError ? ' error' : '');
-            setTimeout(() => toast.classList.remove('show'), 3000);
+            toast._hideTimer = setTimeout(() => toast.classList.remove('show'), 4000);
         }
 
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
+            const active = document.activeElement;
+            const inInput = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA');
+
+            // Ctrl+Z / Cmd+Z — undo (skip when typing in an input or textarea)
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey && !inInput) {
+                e.preventDefault();
+                performUndo();
+                return;
+            }
+
+            // Ctrl+Shift+Z / Cmd+Shift+Z — redo
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && e.shiftKey && !inInput) {
+                e.preventDefault();
+                performRedo();
+                return;
+            }
+
+            // Cmd+A / Ctrl+A — select all items in the file grid and tree
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a' && !inInput && currentView === 'browser') {
+                e.preventDefault();
+                // Scope to previewed file's parent folder, or current browsed folder if no preview
+                const scopeFolder = previewPath
+                    ? (previewPath.includes('/') ? previewPath.split('/').slice(0, -1).join('/') : '')
+                    : currentPath;
+                const inScope = (itemPath) => scopeFolder === ''
+                    ? !itemPath.includes('/')
+                    : itemPath.startsWith(scopeFolder + '/') && !itemPath.slice(scopeFolder.length + 1).includes('/');
+                // Grid
+                const allGridItems = Array.from(document.querySelectorAll('#file-grid-container .file-item'));
+                const scopedGridItems = scopeFolder === null ? allGridItems : allGridItems.filter(i => inScope(i.dataset.path));
+                gridSelectedPaths.clear();
+                allGridItems.forEach(i => i.classList.remove('selected'));
+                scopedGridItems.forEach(i => { i.classList.add('selected'); gridSelectedPaths.add(i.dataset.path); });
+                if (scopedGridItems.length > 0) {
+                    lastGridAnchorPath = scopedGridItems[0].dataset.path;
+                    selectedItem = { path: scopedGridItems[0].dataset.path, isDir: scopedGridItems[0].dataset.isDir === 'true', name: scopedGridItems[0].dataset.name };
+                }
+                // Tree
+                const allTreeItems = getFlatVisibleTreeItems();
+                selectedItems = new Set(allTreeItems.filter(el => inScope(el.dataset.path)).map(el => el.dataset.path));
+                updateTreeSelection();
+                return;
+            }
+
+            // Escape — clear grid selection (without navigating away)
+            if (e.key === 'Escape' && !document.querySelector('.modal-overlay.show') && gridSelectedPaths.size > 1) {
+                clearGridSelection();
+                selectedItem = null;
+                return;
+            }
+
             if (e.key === 'Delete' && selectedItem) {
                 deleteSelected();
             }
@@ -6714,12 +7328,12 @@
             // before the toggle so the chevron stays anchored at the far right.
             if (node.path) {
                 html += `<span class="tree-actions">
-                    <button class="tree-action-btn edit-btn" onclick="event.stopPropagation(); editItem('${escAttr(node.path)}', '${escAttr(node.name)}')" title="Rename">
+                    <button class="tree-action-btn edit-btn" onclick="event.stopPropagation(); editItem('${escAttr(node.path)}', '${escAttr(node.name)}')" title="Rename (⌘Z to undo)">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
                         </svg>
                     </button>
-                    <button class="tree-action-btn delete-btn" onclick="event.stopPropagation(); deleteItem('${escAttr(node.path)}', '${escAttr(node.name)}', ${node.is_dir})" title="Delete">
+                    <button class="tree-action-btn delete-btn" onclick="event.stopPropagation(); deleteItem('${escAttr(node.path)}', '${escAttr(node.name)}', ${node.is_dir})" title="Delete (⌘Z to undo)">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
                         </svg>
@@ -6915,6 +7529,7 @@
 
         function showDashboard() {
             currentView = 'dashboard';
+            undoManager.clear();
             resetPreviewState();
             hidePreviewPanel();
             document.getElementById('dashboard-view').style.display = 'flex';
@@ -9859,6 +10474,16 @@
             if (previewPanel && previewPanel.classList.contains('fullscreen')) {
                 e.preventDefault();
                 togglePreviewFullscreen();
+                return;
+            }
+
+            // Deselect multi-selected files before closing anything
+            if (gridSelectedPaths.size > 1 || selectedItems.size > 1) {
+                e.preventDefault();
+                clearGridSelection();
+                selectedItem = null;
+                selectedItems.clear();
+                updateTreeSelection();
                 return;
             }
 
