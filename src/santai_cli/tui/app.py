@@ -893,6 +893,11 @@ class AddNoteScreen(ModalScreen):
                 placeholder="my-note (will be saved as my-note.md)",
                 id="note-title-input",
             )
+            yield Label("Save Location:")
+            yield Input(
+                placeholder="/note/location (will be saved in /note/location)",
+                id="note-save-location-input",
+            )
             yield Label("Content:")
             yield TextArea(id="note-content-input")
             yield Static(
@@ -911,15 +916,33 @@ class AddNoteScreen(ModalScreen):
     def _save_note(self) -> None:
         """Save the note to the notes/ directory."""
         title_input = self.query_one("#note-title-input", Input)
+        location_input = self.query_one("#note-save-location-input", Input)
         content_input = self.query_one("#note-content-input", TextArea)
 
         title = title_input.value.strip()
+        notes_dir = location_input.value.strip()
         content = content_input.text.strip()
 
         if not title:
             self.app.notify("Title is required", severity="error")
             title_input.focus()
             return
+
+        if not notes_dir:
+            notes_dir = self.project.notes_path
+        else:
+            # Sanitize path
+            base_path = notes_dir.lower().replace(" ", "_").replace("-", "_")
+            notes_dir = self.project.root
+            part = ""
+            for c in base_path:
+                if c == "/" and part != "":
+                    notes_dir = notes_dir / part
+                    part = ""
+                elif (c == "." and part == "") or c.isalpha() or c == "_":
+                    part += c
+            if part != "":
+                notes_dir = notes_dir / part
 
         # Sanitize filename
         filename = title.lower().replace(" ", "-")
@@ -930,7 +953,6 @@ class AddNoteScreen(ModalScreen):
         filename = filename + ".md"
 
         # Ensure notes directory exists
-        notes_dir = self.project.notes_path
         notes_dir.mkdir(parents=True, exist_ok=True)
 
         file_path = notes_dir / filename
