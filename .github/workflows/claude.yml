@@ -42,6 +42,6 @@ jobs:
           fetch-depth: 1
       - name: Run Claude Code
         id: claude
-        uses: anthropics/claude-code-action@fad22eb3fa582b7357fc0ea48af6645851b884fd  # v1
+        uses: anthropics/claude-code-action@ba0aafd4308cbba7165f9f2cdb0cfbed5a3c99ce  # v1
         with:
           anthropic_api_key: ${{ secrets.CLAUDE_GITHUB_KEY }}
