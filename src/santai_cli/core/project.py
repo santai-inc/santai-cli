@@ -228,6 +228,7 @@ def get_directory_stats(project: SantaiProject) -> DirectoryStats:
         recent_files=recent_files,
     )
 
+
 def _generate_preview(content: str, max_length: int = 200) -> str:
     """Generate a preview from content, stripping markdown formatting."""
     # Remove markdown headers
