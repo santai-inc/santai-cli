@@ -11,7 +11,7 @@ When you want to spawn a specialized subagent, tell Claude to use one of these d
 
 "Read agents/research.md and spawn a subagent with those instructions to investigate this topic"
 
-"Create a subagent using agents/summarizer.md to summarize our recent history entries"
+"Create a subagent using agents/summarizer.md to summarize our recent notes"
 ```
 
 Claude Code will:
@@ -23,7 +23,7 @@ Claude Code will:
 ## Using with OpenAI/ChatGPT
 
 ```
-"Act as the agent defined in agents/documentation.md and help me write a history entry"
+"Act as the agent defined in agents/documentation.md and help me write a project note"
 
 "Load the agent instructions from agents/linting.md and check our notes for quality issues"
 ```
@@ -44,13 +44,13 @@ You: "Use agents/documentation.md as a subagent to review our docs and identify 
 Claude: [Reads documentation.md, spawns subagent with that expertise]
 
 Documentation Subagent: "I'll scan the project directories and cross-reference
-history/ and notes/ to identify knowledge that should be captured..."
+media/ and notes/ to identify knowledge that should be captured..."
 ```
 
 ## Why This Works
 
 - **Direct use**: No code generation, just reference the markdown file
-- **Santai-aware**: Each agent understands the notes/media/history directory structure
+- **Santai-aware**: Each agent understands the media/notes directory structure
 - **Composable**: Chain agents together (research -> documentation -> notes)
 - **Consistent**: Same agent definitions work across tools
 

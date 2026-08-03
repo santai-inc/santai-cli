@@ -206,12 +206,12 @@ def test_restore_chat_session(tmp_path: Path):
 
 def test_chat_history_path_on_project(tmp_path: Path):
     project = _make_project(tmp_path)
-    assert project.chat_history_path == tmp_path / "history" / "chat-history"
+    assert project.chat_history_path == tmp_path / "chat-history"
 
 
 def test_get_chat_history_dir(tmp_path: Path):
     project = _make_project(tmp_path)
-    assert get_chat_history_dir(project) == tmp_path / "history" / "chat-history"
+    assert get_chat_history_dir(project) == tmp_path / "chat-history"
 
 
 def test_code_block_masking_ignores_speaker_labels_inside_fences():

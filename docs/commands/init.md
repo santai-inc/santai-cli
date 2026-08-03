@@ -23,8 +23,8 @@ Each directory is created with a `.gitkeep` file so it is tracked by git:
 | Directory | Purpose |
 |-----------|---------|
 | `media/` | Reference materials — markdown, PDFs, images, documents |
-| `history/` | Dated markdown entries documenting major changes and decisions |
-| `notes/` | General notes, scratch space, quick thoughts |
+| `notes/` | General notes, scratch space, and quick thoughts |
+| `chat-history/` | Saved chat sessions (managed automatically by Santai) |
 
 ### Files
 

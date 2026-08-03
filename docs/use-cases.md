@@ -23,25 +23,6 @@ cp .env.example .env
 santai chat --agent research
 ```
 
-## Documenting Architecture Decisions
-
-Use the history directory and AI agents to create a decision log:
-
-```bash
-# Start a chat session with the documentation agent
-santai chat --agent documentation --model claude-sonnet-4-6
-```
-
-In the chat, ask it to write a history entry:
-
-```
-You: Write a history entry for today about our decision to use PostgreSQL 
-     over MongoDB. Key reasons: ACID compliance, existing team expertise, 
-     and better support for relational data in our domain model.
-```
-
-The agent will create a properly formatted `history/YYYY-MM-DD-description.md` file.
-
 ## Building a Project Knowledge Base
 
 Incrementally capture knowledge that serves as ground truth for AI agents:
@@ -70,7 +51,7 @@ cd existing-project
 # Get a quick overview
 santai chat --agent summarizer
 # "Give me a complete overview of this project"
-# "Summarize the last 10 history entries"
+# "Summarize my recent notes"
 # "What's in media/?"
 
 # Browse visually
@@ -128,9 +109,9 @@ Create a clean copy when starting a new phase of work:
 santai copy current-project phase-2-project
 cd phase-2-project
 
-# Add a history entry marking the fork
+# Add a note marking the fork
 echo "# Phase 2 Kickoff\nForked from phase 1 project to begin implementation." \
-  > history/2025-04-17-phase-2-kickoff.md
+  > notes/phase-2-kickoff.md
 ```
 
 ## Cloud Sync Workflow
@@ -218,10 +199,9 @@ In the chat:
 
 ```
 You: Audit the entire project. Check:
-     - History entry filename conventions
      - Markdown formatting quality
      - Cross-references between documents
-     - Notes that should be promoted to history
+     - Note naming conventions and quality
 ```
 
 The linting agent will report issues with Error, Warning, and Info severity levels.

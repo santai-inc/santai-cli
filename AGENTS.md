@@ -41,8 +41,8 @@ Entry point: `santai_cli.cli:app` (Typer application)
 Defined in `SANTAI_DIRS` in `src/santai_cli/core/project.py`:
 
 - **media/** - Reference materials (markdown, PDFs, images, documents)
-- **history/** - Markdown documentation of major changes and decisions
 - **notes/** - General notes, scratch space, and quick thoughts
+- **chat-history/** - Saved chat sessions (managed automatically by Santai)
 
 When adding a new directory, update references across `core/project.py`, `commands/init.py`, `tui/app.py`, `web/app.py`, and `web/templates/index.html`.
 

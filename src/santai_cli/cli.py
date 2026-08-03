@@ -99,7 +99,7 @@ _COMMANDS: list[dict[str, str | list[str]]] = [
         "detail": (
             "Creates a new directory (or uses the current directory) with a\n"
             "Git repository, the standard folder structure (media/,\n"
-            "history/, notes/), starter files (AGENTS.md,\n"
+            "notes/, chat-history/), starter files (AGENTS.md,\n"
             "README.md, CLAUDE.md), and pre-commit hooks with rumdl for\n"
             "markdown linting via prek."
         ),
@@ -161,7 +161,7 @@ _COMMANDS: list[dict[str, str | list[str]]] = [
         "detail": (
             "Starts a local FastAPI web server and opens an interactive\n"
             "dashboard in your browser with a D3.js graph visualization,\n"
-            "file browser, notes viewer, and history timeline.\n"
+            "file browser, and notes viewer.\n"
             "Press Ctrl+C to stop the server."
         ),
         "options": [
@@ -264,8 +264,8 @@ def _print_verbose_help() -> None:
     console.print("[bold underline]Project Structure[/bold underline]\n")
     dirs = [
         ("media/", "Reference materials and documents"),
-        ("history/", "Timeline entries (YYYY-MM-DD-description.md)"),
         ("notes/", "Personal notes and documentation"),
+        ("chat-history/", "Saved chat sessions (managed automatically)"),
     ]
     for dirname, desc in dirs:
         console.print(f"  [bold]{dirname:<14}[/bold] {desc}")

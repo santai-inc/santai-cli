@@ -31,17 +31,17 @@ You: /agent
 Creates and maintains structured documentation across Santai project directories.
 
 - **Permissions**: Can edit files and run commands
-- **Use for**: Writing history entries, media documentation, and project-level docs
-- **Example**: "Write a history entry summarizing today's architecture discussion"
+- **Use for**: Writing notes, media documentation, and project-level docs
+- **Example**: "Write a note summarizing today's architecture discussion"
 
 ### linting
 
 Enforces content quality and consistency across project files.
 
 - **Permissions**: Can edit files and run commands
-- **Use for**: Checking markdown quality, history file naming conventions, notes formatting, and cross-directory coherence
+- **Use for**: Checking markdown quality, notes formatting, and cross-directory coherence
 - **Reports issues as**: Error, Warning, or Info severity levels
-- **Example**: "Review all my history entries for formatting issues"
+- **Example**: "Review all my notes for formatting issues"
 
 ### research
 
@@ -56,8 +56,8 @@ Investigates topics and gathers context for project knowledge bases.
 Condenses project context into clear, actionable summaries.
 
 - **Permissions**: Read-only (cannot edit files), can run commands
-- **Use for**: Project overviews, history summaries, notes triage, media digests, and cross-directory synthesis
-- **Example**: "Summarize the last month of history entries"
+- **Use for**: Project overviews, notes triage, media digests, and cross-directory synthesis
+- **Example**: "Summarize the last month of notes"
 
 ## Agent Categories
 
@@ -75,7 +75,7 @@ research → documentation
 ```
 
 1. Use `research` to investigate a topic
-2. Use `documentation` to write up findings as a history entry or media file
+2. Use `documentation` to write up findings as a note or media file
 
 ### Project Onboarding
 
@@ -85,7 +85,7 @@ Use `summarizer` to quickly understand an existing project:
 santai chat --agent summarizer
 ```
 
-Ask it to give you an overview of the project, summarize recent history, or triage notes.
+Ask it to give you an overview of the project, summarize recent activity, or triage notes.
 
 ### Content Quality Audit
 
@@ -95,16 +95,7 @@ Use `linting` to review your project's content:
 santai chat --agent linting
 ```
 
-Ask it to check history entry formatting, note quality, or cross-references.
-
-### Decision Documentation
-
-```
-research → documentation
-```
-
-1. Use `research` to analyze options
-2. Use `documentation` to record the decision as a dated history entry
+Ask it to check note quality, formatting, or cross-references.
 
 ## Creating Custom Agents
 

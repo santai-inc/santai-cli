@@ -4942,7 +4942,7 @@
 
                 // Show Resume Chat button for chat-history .md files
                 const resumeBtn = document.getElementById('preview-resume-chat-btn');
-                const isChatHistory = path.includes('history/chat-history/') && path.endsWith('.md');
+                const isChatHistory = path.includes('chat-history/') && path.endsWith('.md');
                 if (isChatHistory && data.content) {
                     const idMatch = data.content.match(/\nid:\s*([^\n]+)/);
                     if (idMatch) {
@@ -5691,7 +5691,7 @@
 
         // Canonical top-level folders created by `santai init`. Deleting them
         // is allowed (the layout is recommended, not enforced) but worth a nudge.
-        const SANTAI_DIRS = ['media', 'history', 'notes'];
+        const SANTAI_DIRS = ['media', 'notes', 'chat-history'];
 
         // Gather items currently multi-selected across tree or grid (returns [] if < 2)
         function _getMultiSelectedItems(clickedPath) {
@@ -7682,8 +7682,8 @@
         // Directory color mapping for graph - modern pastel palette
         const dirColors = {
             media: '#60a5fa',       // Blue
-            history: '#f87171',     // Red
             notes: '#fbbf24',       // Yellow (sticky note)
+            'chat-history': '#f87171', // Red
             unassigned: '#9b9ba8',  // Muted blue-gray (root-level files)
             other: '#94a3b8'        // Slate gray fallback
         };
@@ -7714,7 +7714,7 @@
 
         // Rebuild the directory legend from actual graph data so dynamic/root-level
         // folders appear automatically without any hardcoded HTML.
-        const _knownDirOrder = ['media', 'history', 'notes'];
+        const _knownDirOrder = ['media', 'notes', 'chat-history'];
 
         function updateDirLegend(data) {
             const container = document.getElementById('graph-dir-legend');

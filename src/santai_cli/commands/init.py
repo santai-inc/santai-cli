@@ -17,20 +17,12 @@ This directory is managed by Santai.
 ## Directory Structure
 
 - **media/** - Reference materials including markdown files, PDFs, images, and other documents
-- **history/** - Markdown documentation of major changes and decisions (supplements git history)
 - **notes/** - General notes, scratch space, and quick thoughts
+- **chat-history/** - Saved chat sessions (managed automatically by Santai)
 
 ## Pre-commit Hooks
 
 This project uses [prek](https://prek.j178.dev/) to run [rumdl](https://github.com/rvben/rumdl) for markdown linting.
-
-## History Convention
-
-The `history/` directory contains markdown files documenting significant changes:
-
-- Use filenames in format: `YYYY-MM-DD-brief-description.md`
-- Document the what, why, and any alternatives considered
-- Git tracks the granular changes; history/ captures the narrative
 
 ## Notes Convention
 
@@ -134,7 +126,7 @@ def init(
 
     Creates a new directory (or uses current directory) with:
     - Git repository
-    - media/, history/, notes/ folders
+    - media/, notes/, chat-history/ folders
     - AGENTS.md, README.md, CLAUDE.md
     - Pre-commit hooks with rumdl for markdown linting (using prek)
     """
@@ -174,7 +166,7 @@ def init(
 
     # Create directories
     console.print("Creating directory structure...")
-    for dir_name in ["media", "history", "notes"]:
+    for dir_name in ["media", "notes", "chat-history"]:
         (target_path / dir_name).mkdir(exist_ok=True)
         # Add .gitkeep to keep empty directories in git
         (target_path / dir_name / ".gitkeep").touch()
@@ -236,8 +228,8 @@ def init(
     console.print("  ├── README.md")
     console.print("  ├── CLAUDE.md")
     console.print("  ├── media/")
-    console.print("  ├── history/")
-    console.print("  └── notes/")
+    console.print("  ├── notes/")
+    console.print("  └── chat-history/")
     console.print()
     console.print("Next steps:")
     console.print(f"  cd {project_name}" if name != "." else "")

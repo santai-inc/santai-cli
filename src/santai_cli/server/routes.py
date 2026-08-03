@@ -33,9 +33,8 @@ This directory is managed by Santai.
 
 - **media/** - Reference materials including markdown files, PDFs, images, \
 and other documents
-- **history/** - Markdown documentation of major changes and decisions \
-(supplements git history)
 - **notes/** - General notes, scratch space, and quick thoughts
+- **chat-history/** - Saved chat sessions (managed automatically by Santai)
 """
 
 _README_MD_TEMPLATE = """\
@@ -152,7 +151,7 @@ async def api_init(req: InitRequest) -> InitResponse:
     _run_command(["git", "init"], cwd=target)
 
     # Create directory structure
-    for dir_name in ["media", "history", "notes"]:
+    for dir_name in ["media", "notes", "chat-history"]:
         (target / dir_name).mkdir(exist_ok=True)
         (target / dir_name / ".gitkeep").touch()
 
