@@ -81,7 +81,6 @@ Agents that can create and edit project files:
 1. **Knowledge capture**: Research -> Documentation
 2. **Project onboarding**: Summarizer (produce overview from all directories)
 3. **Content quality**: Linting (scan all directories for issues)
-4. **Decision recording**: Research -> Documentation (write history entry)
 
 ## Related Resources
 

@@ -47,9 +47,9 @@ my-project/
 ├── rumdl.toml
 ├── media/
 │   └── .gitkeep
-├── history/
+├── notes/
 │   └── .gitkeep
-└── notes/
+└── chat-history/
     └── .gitkeep
 ```
 
@@ -72,16 +72,6 @@ Drop markdown or text files into `notes/` for quick reference:
 ```bash
 echo "# Meeting Notes\nDiscussed the new API design." > notes/api-meeting.md
 ```
-
-### History Entries
-
-History entries use a date-prefixed naming convention:
-
-```bash
-echo "# Decided on REST over GraphQL\nTeam voted unanimously." > history/2025-04-17-api-decision.md
-```
-
-The filename format is `YYYY-MM-DD-description.md`. The description becomes the display title (hyphens are replaced with spaces and title-cased).
 
 ### Media
 

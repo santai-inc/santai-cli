@@ -102,12 +102,12 @@ class StatsPanel(Static):
         dir_table.clear(columns=True)
         dir_table.add_columns("Directory", "Files")
         dir_table.add_row("media", str(stats.media_count))
-        dir_table.add_row("history", str(stats.history_count))
         dir_table.add_row("notes", str(stats.notes_count))
+        dir_table.add_row("chat-history", str(stats.chat_history_count))
         dir_table.add_row(
             "[bold]Total[/bold]",
             f"[bold]{
-                stats.media_count + stats.history_count + stats.notes_count
+                stats.media_count + stats.notes_count + stats.chat_history_count
             }[/bold]",
         )
         dir_table.add_row("Size", format_size(stats.total_size_bytes))
@@ -239,8 +239,8 @@ class GraphPanel(Static):
     # Directory color codes — warm palette inspired by Obsidian graph
     DIR_COLORS = {
         "media": "#4eba65",  # green
-        "history": "#b1b9f9",  # lavender
         "notes": "#d77757",  # terracotta
+        "chat-history": "#b1b9f9",  # lavender
         "unassigned": "#9b9ba8",  # muted blue-gray for root-level files
         "other": "#6b6560",  # warm gray fallback
     }
@@ -407,7 +407,7 @@ class GraphPanel(Static):
 
         # Legend: reflect exactly what is rendered (uses `nodes`, not graph_data)
         dirs_present = {n.directory for n in nodes}
-        known_order = ["media", "history", "notes"]
+        known_order = ["media", "notes", "chat-history"]
         legend_parts = []
         for dir_name in known_order:
             if dir_name in dirs_present:
@@ -598,11 +598,11 @@ class MoveFileScreen(ModalScreen):
     BINDINGS = [
         Binding("escape", "dismiss", "Cancel"),
         Binding("1", "move_1", "media"),
-        Binding("2", "move_2", "history"),
-        Binding("3", "move_3", "notes"),
+        Binding("2", "move_2", "notes"),
+        Binding("3", "move_3", "chat-history"),
     ]
 
-    DIRS = ["media", "history", "notes"]
+    DIRS = ["media", "notes", "chat-history"]
 
     def __init__(self, file_path: Path, project: SantaiProject) -> None:
         super().__init__()
@@ -659,10 +659,10 @@ class MoveFileScreen(ModalScreen):
         self._move_to("media")
 
     def action_move_2(self) -> None:
-        self._move_to("history")
+        self._move_to("notes")
 
     def action_move_3(self) -> None:
-        self._move_to("notes")
+        self._move_to("chat-history")
 
 
 class NoteDetailScreen(ModalScreen):
@@ -1463,8 +1463,8 @@ class GraphFilterScreen(ModalScreen):
     BINDINGS = [
         Binding("escape", "dismiss", "Close"),
         Binding("1", "toggle_1", "media"),
-        Binding("2", "toggle_2", "history"),
-        Binding("3", "toggle_3", "notes"),
+        Binding("2", "toggle_2", "notes"),
+        Binding("3", "toggle_3", "chat-history"),
         Binding("4", "toggle_4", "dir 4", show=False),
         Binding("5", "toggle_5", "dir 5", show=False),
         Binding("6", "toggle_6", "dir 6", show=False),
@@ -1475,7 +1475,7 @@ class GraphFilterScreen(ModalScreen):
         Binding("x", "clear_all", "None"),
     ]
 
-    DIRS = ["media", "history", "notes"]
+    DIRS = ["media", "notes", "chat-history"]
 
     def __init__(
         self, project: SantaiProject, current_filter: set[str] | None = None
@@ -1587,10 +1587,10 @@ class GraphFilterScreen(ModalScreen):
         self._toggle_dir("media")
 
     def action_toggle_2(self) -> None:
-        self._toggle_dir("history")
+        self._toggle_dir("notes")
 
     def action_toggle_3(self) -> None:
-        self._toggle_dir("notes")
+        self._toggle_dir("chat-history")
 
     def _toggle_extra_dir(self, idx: int) -> None:
         extra_dirs = sorted(self._available_dirs - set(self.DIRS) - {"unassigned"})

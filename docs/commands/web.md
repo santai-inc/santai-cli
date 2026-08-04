@@ -24,7 +24,6 @@ Must be run from within an existing directory.
 The web dashboard provides:
 
 - **Project overview** — Directory statistics and file type breakdown
-- **History browser** — Rendered history entries
 - **Notes viewer** — Browse all notes
 - **File graph** — Interactive visualization of document links
 - **Chat panel** — Streaming AI chat with model and agent selection
@@ -36,7 +35,6 @@ The web dashboard exposes a REST API that powers the frontend:
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/stats` | GET | Project statistics |
-| `/api/history` | GET | All history entries |
 | `/api/notes` | GET | All notes |
 | `/api/graph` | GET | File graph nodes and edges |
 | `/api/chat` | POST | Chat with SSE streaming |

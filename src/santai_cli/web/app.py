@@ -26,7 +26,6 @@ from santai_cli.core.project import (
     SantaiProject,
     get_directory_stats,
     get_file_graph,
-    get_history_entries,
     get_notes,
 )
 from santai_cli.core.repo_context import build_repo_context, inject_repo_context
@@ -359,7 +358,7 @@ _MEDIA_EXTS: frozenset[str] = frozenset(
     }
 )
 
-_SMART_PLACE_ALLOWED = re.compile(r"^(notes|media|history)/[^/]")
+_SMART_PLACE_ALLOWED = re.compile(r"^(notes|media)/[^/]")
 
 _SMART_PLACE_FOLDER_LIST = "\n".join(
     f"- {folder}/ → {desc}" for folder, desc in SANTAI_FOLDER_DESCRIPTIONS.items()
@@ -371,7 +370,7 @@ async def _suggest_file_placement(
     content: str,
     project_root: Path,
 ) -> dict[str, str]:
-    """AI-driven file placement into notes/, media/, or history/."""
+    """AI-driven file placement into notes/ or media/."""
     import json as _json
 
     from santai_cli.core.config import load_config
@@ -504,7 +503,6 @@ def create_app(project: SantaiProject) -> FastAPI:
     async def index(request: Request) -> HTMLResponse:
         """Render the main dashboard page."""
         stats = get_directory_stats(project)
-        history = get_history_entries(project)
         notes = get_notes(project)
 
         # Build file trees for each directory
@@ -516,16 +514,16 @@ def create_app(project: SantaiProject) -> FastAPI:
                 "children": get_file_tree(project.media_path, project.root),
             },
             {
-                "name": "history",
-                "path": "history",
-                "is_dir": True,
-                "children": get_file_tree(project.history_path, project.root),
-            },
-            {
                 "name": "notes",
                 "path": "notes",
                 "is_dir": True,
                 "children": get_file_tree(project.notes_path, project.root),
+            },
+            {
+                "name": "chat-history",
+                "path": "chat-history",
+                "is_dir": True,
+                "children": get_file_tree(project.chat_history_path, project.root),
             },
         ]
 
@@ -535,7 +533,6 @@ def create_app(project: SantaiProject) -> FastAPI:
             {
                 "project_name": project.name,
                 "stats": stats,
-                "history": history[:5],  # Show last 5 history entries
                 "notes": notes[:5],  # Show last 5 notes
                 "file_tree": file_tree,
                 "startup_token": startup_token,
@@ -548,8 +545,8 @@ def create_app(project: SantaiProject) -> FastAPI:
         stats = get_directory_stats(project)
         return {
             "media_count": stats.media_count,
-            "history_count": stats.history_count,
             "notes_count": stats.notes_count,
+            "chat_history_count": stats.chat_history_count,
             "total_size_bytes": stats.total_size_bytes,
             "total_size_formatted": format_size(stats.total_size_bytes),
             "file_types": stats.file_types,
@@ -567,20 +564,6 @@ def create_app(project: SantaiProject) -> FastAPI:
                 for f in stats.recent_files
             ],
         }
-
-    @app.get("/api/history")
-    async def api_history() -> list[dict[str, Any]]:
-        """Return history entries as JSON."""
-        entries = get_history_entries(project)
-        return [
-            {
-                "date": entry.date.isoformat(),
-                "title": entry.title,
-                "content": entry.content,
-                "filename": entry.filename,
-            }
-            for entry in entries
-        ]
 
     @app.get("/api/notes")
     async def api_notes() -> list[dict[str, Any]]:

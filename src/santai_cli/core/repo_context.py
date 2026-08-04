@@ -129,17 +129,13 @@ def build_repo_context_prompt(context: RepoContext) -> str:
         [
             "",
             "## File Organization",
-            "This project organizes files into three knowledge-base folders:",
-            f"- **notes/** — {SANTAI_FOLDER_DESCRIPTIONS['notes']}",
+            "This project organizes files into two knowledge-base folders:",
             f"- **media/** — {SANTAI_FOLDER_DESCRIPTIONS['media']}",
-            (
-                f"- **history/** — {SANTAI_FOLDER_DESCRIPTIONS['history']} "
-                "(use `YYYY-MM-DD-brief-description.md` format)"
-            ),
+            f"- **notes/** — {SANTAI_FOLDER_DESCRIPTIONS['notes']}",
             "",
             "**When writing files:**",
             (
-                "- Always place files under one of these three folders "
+                "- Always place files under one of these two folders "
                 "(e.g. `notes/my-summary.md`, not just `my-summary.md`)"
             ),
             (
@@ -180,8 +176,8 @@ def build_repo_context_prompt(context: RepoContext) -> str:
             (
                 "- IMPORTANT: Whenever a user asks a question that could be "
                 "answered by a file in this project (notes/, media/, "
-                "history/, or any other file), you MUST call read_file to "
-                "read the relevant file(s) before answering. Never answer "
+                "or any other file), you MUST call read_file "
+                "to read the relevant file(s) before answering. Never answer "
                 "knowledge-base questions from memory — always fetch fresh "
                 "content with the tool."
             ),

@@ -164,8 +164,8 @@ A Santai project contains these directories:
 | Directory | Purpose |
 |-----------|---------|
 | `media/` | Reference materials (markdown, PDFs, images, documents) |
-| `history/` | Dated markdown entries documenting major changes |
-| `notes/` | General notes and scratch space |
+| `notes/` | General notes, scratch space, and quick thoughts |
+| `chat-history/` | Saved chat sessions (managed automatically by Santai) |
 
 ## Development
 

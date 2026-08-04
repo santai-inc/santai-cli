@@ -5,25 +5,25 @@ import math
 import re
 from collections import Counter
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import datetime
 from pathlib import Path
 
 # Canonical Santai directories. These are recommended (created by `santai init`)
 # but not enforced — projects are free to add, rename, or omit them.
-SANTAI_DIRS = ["media", "history", "notes"]
+SANTAI_DIRS = ["media", "notes", "chat-history"]
 
-# Single source of truth for what each folder is for.
+# Single source of truth for what the AI-managed placement/write folders are for.
 # Consumed by both the smart-place AI prompt (app.py) and the chat system
-# prompt (repo_context.py) so they never drift.
+# prompt (repo_context.py) so they never drift. chat-history is intentionally
+# omitted — it is populated automatically by the chat feature, not an AI target.
 SANTAI_FOLDER_DESCRIPTIONS: dict[str, str] = {
+    "media": (
+        "media files, images, audio, video, PDFs, templates, archives, binary data"
+    ),
     "notes": (
         "personal notes, summaries, AI research, documentation, "
         "how-to guides, tutorials, reference pages"
     ),
-    "media": (
-        "media files, images, audio, video, PDFs, templates, archives, binary data"
-    ),
-    "history": "logs, changelogs, versioned records",
 }
 
 # Directories always excluded from copy/merge/push/cherry-pick operations.
@@ -60,16 +60,6 @@ def validate_santai_structure(path: Path) -> list[str]:
     An empty list means the directory has the expected Santai project layout.
     """
     return [d for d in SANTAI_DIRS if not (path / d).is_dir()]
-
-
-@dataclass
-class HistoryEntry:
-    """A parsed history entry from the history/ directory."""
-
-    date: date
-    title: str
-    content: str
-    filename: str
 
 
 @dataclass
@@ -129,8 +119,8 @@ class DirectoryStats:
     """Statistics for the project directories."""
 
     media_count: int
-    history_count: int
     notes_count: int
+    chat_history_count: int
     total_size_bytes: int
     file_types: dict[str, int]
     recent_files: list[FileInfo]
@@ -148,23 +138,19 @@ class SantaiProject:
         return self.root / "media"
 
     @property
-    def history_path(self) -> Path:
-        return self.root / "history"
-
-    @property
     def notes_path(self) -> Path:
         return self.root / "notes"
 
     @property
     def chat_history_path(self) -> Path:
-        return self.root / "history" / "chat-history"
+        return self.root / "chat-history"
 
 
 def get_project(path: Path | None = None) -> SantaiProject | None:
     """Get the Santai project at the given path or current directory.
 
     Any existing directory is treated as a project — the canonical media/,
-    history/, and notes/ layout is recommended but not enforced.
+    notes/, and chat-history/ layout is recommended but not enforced.
     """
     if path is None:
         path = Path.cwd()
@@ -219,8 +205,8 @@ def get_directory_stats(project: SantaiProject) -> DirectoryStats:
 
     # Count files per directory
     media_count = _count_files_recursive(project.media_path)
-    history_count = _count_files_recursive(project.history_path)
     notes_count = _count_files_recursive(project.notes_path)
+    chat_history_count = _count_files_recursive(project.chat_history_path)
 
     # Calculate total size
     total_size = sum(f.size_bytes for f in all_files)
@@ -235,72 +221,12 @@ def get_directory_stats(project: SantaiProject) -> DirectoryStats:
 
     return DirectoryStats(
         media_count=media_count,
-        history_count=history_count,
         notes_count=notes_count,
+        chat_history_count=chat_history_count,
         total_size_bytes=total_size,
         file_types=file_types,
         recent_files=recent_files,
     )
-
-
-# Regex pattern for history filenames: YYYY-MM-DD-description.md
-HISTORY_FILENAME_PATTERN = re.compile(r"^(\d{4})-(\d{2})-(\d{2})-(.+)\.md$")
-
-
-def parse_history_filename(filename: str) -> tuple[date, str] | None:
-    """Parse a history filename into date and title.
-
-    Returns None if the filename doesn't match the expected pattern.
-    Expected format: YYYY-MM-DD-description.md
-    """
-    match = HISTORY_FILENAME_PATTERN.match(filename)
-    if not match:
-        return None
-
-    year, month, day, description = match.groups()
-
-    try:
-        entry_date = date(int(year), int(month), int(day))
-    except ValueError:
-        return None
-
-    # Convert description to title (replace hyphens with spaces, title case)
-    title = description.replace("-", " ").title()
-
-    return entry_date, title
-
-
-def get_history_entries(project: SantaiProject) -> list[HistoryEntry]:
-    """Get all history entries from the project, sorted by date (newest first).
-
-    Only files matching the YYYY-MM-DD-description.md pattern are included.
-    """
-    history_path = project.history_path
-    if not history_path.is_dir():
-        return []
-
-    entries = []
-    for file_path in history_path.glob("*.md"):
-        parsed = parse_history_filename(file_path.name)
-        if parsed is None:
-            continue
-
-        entry_date, title = parsed
-        content = file_path.read_text(encoding="utf-8")
-
-        entries.append(
-            HistoryEntry(
-                date=entry_date,
-                title=title,
-                content=content,
-                filename=file_path.name,
-            )
-        )
-
-    # Sort by date, newest first
-    entries.sort(key=lambda e: e.date, reverse=True)
-
-    return entries
 
 
 def _generate_preview(content: str, max_length: int = 200) -> str:

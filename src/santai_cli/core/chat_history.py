@@ -1,7 +1,7 @@
 """Persistence layer for chat sessions.
 
 Saves and loads chat sessions as Markdown files under
-<project_root>/history/chat-history/.
+<project_root>/chat-history/.
 
 Filenames use the pattern: MM-DD-YYYY - Title.md
 The session id in the metadata block is the stable lookup key.
@@ -48,7 +48,7 @@ _HIDDEN_FILE = "_hidden.json"
 
 
 def get_chat_history_dir(project: SantaiProject) -> Path:
-    return project.root / "history" / "chat-history"
+    return project.chat_history_path
 
 
 def _atomic_write_text(path: Path, content: str) -> None:

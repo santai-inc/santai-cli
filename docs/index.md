@@ -9,8 +9,8 @@ A Santai project is a directory with a defined structure for organizing informat
 | Directory | Purpose |
 |-----------|---------|
 | `media/` | Reference materials — markdown, PDFs, images, documents |
-| `history/` | Dated markdown entries documenting major changes and decisions |
 | `notes/` | General notes, scratch space, and quick thoughts |
+| `chat-history/` | Saved chat sessions (managed automatically by Santai) |
 
 Santai provides tools to create, browse, analyze, and chat about this structure through three interfaces: a CLI, a TUI dashboard, and a web dashboard.
 
