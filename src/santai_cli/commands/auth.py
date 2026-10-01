@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
+import secrets
 import socket
 import threading
 import webbrowser
@@ -53,7 +56,16 @@ def _clear_credentials() -> None:
         CREDENTIALS_FILE.unlink()
 
 
-def exchange_code(hub_url: str, code: str) -> dict[str, str]:
+def new_pkce_pair() -> tuple[str, str]:
+    """A PKCE verifier and its S256 challenge. Only the challenge goes through
+    the browser, so whoever reads the callback URL cannot redeem the code."""
+    raw = secrets.token_bytes(32)
+    verifier = base64.urlsafe_b64encode(raw).decode().rstrip("=")
+    digest = hashlib.sha256(verifier.encode()).digest()
+    return verifier, base64.urlsafe_b64encode(digest).decode().rstrip("=")
+
+
+def exchange_code(hub_url: str, code: str, verifier: str) -> dict[str, str]:
     """Trade a one-time login code for the session token, returned in the body."""
     import urllib.request
 
@@ -63,7 +75,7 @@ def exchange_code(hub_url: str, code: str) -> dict[str, str]:
     # this route still sits behind the /api prefix.
     req = urllib.request.Request(
         f"{hub_url.rstrip('/')}/api/auth/cli/exchange",
-        data=json.dumps({"code": code}).encode(),
+        data=json.dumps({"code": code, "code_verifier": verifier}).encode(),
         method="POST",
         headers={"Content-Type": "application/json", "User-Agent": USER_AGENT},
     )
@@ -99,6 +111,7 @@ def login(
     """Authenticate with Santai Hub via the browser."""
     hub = hub_url or _get_hub_url()
     port = port or _find_free_port()
+    verifier, challenge = new_pkce_pair()
 
     result: dict[str, str] = {}
     error: list[str] = []
@@ -122,7 +135,7 @@ def login(
 
             if code:
                 try:
-                    exchanged = exchange_code(hub, code)
+                    exchanged = exchange_code(hub, code, verifier)
                     token = exchanged["token"]
                     username = exchanged["username"]
                 except Exception as exc:
@@ -168,7 +181,10 @@ def login(
     thread.start()
     server_ready.wait()
 
-    auth_url = f"{hub}/auth/cli?callback_port={port}"
+    auth_url = (
+        f"{hub}/auth/cli?callback_port={port}"
+        f"&code_challenge={challenge}&code_challenge_method=S256"
+    )
     console.print("Opening browser to authenticate...")
     console.print(f"  [dim]{auth_url}[/dim]\n")
     webbrowser.open(auth_url)

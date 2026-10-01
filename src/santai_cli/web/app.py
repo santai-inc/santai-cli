@@ -1440,9 +1440,10 @@ def create_app(project: SantaiProject) -> FastAPI:
 
     # === Auth callback (handles redirect from hub after browser login) ===
 
-    # Holds the hub URL that initiated the most recent in-progress login so
-    # the /callback handler can save credentials against the right hub.
+    # Holds the hub URL that started the most recent in-progress login and the PKCE
+    # verifier minted for it, so /callback can redeem the code against that hub.
     _pending_hub_url: list[str] = ["https://hub.sant.ai"]
+    _pending_verifier: list[str] = [""]
 
     @app.get("/callback")
     async def auth_callback(
@@ -1458,7 +1459,7 @@ def create_app(project: SantaiProject) -> FastAPI:
         saved_token: str | None = token
         if code:
             try:
-                exchanged = exchange_code(hub_url, code)
+                exchanged = exchange_code(hub_url, code, _pending_verifier[0])
                 saved_token = exchanged["token"]
                 username = exchanged["username"] or username
             except Exception:
@@ -1496,13 +1497,24 @@ def create_app(project: SantaiProject) -> FastAPI:
     @app.get("/api/cloud/login-url")
     async def cloud_login_url(request: Request) -> dict[str, str]:
         """Return the hub auth URL that will callback to this app's port."""
-        from santai_cli.commands.auth import DEFAULT_HUB_URL, load_credentials
+        from santai_cli.commands.auth import (
+            DEFAULT_HUB_URL,
+            load_credentials,
+            new_pkce_pair,
+        )
 
         creds = load_credentials()
         hub = creds.get("hub_url", DEFAULT_HUB_URL) if creds else DEFAULT_HUB_URL
         _pending_hub_url[0] = hub
+        verifier, challenge = new_pkce_pair()
+        _pending_verifier[0] = verifier
         port = request.url.port or 80
-        return {"url": f"{hub}/auth/cli?callback_port={port}"}
+        return {
+            "url": (
+                f"{hub}/auth/cli?callback_port={port}"
+                f"&code_challenge={challenge}&code_challenge_method=S256"
+            )
+        }
 
     # === Cloud Push / Pull Endpoints ===
 
