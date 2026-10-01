@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
+import secrets
 import socket
 import threading
 import webbrowser
@@ -53,6 +56,38 @@ def _clear_credentials() -> None:
         CREDENTIALS_FILE.unlink()
 
 
+def new_pkce_pair() -> tuple[str, str]:
+    """A PKCE verifier and its S256 challenge. Only the challenge goes through
+    the browser, so whoever reads the callback URL cannot redeem the code."""
+    raw = secrets.token_bytes(32)
+    verifier = base64.urlsafe_b64encode(raw).decode().rstrip("=")
+    digest = hashlib.sha256(verifier.encode()).digest()
+    return verifier, base64.urlsafe_b64encode(digest).decode().rstrip("=")
+
+
+def exchange_code(hub_url: str, code: str, verifier: str) -> dict[str, str]:
+    """Trade a one-time login code for the session token, returned in the body."""
+    import urllib.request
+
+    from santai_cli.core.hub import USER_AGENT
+
+    # The hub URL, not get_backend_url(): that strips a local hub to :3001, where
+    # this route still sits behind the /api prefix.
+    req = urllib.request.Request(
+        f"{hub_url.rstrip('/')}/api/auth/cli/exchange",
+        data=json.dumps({"code": code, "code_verifier": verifier}).encode(),
+        method="POST",
+        headers={"Content-Type": "application/json", "User-Agent": USER_AGENT},
+    )
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        data = json.loads(resp.read())
+
+    token = data.get("token")
+    if not token:
+        raise ValueError("the hub returned no token")
+    return {"token": token, "username": (data.get("user") or {}).get("username") or ""}
+
+
 def _find_free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 0))
@@ -76,6 +111,7 @@ def login(
     """Authenticate with Santai Hub via the browser."""
     hub = hub_url or _get_hub_url()
     port = port or _find_free_port()
+    verifier, challenge = new_pkce_pair()
 
     result: dict[str, str] = {}
     error: list[str] = []
@@ -91,17 +127,31 @@ def login(
                 return
 
             params = parse_qs(parsed.query)
+            code = params.get("code", [None])[0]
+            # A hub that predates the code exchange still redirects with the token
+            # itself, so keep accepting that rather than breaking against an older one.
             token = params.get("token", [None])[0]
             username = params.get("username", [None])[0]
 
+            if code:
+                try:
+                    exchanged = exchange_code(hub, code, verifier)
+                    token = exchanged["token"]
+                    username = exchanged["username"]
+                except Exception as exc:
+                    error.append(f"could not exchange the login code ({exc})")
+                    token = None
+
             if not token:
-                error.append("No token received")
+                if not error:
+                    error.append("no login code received")
                 self.send_response(400)
                 self.send_header("Content-Type", "text/html")
                 self.end_headers()
                 self.wfile.write(
                     b"<html><body><h2>Authentication failed.</h2>"
-                    b"<p>No token received. You can close this tab.</p></body></html>"
+                    b"<p>You can close this tab and check your terminal.</p>"
+                    b"</body></html>"
                 )
                 got_callback.set()
                 return
@@ -131,7 +181,10 @@ def login(
     thread.start()
     server_ready.wait()
 
-    auth_url = f"{hub}/auth/cli?callback_port={port}"
+    auth_url = (
+        f"{hub}/auth/cli?callback_port={port}"
+        f"&code_challenge={challenge}&code_challenge_method=S256"
+    )
     console.print("Opening browser to authenticate...")
     console.print(f"  [dim]{auth_url}[/dim]\n")
     webbrowser.open(auth_url)
