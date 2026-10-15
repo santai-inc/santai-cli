@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from santai_cli.commands.auth import exchange_code, new_pkce_pair
+from santai_cli.commands.auth import complete_callback, exchange_code, new_pkce_pair
 
 
 class _Response(BytesIO):
@@ -64,6 +64,42 @@ def test_exchange_code_rejects_a_reply_with_no_token() -> None:
     reply = lambda req, timeout=0: _reply({"user": {}})  # noqa: E731
     with patch("urllib.request.urlopen", reply), pytest.raises(ValueError):
         exchange_code("https://hub.sant.ai", "spent-code", "v")
+
+
+def test_callback_exchanges_the_code_it_was_handed() -> None:
+    reply = lambda req, timeout=0: _reply(  # noqa: E731
+        {"token": "sess-token", "user": {"username": "ada"}}
+    )
+    with patch("urllib.request.urlopen", reply):
+        creds = complete_callback("code=one-time-code", "https://hub.sant.ai", "v")
+
+    assert creds == {"token": "sess-token", "username": "ada"}
+
+
+# The pre-PKCE callback carried the session token itself. Honouring that again would let
+# anything that can reach the loopback port choose the token we save.
+def test_callback_refuses_a_token_in_the_query_string() -> None:
+    def never_called(req: object, timeout: int = 0) -> _Response:
+        raise AssertionError("the exchange endpoint should not be reached")
+
+    with (
+        patch("urllib.request.urlopen", never_called),
+        pytest.raises(ValueError, match="no login code"),
+    ):
+        complete_callback(
+            "token=attacker-session&username=ada", "https://hub.sant.ai", "v"
+        )
+
+
+def test_callback_reports_a_failed_exchange_rather_than_raising_oserror() -> None:
+    def boom(req: object, timeout: int = 0) -> _Response:
+        raise OSError("connection refused")
+
+    with (
+        patch("urllib.request.urlopen", boom),
+        pytest.raises(ValueError, match="could not exchange the login code"),
+    ):
+        complete_callback("code=c", "https://hub.sant.ai", "v")
 
 
 def test_pkce_challenge_is_the_sha256_of_the_verifier() -> None:

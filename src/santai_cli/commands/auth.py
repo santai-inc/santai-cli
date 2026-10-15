@@ -88,6 +88,18 @@ def exchange_code(hub_url: str, code: str, verifier: str) -> dict[str, str]:
     return {"token": token, "username": (data.get("user") or {}).get("username") or ""}
 
 
+def complete_callback(query: str, hub_url: str, verifier: str) -> dict[str, str]:
+    """Turn the loopback callback's query into credentials. Only a one-time code is
+    accepted: a `token` there would let whatever reaches the port pick our session."""
+    code = parse_qs(query).get("code", [None])[0]
+    if not code:
+        raise ValueError("no login code received")
+    try:
+        return exchange_code(hub_url, code, verifier)
+    except Exception as exc:
+        raise ValueError(f"could not exchange the login code ({exc})") from exc
+
+
 def _find_free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 0))
@@ -126,25 +138,10 @@ def login(
                 self.end_headers()
                 return
 
-            params = parse_qs(parsed.query)
-            code = params.get("code", [None])[0]
-            # A hub that predates the code exchange still redirects with the token
-            # itself, so keep accepting that rather than breaking against an older one.
-            token = params.get("token", [None])[0]
-            username = params.get("username", [None])[0]
-
-            if code:
-                try:
-                    exchanged = exchange_code(hub, code, verifier)
-                    token = exchanged["token"]
-                    username = exchanged["username"]
-                except Exception as exc:
-                    error.append(f"could not exchange the login code ({exc})")
-                    token = None
-
-            if not token:
-                if not error:
-                    error.append("no login code received")
+            try:
+                credentials = complete_callback(parsed.query, hub, verifier)
+            except ValueError as exc:
+                error.append(str(exc))
                 self.send_response(400)
                 self.send_header("Content-Type", "text/html")
                 self.end_headers()
@@ -156,8 +153,7 @@ def login(
                 got_callback.set()
                 return
 
-            result["token"] = token
-            result["username"] = username or ""
+            result.update(credentials)
             self.send_response(200)
             self.send_header("Content-Type", "text/html")
             self.end_headers()
